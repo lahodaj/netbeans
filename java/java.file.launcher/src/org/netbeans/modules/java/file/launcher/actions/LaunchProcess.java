@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.netbeans.modules.java.api.common.singlesourcefile;
+package org.netbeans.modules.java.file.launcher.actions;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,6 +28,7 @@ import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.netbeans.api.java.platform.JavaPlatformManager;
+import org.netbeans.modules.java.file.launcher.SingleSourceFileUtil;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 

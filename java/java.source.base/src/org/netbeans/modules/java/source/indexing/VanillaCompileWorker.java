@@ -789,7 +789,7 @@ final class VanillaCompileWorker extends CompileWorker {
                 return null;
             }
 
-            private final Set<String> RECORD_METHODS = Set.of("toString", "hashCode", "equals");
+            private final Set<String> RECORD_METHODS = new HashSet<>(Arrays.asList("toString", "hashCode", "equals"));
 
             private void fixRecordMethods(JCClassDecl clazz) {
                 if ((clazz.sym.flags() & Flags.RECORD) == 0) {
@@ -809,7 +809,7 @@ final class VanillaCompileWorker extends CompileWorker {
                 } finally {
                     dcfh.setHandler(prevHandler);
                 }
-                for (Symbol s : clazz.sym.members().getSymbols(s -> (s.flags() & Flags.RECORD) != 0 && RECORD_METHODS.contains(s.name.toString()) && s.kind == Kind.MTH)) {
+                for (Symbol s : clazz.sym.members().getSymbols(s -> (s.flags() & Flags.RECORD) != 0 && s.kind == Kind.MTH && RECORD_METHODS.contains(s.name.toString()))) {
                     clazz.defs = clazz.defs.prepend(make.MethodDef((MethodSymbol) s, make.Block(0, com.sun.tools.javac.util.List.of(throwTree("java.lang.runtime.ObjectMethods does not exist!")))));
                     s.flags_field &= ~Flags.RECORD;
                 }

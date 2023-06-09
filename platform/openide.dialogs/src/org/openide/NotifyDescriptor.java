@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.GroupLayout;
@@ -49,6 +50,8 @@ import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.LayoutStyle;
 import javax.swing.UIManager;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import org.openide.awt.Mnemonics;
 import org.openide.util.NbBundle;
 
@@ -1032,10 +1035,13 @@ public class NotifyDescriptor extends Object {
     * @author Dafe Simonek
     */
     public static class InputLine extends NotifyDescriptor {
+        public static final String PROP_INPUT_TEXT = "inputText"; // NOI18N
+
         /**
         * The text field used to enter the input.
         */
         protected JTextField textField;
+        private final AtomicBoolean suppressEvents = new AtomicBoolean();
 
         /** Construct dialog with the specified title and label text.
         * @param text label text
@@ -1070,8 +1076,14 @@ public class NotifyDescriptor extends Object {
         * @param text the new text
         */
         public void setInputText(final String text) {
-            textField.setText(text);
-            textField.selectAll();
+            suppressEvents.set(true);
+            try {
+                textField.setText(text);
+                textField.selectAll();
+                firePropertyChange(PROP_INPUT_TEXT, null, null);
+            } finally {
+                suppressEvents.set(false);
+            }
         }
 
         /** Make a component representing the input line.
@@ -1087,6 +1099,24 @@ public class NotifyDescriptor extends Object {
 
             boolean longText = text.length () > 80;
             textField = createTextField(); 
+            textField.getDocument().addDocumentListener(new DocumentListener() {
+                @Override
+                public void insertUpdate(DocumentEvent e) {
+                    if (!suppressEvents.get()) {
+                        firePropertyChange(PROP_INPUT_TEXT, null, null);
+                    }
+                }
+
+                @Override
+                public void removeUpdate(DocumentEvent e) {
+                    if (!suppressEvents.get()) {
+                        firePropertyChange(PROP_INPUT_TEXT, null, null);
+                    }
+                }
+
+                @Override
+                public void changedUpdate(DocumentEvent e) {}
+            });
             textLabel.setLabelFor(textField);
             
             textField.requestFocus();
@@ -1162,7 +1192,7 @@ public class NotifyDescriptor extends Object {
             
             return panel;
         }
-        
+
         JTextField createTextField() {
             return new JTextField(25);
         }

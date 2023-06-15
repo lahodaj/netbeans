@@ -66,7 +66,6 @@ import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.OpensTree;
 import com.sun.source.tree.PackageTree;
 import com.sun.source.tree.ParameterizedTypeTree;
-import com.sun.source.tree.ParenthesizedPatternTree;
 import com.sun.source.tree.ParenthesizedTree;
 import com.sun.source.tree.PatternCaseLabelTree;
 import com.sun.source.tree.PrimitiveTypeTree;

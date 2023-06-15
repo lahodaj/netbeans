@@ -22,7 +22,6 @@ import com.sun.source.tree.BindingPatternTree;
 import com.sun.source.tree.BlockTree;
 import com.sun.source.tree.DeconstructionPatternTree;
 import com.sun.source.tree.ExpressionTree;
-import com.sun.source.tree.ParenthesizedPatternTree;
 import com.sun.source.tree.PatternTree;
 import com.sun.source.tree.StatementTree;
 import com.sun.source.tree.Tree;

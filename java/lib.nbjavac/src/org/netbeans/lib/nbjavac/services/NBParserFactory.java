@@ -139,8 +139,8 @@ public class NBParserFactory extends ParserFactory {
             //no end position. Inject the end position for the variable:
             if (result instanceof JCEnhancedForLoop) {
                 JCEnhancedForLoop tree = (JCEnhancedForLoop) result;
-                if (getEndPos(tree.varOrRecordPattern) == Position.NOPOS) {
-                    endPosTable.storeEnd(tree.varOrRecordPattern, getEndPos(((JCVariableDecl) tree.varOrRecordPattern).vartype));
+                if (getEndPos(tree.var) == Position.NOPOS) {
+                    endPosTable.storeEnd(tree.var, getEndPos(((JCVariableDecl) tree.var).vartype));
                 }
             }
             return result;

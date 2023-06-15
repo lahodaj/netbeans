@@ -165,9 +165,6 @@ public class ConvertToNestedRecordPattern {
                     findNested(new TreePath(patternPath, p), nestedBindingPatterns);
                 }
                 return nestedBindingPatterns;
-            case PARENTHESIZED_PATTERN:
-                ParenthesizedPatternTree parenthTree = (ParenthesizedPatternTree) patternPath.getLeaf();
-                return findNested(new TreePath(patternPath, parenthTree.getPattern()), nestedBindingPatterns);
             default:
                 return nestedBindingPatterns;
         }
@@ -286,9 +283,6 @@ public class ConvertToNestedRecordPattern {
                     list.add(val);
                 }
                 return (DeconstructionPatternTree) wc.getTreeMaker().RecordPattern(bTree.getDeconstructor(), list, null);
-            case PARENTHESIZED_PATTERN:
-                ParenthesizedPatternTree parenthTree = (ParenthesizedPatternTree) pTree;
-                return createNestedPattern(parenthTree.getPattern(), wc, map);
             default:
                 return pTree;
         }

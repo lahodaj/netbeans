@@ -477,6 +477,15 @@ public class TreeFactory {
     }
     
     public ImportTree Import(Tree qualid, boolean importStatic) {
+        if (qualid.getKind() == Kind.IDENTIFIER) {
+            //existing code sometimes sends the FQN as an identifier:
+            String fqn = ((IdentifierTree) qualid).getName().toString();
+            int lastDot = fqn.lastIndexOf('.');
+            if (lastDot != (-1)) {
+                qualid = make.Select(make.Ident(names.fromString(fqn.substring(0, lastDot))),
+                                     names.fromString(fqn.substring(lastDot + 1)));
+            }
+        }
         return make.at(NOPOS).Import((JCFieldAccess)qualid, importStatic);
     }
     

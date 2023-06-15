@@ -2017,6 +2017,15 @@ public class CasualDiff {
         copyTo(localPointer, copyTo);
         localPointer = diffList2(oldPatterns, newPatterns, posHint, patternEst);
         tokenSequence.move(endpos);
+        if (oldT.guard != null && newT.guard != null) {
+            int[] guardBounds = getBounds(oldT.guard);
+            copyTo(localPointer, guardBounds[0]);
+            diffTree(oldT.guard, newT.guard, guardBounds);
+        } else if (oldT.guard != null && newT.guard == null) {
+            //TODO:
+        } else if (oldT.guard == null && newT.guard != null) {
+            //TODO:
+        }
         do { } while (tokenSequence.moveNext() && JavaTokenId.COLON != tokenSequence.token().id() && JavaTokenId.ARROW != tokenSequence.token().id());
         boolean reindentStatements = false;
         if (Objects.equals(oldT.getCaseKind(), newT.getCaseKind())) {

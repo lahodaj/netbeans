@@ -191,13 +191,7 @@ public class ErrorHintsProviderTest extends NbTestCase {
     }
     
     public void testShortErrors8() throws Exception {
-        TestCompilerSettings.commandLine = "--enable-preview";
-
-        try {
-            performTest("TestShortErrors8", false, "20");
-        } finally {
-            TestCompilerSettings.commandLine = null;
-        }
+        performTest("TestShortErrors8", false, "21");
     }
     
     public void testShortErrors9() throws Exception {

@@ -1342,6 +1342,11 @@ public final class VeryPretty extends JCTree.Visitor implements DocTreeVisitor<V
                 printNoParenExpr(lab);
                 sep = ", "; //TODO: space or not should be a configuration setting
             }
+            if (tree.getGuard() != null) {
+                needSpace();
+                print("when ");
+                print(tree.getGuard());
+            }
         }
         Object caseKind = tree.getCaseKind();
         if (caseKind == null || !String.valueOf(caseKind).equals("RULE")) {

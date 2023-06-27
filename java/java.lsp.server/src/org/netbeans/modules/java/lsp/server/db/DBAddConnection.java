@@ -227,6 +227,7 @@ public class DBAddConnection implements CommandProvider {
                     String url = ((InputLine) input.getInputs()[1]).getInputText();
                     String user = ((InputLine) input.getInputs()[2]).getInputText();
                     String passwd = ((InputLine) input.getInputs()[3]).getInputText();
+                    boolean failed = true;
 
                     schemas.clear();
 
@@ -234,12 +235,15 @@ public class DBAddConnection implements CommandProvider {
                     try {
                         ConnectionManager.getDefault().addConnection(dbconn);
                         schemas.addAll(getSchemas(dbconn));
+                        failed = false;
                     } catch(DatabaseException | SQLException ex) {
                         current.createNotificationLineSupport().setErrorMessage(ex.getMessage());
                         current.setValid(false);
                     } finally {
                         try {
-                            ConnectionManager.getDefault().removeConnection(dbconn);
+                            if (failed || !schemas.isEmpty()) {
+                                ConnectionManager.getDefault().removeConnection(dbconn);
+                            }
                         } catch (DatabaseException ex) {}
                     }
                 }

@@ -53,9 +53,11 @@ import { asRanges, StatusMessageRequest, ShowStatusMessageParams, QuickPickReque
 import * as launchConfigurations from './launchConfigurations';
 import { createTreeViewService, TreeViewService, TreeItemDecorator, Visualizer, CustomizableTreeDataProvider } from './explorer';
 import { initializeRunConfiguration, runConfigurationProvider, runConfigurationNodeProvider, configureRunSettings, runConfigurationUpdateAll } from './runConfiguration';
+import { DBConfigurationProvider } from './dbConfigurationProvider';
 import { TLSSocket } from 'tls';
 import { InputStep, MultiStepInput } from './utils';
 import { env } from 'process';
+import { PropertiesView } from './propertiesView/propertiesView';
 
 const API_VERSION : string = "1.0";
 const DATABASE: string = 'Database';
@@ -412,6 +414,7 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
     // initialize Run Configuration
     initializeRunConfiguration().then(initialized => {
 		if (initialized) {
+            context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('java+', new DBConfigurationProvider()));
 			context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('java+', runConfigurationProvider));
 			context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('java', runConfigurationProvider));
 			context.subscriptions.push(vscode.window.registerTreeDataProvider('run-config', runConfigurationNodeProvider));
@@ -620,6 +623,9 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
     context.subscriptions.push(commands.registerCommand('nbls.startup.condition', async () => {
         return client;
     }));
+
+    context.subscriptions.push(commands.registerCommand('nbls.node.properties.edit',
+        async (node) => await PropertiesView.createOrShow(context, node)));
 
     launchConfigurations.updateLaunchConfig();
 

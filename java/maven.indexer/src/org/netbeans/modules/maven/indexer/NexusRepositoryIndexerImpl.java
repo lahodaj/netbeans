@@ -34,6 +34,8 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,6 +46,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import java.util.zip.ZipError;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.codehaus.plexus.PlexusConstants;
@@ -60,9 +63,13 @@ import org.apache.maven.index.context.DefaultIndexingContext;
 import org.apache.maven.index.context.IndexCreator;
 import org.apache.maven.index.context.IndexUtils;
 import org.apache.maven.index.context.IndexingContext;
-import org.apache.maven.index.creator.OsgiArtifactIndexCreator;
+import org.apache.maven.index.creator.JarFileContentsIndexCreator;
+import org.apache.maven.index.creator.MavenArchetypeArtifactInfoIndexCreator;
+import org.apache.maven.index.creator.MavenPluginArtifactInfoIndexCreator;
+import org.apache.maven.index.creator.MinimalArtifactInfoIndexCreator;
 import org.apache.maven.index.expr.StringSearchExpression;
 import org.apache.maven.index.updater.IndexUpdateRequest;
+import org.apache.maven.index.updater.IndexUpdateResult;
 import org.apache.maven.index.updater.IndexUpdater;
 import org.apache.maven.index.updater.ResourceFetcher;
 import org.apache.maven.search.SearchRequest;
@@ -128,6 +135,9 @@ import org.openide.util.lookup.ServiceProvider;
 import org.openide.util.lookup.ServiceProviders;
 import org.openide.util.NbBundle.Messages;
 import org.netbeans.modules.maven.indexer.spi.RepositoryIndexQueryProvider;
+
+import static org.apache.maven.index.creator.MinimalArtifactInfoIndexCreator.FLD_LAST_MODIFIED;
+
 
 //index fields
 //https://maven.apache.org/maven-indexer-archives/maven-indexer-LATEST/indexer-core/
@@ -222,18 +232,13 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
         return this;
     }
     
-    private Mutex getRepoMutex(RepositoryInfo repo) {
+    private static Mutex getRepoMutex(RepositoryInfo repo) {
         return getRepoMutex(repo.getId());
     }
     
-    private Mutex getRepoMutex(String repoId) {
+    private static Mutex getRepoMutex(String repoId) {
         synchronized (repoMutexMap) {
-            Mutex m = repoMutexMap.get(repoId);
-            if (m == null) {
-                m = new Mutex();
-                repoMutexMap.put(repoId, m);
-            }
-            return m;
+            return repoMutexMap.computeIfAbsent(repoId, k -> new Mutex());
         }
     }
     
@@ -301,28 +306,13 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
                 /* indexers */ indexers);
 
         // The allGroups and rootGroups properties of the IndexingContext are
-        // not persistent anymore, so need to be save outside the context
-        boolean needGroupCacheRebuild = false;
+        // not persistent anymore, so need to be saved outside the context
         try {
             context.setAllGroups(Files.readAllLines(getAllGroupCacheFile(repo)));
-        } catch (IOException ex) {
-            needGroupCacheRebuild = true;
-        }
-        try {
             context.setRootGroups(Files.readAllLines(getRootGroupCacheFile(repo)));
         } catch (IOException ex) {
-            needGroupCacheRebuild = true;
-        }
-        // At least one of the group caches could not be loaded, so rebuild it
-        if(needGroupCacheRebuild) {
-            RP_LOCAL.submit(() -> {
-                try {
-                    context.rebuildGroups();
-                    storeGroupCache(repo, context);
-                } catch (IOException ex) {
-                    LOGGER.log(Level.WARNING, "Failed to store group caches for repo: " + repo.getId(), ex);
-                }
-            });
+            // At least one of the group caches could not be loaded, so rebuild it
+            rebuildGroupCache(repo, context);
         }
         indexingContexts.put(context.getId(), context);
         return context;
@@ -359,24 +349,23 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
             }
             LOGGER.log(Level.FINE, "Loading Context: {0}", info.getId());
 
-            List<IndexCreator> creators = new ArrayList<>();
-            try {
-                for (IndexCreator creator : embedder.lookupList(IndexCreator.class)) {
-                    if (OsgiArtifactIndexCreator.ID.equals(creator.getId())) {
-                        continue; //we are no interested in osgi related content in lucene documents or ArtifactInfo objects.
-                        //they take up a lot of memory and we never query them AFAIK. (import/export packages can take up to 300k
-                        //239915, 240150 + according to my knowledge we don't expose any api that would allow 3rd party plugins to query the osgi stuff
-                    }
-                    creators.add(creator);
-                }
-            } catch (ComponentLookupException x) {
-                throw new IOException(x);
-            }
-            if (info.isLocal()) { // #164593
-                creators.add(new ArtifactDependencyIndexCreator());
-                creators.add(new ClassDependencyIndexCreator());
+            List<IndexCreator> creators;
+            if (info.isLocal()) {
+                creators = List.of(
+                    new JarFileContentsIndexCreator(),
+                    new MinimalArtifactInfoIndexCreator(),
+                    new MavenArchetypeArtifactInfoIndexCreator(),
+                    new MavenPluginArtifactInfoIndexCreator(),
+                    new ArtifactDependencyIndexCreator(),
+                    new ClassDependencyIndexCreator()
+                );
             } else {
-                creators.add(new NotifyingIndexCreator());
+                creators = List.of(
+                    info.getId().equals(smo.getRepositoryId())
+                            ? new MinimalArtifactInfoRemoteIndexCreator()
+                            : new MinimalArtifactInfoIndexCreator(),
+                    new NotifyingIndexCreator()
+                );
             }
             try {
                 addIndexingContextForced(info, creators);
@@ -417,7 +406,11 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
         }
     }
 
-    private @CheckForNull IteratorSearchResponse repeatedPagedSearch(Query q, final List<IndexingContext> contexts, int count) throws IOException {
+    private @CheckForNull IteratorSearchResponse repeatedPagedSearch(Query q, IndexingContext context, int count) throws IOException {
+        return repeatedPagedSearch(q, List.of(context), count);
+    }
+
+    private @CheckForNull IteratorSearchResponse repeatedPagedSearch(Query q, List<IndexingContext> contexts, int count) throws IOException {
         IteratorSearchRequest isr = new IteratorSearchRequest(q, contexts, new NoJavadocSourceFilter());
         if (count > 0) {
             isr.setCount(count);
@@ -492,6 +485,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
         }
         boolean fetchFailed = false;
         long t = System.currentTimeMillis();
+        IndexUpdateResult fetchUpdateResult = null;
         RemoteIndexTransferListener listener = null;
         try {
             IndexingContext indexingContext = getIndexingContexts().get(repo.getId());
@@ -554,21 +548,26 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
                     } else {
                         iur.setThreads(1);
                     }
-
-                    NotifyingIndexCreator nic = null;
-                    for (IndexCreator ic : indexingContext.getIndexCreators()) {
-                        if (ic instanceof NotifyingIndexCreator) {
-                            nic = (NotifyingIndexCreator) ic;
-                            break;
-                        }
+                    if (RepositoryPreferences.getIndexDateCutoffFilter() > 0) {
+                        Instant cutoff = ZonedDateTime.now()
+                                .minusYears(RepositoryPreferences.getIndexDateCutoffFilter())
+                                .toInstant();
+                        iur.setExtractionFilter(doc -> {
+                            IndexableField date = doc.getField(FLD_LAST_MODIFIED.getKey()); // usually never null
+                            return date != null && Instant.ofEpochMilli(Long.parseLong(date.stringValue())).isAfter(cutoff);
+                        });
                     }
+
+                    NotifyingIndexCreator nic = (NotifyingIndexCreator) indexingContext.getIndexCreators().stream()
+                            .filter(c -> c instanceof NotifyingIndexCreator)
+                            .findAny().orElse(null);
+
                     if (nic != null) {
                         nic.start(listener);
                     }
                     try {
-                        Files.deleteIfExists(getAllGroupCacheFile(repo));
-                        Files.deleteIfExists(getRootGroupCacheFile(repo));
-                        remoteIndexUpdater.fetchAndUpdateIndex(iur);
+                        removeGroupCache(repo);
+                        fetchUpdateResult = remoteIndexUpdater.fetchAndUpdateIndex(iur);
                         storeGroupCache(repo, indexingContext);
                     } catch (IOException | AlreadyClosedException | IllegalArgumentException ex) {
                         // AlreadyClosedException can happen in low storage situations when lucene is trying to handle IOEs
@@ -578,6 +577,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
                     } catch (RuntimeException ex) {
                         // thread pools, like the one used in maven-indexer's IndexDataReader, may suppress cancellation exceptions
                         // lets try to find them again
+                        fetchFailed = true;
                         if (isCancellation(ex)) {
                             Cancellation cancellation = new Cancellation();
                             cancellation.addSuppressed(ex);
@@ -608,8 +608,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
                     RepositoryIndexerListener repoListener = new RepositoryIndexerListener(indexingContext);
                     try {
                         // Ensure no stale cache files are left
-                        Files.deleteIfExists(getAllGroupCacheFile(repo));
-                        Files.deleteIfExists(getRootGroupCacheFile(repo));
+                        removeGroupCache(repo);
                         scan(indexingContext, null, repoListener, updateLocal);
                         storeGroupCache(repo, indexingContext);
                     } finally {
@@ -650,7 +649,13 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
         } catch (ComponentLookupException x) {
             throw new IOException("could not find protocol handler for " + repo.getRepositoryUrl(), x);
         } finally {
-            LOGGER.log(Level.INFO, "Indexing of {0} took {1} s.", new Object[]{repo.getId(), String.format("%.2f", (System.currentTimeMillis() - t)/1000.0f)});
+            String kind;
+            if (fetchUpdateResult != null) {
+                kind = fetchUpdateResult.isFullUpdate() ? "download, create" : "incremental download, update";
+            } else {
+                kind = "scan";
+            }
+            LOGGER.log(Level.INFO, "Indexing [{0}] of {1} took {2}s.", new Object[]{kind, repo.getId(), String.format("%.2f", (System.currentTimeMillis() - t)/1000.0f)});
             synchronized (indexingMutexes) {
                 indexingMutexes.remove(mutex);
             }
@@ -803,7 +808,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
         if (!tmpDir.mkdirs()) {
             throw new IOException( "Cannot create temporary directory: " + tmpDir );
         }
-        File tmpFile = new File(tmpDir, context.getId() + "-tmp");
+        File tmpFile = new File(tmpDir, context.getId() + "-tmp"); // TODO: purpose of file?
  
         IndexingContext tmpContext = null;
         try {
@@ -882,7 +887,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
                             BooleanQuery bq = new BooleanQuery.Builder()
                                     .add(new BooleanClause(new PrefixQuery(new Term(ArtifactInfo.UINFO, id)), BooleanClause.Occur.MUST))
                                     .build();
-                            IteratorSearchResponse response = repeatedPagedSearch(bq, Collections.singletonList(indexingContext), MAX_RESULT_COUNT);
+                            IteratorSearchResponse response = repeatedPagedSearch(bq, indexingContext, MAX_RESULT_COUNT);
                             add = response == null || response.getTotalHitsCount() == 0;
                             if (response != null) {
                                 response.close();
@@ -955,7 +960,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
                 File pom = new File(pomPath);
                 if (pom.exists()) {
                     //TODO batch removal??
-                    indexer.deleteArtifactsFromIndex(Collections.singleton(contextProducer.getArtifactContext(indexingContext, pom)), indexingContext);
+                    indexer.deleteArtifactsFromIndex(List.of(contextProducer.getArtifactContext(indexingContext, pom)), indexingContext);
                     storeGroupCache(repo, indexingContext);
                 }
                 return null;
@@ -1081,7 +1086,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
                 .add(new BooleanClause(new TermQuery(new Term(ArtifactInfo.PACKAGING, packaging)), BooleanClause.Occur.MUST))
                 .build();
         iterate(repos, (RepositoryInfo repo, IndexingContext context) -> {
-            IteratorSearchResponse response = repeatedPagedSearch(bq, Collections.singletonList(context), NO_CAP_RESULT_COUNT);
+            IteratorSearchResponse response = repeatedPagedSearch(bq, context, NO_CAP_RESULT_COUNT);
             if (response != null) {
                try {
                     for (ArtifactInfo ai : response) {
@@ -1118,7 +1123,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
                 .add(new BooleanClause(new PrefixQuery(new Term(ArtifactInfo.UINFO, id)), BooleanClause.Occur.MUST))
                 .build();
         iterate(repos, (RepositoryInfo repo, IndexingContext context) -> {
-            IteratorSearchResponse response = repeatedPagedSearch(bq, Collections.singletonList(context), MAX_RESULT_COUNT);
+            IteratorSearchResponse response = repeatedPagedSearch(bq, context, MAX_RESULT_COUNT);
             if (response != null) {
                 try {
                     for (ArtifactInfo ai : response) {
@@ -1153,7 +1158,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
                 .build();
         iterate(repos, (RepositoryInfo repo, IndexingContext context) -> {
             //mkleint: this is not capped, because only a string is collected (and collapsed), the rest gets CGed fast
-            IteratorSearchResponse response = repeatedPagedSearch(bq, Collections.singletonList(context), NO_CAP_RESULT_COUNT);
+            IteratorSearchResponse response = repeatedPagedSearch(bq, context, NO_CAP_RESULT_COUNT);
             if (response != null) {
                 try {
                     for (ArtifactInfo artifactInfo : response.getResults()) {
@@ -1183,7 +1188,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
                 .add(new BooleanClause(setBooleanRewrite(new PrefixQuery(new Term(ArtifactInfo.UINFO, id))), BooleanClause.Occur.MUST))
                 .build();
         iterate(repos, (RepositoryInfo repo, IndexingContext context) -> {
-            IteratorSearchResponse response = repeatedPagedSearch(bq, Collections.singletonList(context), MAX_RESULT_COUNT);
+            IteratorSearchResponse response = repeatedPagedSearch(bq, context, MAX_RESULT_COUNT);
             if (response != null) {
                 try {
                     for (ArtifactInfo ai : response) {
@@ -1241,7 +1246,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
             }
 
             Query q = setBooleanRewrite(constructQuery(MAVEN.CLASSNAMES, clsname.toLowerCase(Locale.ENGLISH)));
-            IteratorSearchResponse response = repeatedPagedSearch(q, Collections.singletonList(context), MAX_RESULT_COUNT);
+            IteratorSearchResponse response = repeatedPagedSearch(q, context, MAX_RESULT_COUNT);
             if (response != null) {
                 try {
                     infos.addAll(postProcessClasses(response.getResults(), clsname));
@@ -1284,7 +1289,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
         final List<RepositoryQueries.ClassUsage> results = new ArrayList<>(result.getResults());
         final SkippedAction skipAction = new SkippedAction(result);
         iterate(localRepos, (RepositoryInfo repo, IndexingContext context) -> {
-            ClassDependencyIndexCreator.search(className, indexer, Collections.singletonList(context), results);
+            ClassDependencyIndexCreator.search(className, indexer, List.of(context), results);
         }, skipAction, skipUnIndexed);
         results.sort((RepositoryQueries.ClassUsage r1, RepositoryQueries.ClassUsage r2) -> r1.getArtifact().compareTo(r2.getArtifact()));
         result.setResults(results);
@@ -1303,7 +1308,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
         final List<NBVersionInfo> infos = new ArrayList<>(result.getResults());
         final SkippedAction skipAction = new SkippedAction(result);
         iterate(repos, (RepositoryInfo repo, IndexingContext context) -> {
-            IteratorSearchResponse response = repeatedPagedSearch(q, Collections.singletonList(context), MAX_RESULT_COUNT);
+            IteratorSearchResponse response = repeatedPagedSearch(q, context, MAX_RESULT_COUNT);
             if (response != null) {
                 try {
                     for (ArtifactInfo ai : response) {
@@ -1401,7 +1406,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
             BooleanQuery bq = new BooleanQuery.Builder()
                     .add(new BooleanClause((setBooleanRewrite(constructQuery(MAVEN.SHA1, sha1))), BooleanClause.Occur.SHOULD))
                     .build();
-            IteratorSearchResponse response = repeatedPagedSearch(bq, Collections.singletonList(context), MAX_RESULT_COUNT);
+            IteratorSearchResponse response = repeatedPagedSearch(bq, context, MAX_RESULT_COUNT);
             if (response != null) {
                 try {
                     for (ArtifactInfo ai : response) {
@@ -1439,7 +1444,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
             FlatSearchRequest fsr = new FlatSearchRequest(bq, ArtifactInfo.VERSION_COMPARATOR);
             fsr.setCount(MAX_RESULT_COUNT);
             */
-            IteratorSearchResponse response = repeatedPagedSearch(bq, Collections.singletonList(context), NO_CAP_RESULT_COUNT);
+            IteratorSearchResponse response = repeatedPagedSearch(bq, context, NO_CAP_RESULT_COUNT);
             if (response != null) {
                 try {
                     for (ArtifactInfo ai : response) {
@@ -1475,7 +1480,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
                 .build();
         iterate(repos, (RepositoryInfo repo, IndexingContext context) -> {
             //mkleint: this is not capped, because only a string is collected (and collapsed), the rest gets CGed fast
-            IteratorSearchResponse response = repeatedPagedSearch(bq, Collections.singletonList(context), NO_CAP_RESULT_COUNT);
+            IteratorSearchResponse response = repeatedPagedSearch(bq, context, NO_CAP_RESULT_COUNT);
             if (response != null) {
                 try {
                     for (ArtifactInfo artifactInfo : response.getResults()) {
@@ -1509,7 +1514,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
         BooleanQuery bq = builder.build();
         iterate(repos, (RepositoryInfo repo, IndexingContext context) -> {
             //mkleint: this is not capped, because only a string is collected (and collapsed), the rest gets CGed fast
-            IteratorSearchResponse response = repeatedPagedSearch(bq, Collections.singletonList(context), NO_CAP_RESULT_COUNT);
+            IteratorSearchResponse response = repeatedPagedSearch(bq, context, NO_CAP_RESULT_COUNT);
             if (response != null) {
                 try {
                     for (ArtifactInfo artifactInfo : response.getResults()) {
@@ -1604,7 +1609,7 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
                         //queries for each field.
                     }
                 }
-                IteratorSearchResponse resp = repeatedPagedSearch(bq.build(), Collections.singletonList(context), MAX_RESULT_COUNT);
+                IteratorSearchResponse resp = repeatedPagedSearch(bq.build(), context, MAX_RESULT_COUNT);
                 if (resp != null) {
                     try {
                         for (ArtifactInfo ai : resp) {
@@ -1794,21 +1799,47 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
         return getIndexDirectory(info).resolve(GROUP_CACHE_ROOT_PREFIX + "." + GROUP_CACHE_ROOT_SUFFIX);
     }
 
-    private void storeGroupCache(RepositoryInfo repoInfo, IndexingContext ic) throws IOException {
-
-        Path indexDir = getIndexDirectory(repoInfo);
+    private static void storeGroupCache(RepositoryInfo repo, IndexingContext context) throws IOException {
+        Path indexDir = getIndexDirectory(repo);
         Path tempAllCache = Files.createTempFile(indexDir, GROUP_CACHE_ALL_PREFIX, GROUP_CACHE_ALL_SUFFIX);
         Path tempRootCache = Files.createTempFile(indexDir, GROUP_CACHE_ROOT_PREFIX, GROUP_CACHE_ROOT_SUFFIX);
         try {
-            Files.write(tempAllCache, ic.getAllGroups());
-            Files.move(tempAllCache, getAllGroupCacheFile(repoInfo), StandardCopyOption.REPLACE_EXISTING);
+            Files.write(tempAllCache, context.getAllGroups());
+            Files.move(tempAllCache, getAllGroupCacheFile(repo), StandardCopyOption.REPLACE_EXISTING);
 
-            Files.write(tempRootCache, ic.getRootGroups());
-            Files.move(tempRootCache, getRootGroupCacheFile(repoInfo), StandardCopyOption.REPLACE_EXISTING);
+            Files.write(tempRootCache, context.getRootGroups());
+            Files.move(tempRootCache, getRootGroupCacheFile(repo), StandardCopyOption.REPLACE_EXISTING);
         } finally {
             Files.deleteIfExists(tempAllCache);
             Files.deleteIfExists(tempRootCache);
         }
+    }
+
+    private static void removeGroupCache(RepositoryInfo repo) throws IOException {
+        Files.deleteIfExists(getAllGroupCacheFile(repo));
+        Files.deleteIfExists(getRootGroupCacheFile(repo));
+    }
+
+    private static void rebuildGroupCache(RepositoryInfo repo, IndexingContext context) throws IOException {
+        removeGroupCache(repo);
+        (repo.isLocal() ? RP_LOCAL : RP_REMOTE).submit(() -> {
+            getRepoMutex(repo).writeAccess(() -> {
+                Path allGroupsPath = getAllGroupCacheFile(repo);
+                Path rootGroupsPath = getRootGroupCacheFile(repo);
+                if (Files.exists(allGroupsPath) && Files.exists(rootGroupsPath)) {
+                    return; // already rebuilt
+                }
+                try {
+                    LOGGER.log(Level.FINE, "Rebuilding group cache for {0}", repo.getId());
+                    long start = System.currentTimeMillis();
+                    context.rebuildGroups();
+                    storeGroupCache(repo, context);
+                    LOGGER.log(Level.INFO, "Group cache rebuilding of {0} took {1}s.", new Object[] {repo.getId(), (System.currentTimeMillis()-start)});
+                } catch (IOException e) {
+                    LOGGER.log(Level.WARNING, "Failed to rebuild groups for repo: " + repo.getId(), e);
+                }
+            });
+        });
     }
 
     // somewhat based on maven-indexer impl (in WagonHelper) prior to removal in maven-indexer 7.0.0
@@ -1870,7 +1901,6 @@ public class NexusRepositoryIndexerImpl implements RepositoryIndexerImplementati
 
         @Override
         public InputStream retrieve(String name) throws IOException, FileNotFoundException {
-
             if (isDiag()) {
                 String id = wagon.getRepository().getId();
                 if(name.endsWith(".properties") && System.getProperty("maven.diag.index.properties." + id) != null) { // NOI18N

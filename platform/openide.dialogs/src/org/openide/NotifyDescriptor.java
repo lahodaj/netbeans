@@ -1035,13 +1035,21 @@ public class NotifyDescriptor extends Object {
     * @author Dafe Simonek
     */
     public static class InputLine extends NotifyDescriptor {
+        /**
+         * Property whose value is the input text, an event is fired
+         * when the input text's value changes,
+         * if enabled using {@link #setInputTextEventsEnabled(boolean) }.
+         *
+         * @since 7.68
+         */
         public static final String PROP_INPUT_TEXT = "inputText"; // NOI18N
 
         /**
         * The text field used to enter the input.
         */
         protected JTextField textField;
-        private final AtomicBoolean suppressEvents = new AtomicBoolean();
+        private final AtomicBoolean inputTextEventSuppressed = new AtomicBoolean();
+        private final AtomicBoolean inputTextEventEnabled = new AtomicBoolean();
 
         /** Construct dialog with the specified title and label text.
         * @param text label text
@@ -1076,14 +1084,28 @@ public class NotifyDescriptor extends Object {
         * @param text the new text
         */
         public void setInputText(final String text) {
-            suppressEvents.set(true);
+            inputTextEventSuppressed.set(true);
             try {
                 textField.setText(text);
                 textField.selectAll();
-                firePropertyChange(PROP_INPUT_TEXT, null, null);
+                if (inputTextEventEnabled.get()) {
+                    firePropertyChange(PROP_INPUT_TEXT, null, null);
+                }
             } finally {
-                suppressEvents.set(false);
+                inputTextEventSuppressed.set(false);
             }
+        }
+
+        /**
+         * Enable the {@link #PROP_INPUT_TEXT} when the input text is changed.
+         *
+         * @param value {@code true} if the {@code PROP_INPUT_TEXT} even should be fired
+         *              when the input text is modified, {@code false} otherwise.
+         *
+         * @since 7.68
+         */
+        public void setInputTextEventEnabled(boolean value) {
+            inputTextEventEnabled.set(value);
         }
 
         /** Make a component representing the input line.
@@ -1102,14 +1124,14 @@ public class NotifyDescriptor extends Object {
             textField.getDocument().addDocumentListener(new DocumentListener() {
                 @Override
                 public void insertUpdate(DocumentEvent e) {
-                    if (!suppressEvents.get()) {
+                    if (inputTextEventEnabled.get() && !inputTextEventSuppressed.get()) {
                         firePropertyChange(PROP_INPUT_TEXT, null, null);
                     }
                 }
 
                 @Override
                 public void removeUpdate(DocumentEvent e) {
-                    if (!suppressEvents.get()) {
+                    if (inputTextEventEnabled.get() && !inputTextEventSuppressed.get()) {
                         firePropertyChange(PROP_INPUT_TEXT, null, null);
                     }
                 }

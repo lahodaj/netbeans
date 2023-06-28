@@ -193,6 +193,7 @@ public class DBAddConnection implements CommandProvider {
                         case 4: {
                             //should be:
                             PasswordLine passwd = new PasswordLine("", Bundle.MSG_EnterPassword());
+                            passwd.setInputTextEventEnabled(true);
                             passwd.addPropertyChangeListener(evt -> {
                                 if (evt.getPropertyName() == null ||
                                     InputLine.PROP_INPUT_TEXT.equals(evt.getPropertyName())) {

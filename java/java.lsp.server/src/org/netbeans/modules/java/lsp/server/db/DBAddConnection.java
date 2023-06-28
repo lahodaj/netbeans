@@ -155,7 +155,7 @@ public class DBAddConnection implements CommandProvider {
             if (jars != null && jars.length > 0) {
                 FileObject jarFO = URLMapper.findFileObject(jars[0]);
                 if (jarFO != null && jarFO.isValid()) {
-                    Item item = 
+                    Item item =
                             new Item(drivers[i].getName(), drivers[i].getDisplayName() + " (" + drivers[i].getClassName() + ")"); // NOI18N
                     items.add(item);
                     item2Driver.put(item, drivers[i]);

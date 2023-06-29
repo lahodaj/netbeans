@@ -299,7 +299,7 @@ public class TextDocumentServiceImpl implements TextDocumentService, LanguageCli
         Lookup.getDefault().lookup(RefreshDocument.class).register(this);
     }
 
-    private void reRunDiagnostics() {
+    void reRunDiagnostics() {
         for (String doc : server.getOpenedDocuments().getUris()) {
             runDiagnosticTasks(doc, true);
         }

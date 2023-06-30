@@ -1207,7 +1207,9 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
         });
         boolean modified = false;
         String newVMOptions = "";
-        JsonObject javaPlus = ((JsonObject) params.getSettings()).getAsJsonObject("java+");
+        String prefix = "netbeans.".equals(client.getNbCodeCapabilities().getConfigurationPrefix()) ? "java+." : client.getNbCodeCapabilities().getConfigurationPrefix();
+        prefix = prefix.substring(0, prefix.length() - 1);
+        JsonObject javaPlus = ((JsonObject) params.getSettings()).getAsJsonObject(prefix);
         if (javaPlus != null) {
             newVMOptions = javaPlus.getAsJsonObject("runConfig").getAsJsonPrimitive("vmOptions").getAsString();
         }

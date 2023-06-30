@@ -91,7 +91,8 @@ public class EnablePreviewSingleSourceFile implements PreviewEnabler {
             } else {
                 compilerArgs += (compilerArgs.isEmpty() ? "" : " ") + ENABLE_PREVIEW_FLAG + " " + SOURCE_FLAG + " " + realNewSourceLevel;
             }
-            client.configurationUpdate(new UpdateConfigParams("java+.runConfig", "vmOptions", compilerArgs));
+            String prefix = "netbeans.".equals(client.getNbCodeCapabilities().getConfigurationPrefix()) ? "java+" : client.getNbCodeCapabilities().getConfigurationPrefix();
+            client.configurationUpdate(new UpdateConfigParams(prefix + "runConfig", "vmOptions", compilerArgs));
             return null;
         });
     }

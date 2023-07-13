@@ -2091,7 +2091,12 @@ public final class VeryPretty extends JCTree.Visitor implements DocTreeVisitor<V
         print("(UNKNOWN: " + tree + ")");
         newline();
     }
-    
+
+    @Override
+    public void visitPatternCaseLabel(JCPatternCaseLabel tree) {
+        print(tree.pat);
+    }
+
     @Override
     public void visitRecordPattern(JCRecordPattern tree) {
         print(tree.deconstructor);

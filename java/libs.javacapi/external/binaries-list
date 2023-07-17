@@ -14,5 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-6A7240F4AA89E246A7C7444B33708AAEE3D1FB00 http://lahoda.info/nb-javac/nb-javac-jdk-21+26-api.jar nb-javac-jdk-20+34-api.jar
-12A411C9B176164174BF892448A21C7FD268D7D4 http://lahoda.info/nb-javac/nb-javac-jdk-21+26-impl.jar nb-javac-jdk-20+34.jar
+2D8ACD8AAD9C74FDAAA9D7BBAF4278A57E2D86E0 https://oss.sonatype.org/content/repositories/comdukescript-1161/com/dukescript/nbjavac/nb-javac/jdk-21+26/nb-javac-jdk-21+26-api.jar nb-javac-jdk-21+26-api.jar
+9A9BAB9DC8497962967345A59CDD8CBC9D73A40D https://oss.sonatype.org/content/repositories/comdukescript-1161/com/dukescript/nbjavac/nb-javac/jdk-21+26/nb-javac-jdk-21+26.jar nb-javac-jdk-21+26.jar

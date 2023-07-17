@@ -2963,6 +2963,8 @@ public class Reformatter implements ReformatTask {
                     }
                     if (node.getGuard() != null) {
                         space();
+                        accept(IDENTIFIER);
+                        space();
                         scan(node.getGuard(), p);
                     }
                 }

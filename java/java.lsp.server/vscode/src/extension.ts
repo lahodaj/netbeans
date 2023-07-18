@@ -37,7 +37,9 @@ import {
     DocumentSelector,
     ErrorHandlerResult,
     CloseHandlerResult,
-    SymbolInformation
+    SymbolInformation,
+    TextDocumentFilter,
+    TelemetryEventNotification
 } from 'vscode-languageclient';
 
 import * as net from 'net';
@@ -63,6 +65,7 @@ import { PropertiesView } from './propertiesView/propertiesView';
 const API_VERSION : string = "1.0";
 export const COMMAND_PREFIX : string = "nbls";
 const DATABASE: string = 'Database';
+const listeners = new Map<string, string[]>();
 let client: Promise<NbLanguageClient>;
 let testAdapter: NbTestAdapter | undefined;
 let nbProcess : ChildProcess | null = null;
@@ -386,11 +389,20 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
     // find acceptable JDK and launch the Java part
     findJDK((specifiedJDK) => {
         let currentClusters = findClusters(context.extensionPath).sort();
+        const dsSorter = (a: TextDocumentFilter, b: TextDocumentFilter) => {
+            return (a.language || '').localeCompare(b.language || '')
+                || (a.pattern || '').localeCompare(b.pattern || '')
+                || (a.scheme || '').localeCompare(b.scheme || '');
+        };
+        let currentDocumentSelectors = collectDocumentSelectors().sort(dsSorter);
         context.subscriptions.push(vscode.extensions.onDidChange(() => {
             checkConflict();
             const newClusters = findClusters(context.extensionPath).sort();
-            if (newClusters.length !== currentClusters.length || newClusters.find((value, index) => value !== currentClusters[index])) {
+            const newDocumentSelectors = collectDocumentSelectors().sort(dsSorter);
+            if (newClusters.length !== currentClusters.length || newDocumentSelectors.length !== currentDocumentSelectors.length
+                || newClusters.find((value, index) => value !== currentClusters[index]) || newDocumentSelectors.find((value, index) => value !== currentDocumentSelectors[index])) {
                 currentClusters = newClusters;
+                currentDocumentSelectors = newDocumentSelectors;
                 activateWithJDK(specifiedJDK, context, log, true, clientResolve, clientReject);
             }
         }));
@@ -629,7 +641,14 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
     context.subscriptions.push(commands.registerCommand(COMMAND_PREFIX + '.startup.condition', async () => {
         return client;
     }));
-
+    context.subscriptions.push(commands.registerCommand('nbls.addEventListener', (eventName, listener) => {
+        let ls = listeners.get(eventName);
+        if (!ls) {
+            ls = [];
+            listeners.set(eventName, ls);
+        }
+        ls.push(listener);
+    }));
     context.subscriptions.push(commands.registerCommand('nbls.node.properties.edit',
         async (node) => await PropertiesView.createOrShow(context, node)));
 
@@ -910,6 +929,7 @@ function doActivateWithJDK(specifiedJDK: string | null, context: ExtensionContex
                 { language: 'xml', pattern: '**/pom.xml' },
                 { pattern: '**/build.gradle'}
         ];
+        documentSelectors.push(...collectDocumentSelectors());
         const enableJava = isJavaSupportEnabled();
         const enableGroovy : boolean = conf.get("netbeans.groovySupport.enabled") as boolean;
         if (enableGroovy) {
@@ -1065,6 +1085,14 @@ function doActivateWithJDK(specifiedJDK: string | null, context: ExtensionContex
                             map.delete(key);
                         }
                     });
+                }
+            });
+            c.onNotification(TelemetryEventNotification.type, (param) => {
+                const ls = listeners.get(param);
+                if (ls) {
+                    for (const listener of ls) {
+                        commands.executeCommand(listener);
+                    }
                 }
             });
             handleLog(log, 'Language Client: Ready');
@@ -1310,6 +1338,20 @@ export function deactivate(): Thenable<void> {
         nbProcess.kill();
     }
     return stopClient(client);
+}
+
+function collectDocumentSelectors(): TextDocumentFilter[] {
+    const selectors = [];
+    for (const extension of vscode.extensions.all) {
+        const contributesSection = extension.packageJSON['contributes'];
+        if (contributesSection) {
+            const documentSelectors = contributesSection['netbeans.documentSelectors'];
+            if (Array.isArray(documentSelectors) && documentSelectors.length) {
+                selectors.push(...documentSelectors);
+            }
+        }
+    }
+    return selectors;
 }
 
 class NetBeansDebugAdapterTrackerFactory implements vscode.DebugAdapterTrackerFactory {

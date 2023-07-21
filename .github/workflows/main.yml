@@ -162,11 +162,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up JDK 8
+      - name: Set up JDK 11
         uses: actions/setup-java@v3
         with:
             distribution: 'zulu'
-            java-version: 8
+            java-version: 11
       - name: Caching dependencies
         uses: actions/cache/restore@v3
         with:
@@ -934,7 +934,7 @@ jobs:
         run: ant $OPTS -Dvanilla.javac.exists=true -f platform/core.ui test
 
       - name: platform/core.windows
-        run: ant $OPTS -Dvanilla.javac.exists=true -f platform/core.windows test
+        run: .github/retry.sh ant $OPTS -Dvanilla.javac.exists=true -f platform/core.windows test
 
       - name: platform/editor.mimelookup
         run: ant $OPTS -Dvanilla.javac.exists=true -f platform/editor.mimelookup test
@@ -943,7 +943,7 @@ jobs:
         run: ant $OPTS -Dvanilla.javac.exists=true -f platform/editor.mimelookup.impl test
 
       - name: platform/favorites
-        run: ant $OPTS -Dvanilla.javac.exists=true -f platform/favorites test
+        run: .github/retry.sh ant $OPTS -Dvanilla.javac.exists=true -f platform/favorites test
 
       - name: platform/javahelp
         run: ant $OPTS -Dvanilla.javac.exists=true -f platform/javahelp test-unit
@@ -1143,7 +1143,7 @@ jobs:
         run: ant $OPTS -Dvanilla.javac.exists=true -f platform/sendopts test
 
       - name: platform/settings
-        run: ant $OPTS -Dvanilla.javac.exists=true -f platform/settings test
+        run: .github/retry.sh ant $OPTS -Dvanilla.javac.exists=true -f platform/settings test
 
       - name: platform/spi.actions
         run: ant $OPTS -Dvanilla.javac.exists=true -f platform/spi.actions test
@@ -1159,10 +1159,7 @@ jobs:
 
       - name: platform/uihandler
         run: ant $OPTS -Dvanilla.javac.exists=true -f platform/uihandler test
-        
-      - name: platform/o.n.bootstrap
-        run: ant $OPTS -Dvanilla.javac.exists=true -f platform/o.n.bootstrap test
-        
+
       - name: Set up JDK 11
         uses: actions/setup-java@v3
         with:
@@ -1314,8 +1311,8 @@ jobs:
       - name: java.navigation
         run: ant $OPTS -f java/java.navigation test
 
-#      - name: java.openjdk.project
-#        run: ant $OPTS -f java/java.openjdk.project test
+      - name: java.openjdk.project
+        run: ant $OPTS -f java/java.openjdk.project test
 
       - name: java.platform
         run: ant $OPTS -f java/java.platform test
@@ -1988,6 +1985,12 @@ jobs:
       - name: enterprise/j2ee.core
         run: ant $OPTS -f enterprise/j2ee.core test
 
+      - name: enterprise/javaee.wildfly
+        run: .github/retry.sh ant $OPTS -f enterprise/javaee.wildfly test
+
+      - name: enterprise/maven.j2ee
+        run: ant $OPTS -f enterprise/maven.j2ee test
+
       - name: enterprise/micronaut
         run: .github/retry.sh ant $OPTS -f enterprise/micronaut test
 
@@ -1996,6 +1999,12 @@ jobs:
 
       - name: tomcat5
         run: ant $OPTS -f enterprise/tomcat5 test
+
+      - name: enterprise/web.jsf
+        run: .github/retry.sh ant $OPTS -f enterprise/web.jsf test
+
+      - name: enterprise/web.jsfapi
+        run: ant $OPTS -f enterprise/web.jsfapi test
 
       - name: websvc.editor.hints
         run: ant $OPTS -f enterprise/websvc.editor.hints test
@@ -2234,7 +2243,11 @@ jobs:
       # longest step (~40min)
       - name: php.editor
         if: env.test_php == 'true' && success()
-        run: ant $OPTS -f php/php.editor test
+        run: ant $OPTS -Dtest.config=stable -f php/php.editor test
+
+      - name: php.editor (unreliable tests)
+        if: env.test_php == 'true' && success()
+        run: .github/retry.sh ant $OPTS -Dtest.config=unreliable -f php/php.editor test
 
       - name: php.latte
         run: ant $OPTS -f php/php.latte test

@@ -75,7 +75,7 @@ import org.openide.util.lookup.ServiceProvider;
 })
 @ServiceProvider(service = CodeActionsProvider.class)
 public class DBAddConnection extends CodeActionsProvider {
-    public static final String DB_ADD_CONNECTION =  "nbls.db.add.connection"; // NOI18N
+    public static final String DB_ADD_CONNECTION =  "db.add.connection"; // NOI18N
     public static final String USER_ID =  "userId"; // NOI18N
     public static final String PASSWORD =  "password"; // NOI18N
     public static final String DRIVER =  "driver"; // NOI18N
@@ -112,19 +112,21 @@ public class DBAddConnection extends CodeActionsProvider {
             String driverClass = m != null ? (String) m.get(DRIVER) : null;
             if (dbUrl != null && driverClass != null) {
 
-                JDBCDriver[] driver = JDBCDriverManager.getDefault().getDrivers(driverClass); //NOI18N
+                JDBCDriver[] driver = JDBCDriverManager.getDefault().getDrivers(driverClass);
                 if (driver != null && driver.length > 0) {
                     if (userId == null || password == null) {
                         String inputId = inputServiceRegistry.registerInput(param -> {
                             int totalSteps = 2;
                             switch (param.getStep()) {
                                 case 1:
-                                    return CompletableFuture.completedFuture(Either.forRight(new InputBoxStep(totalSteps, USER_ID, Bundle.MSG_EnterUsername(), userId)));
+                                    String userIdVal = userId != null ? userId : "";
+                                    return CompletableFuture.completedFuture(Either.forRight(new InputBoxStep(totalSteps, USER_ID, Bundle.MSG_EnterUsername(), userIdVal)));
                                 case 2:
                                     Map<String, Either<List<QuickPickItem>, String>> data = param.getData();
                                     Either<List<QuickPickItem>, String> userData = data.get(USER_ID);
                                     if (userData != null) {
-                                        return CompletableFuture.completedFuture(Either.forRight(new InputBoxStep(totalSteps, PASSWORD, null, Bundle.MSG_EnterUsername(), password, true)));
+                                        String passwordVal = password != null ? password : "";
+                                        return CompletableFuture.completedFuture(Either.forRight(new InputBoxStep(totalSteps, PASSWORD, null, Bundle.MSG_EnterPassword(), passwordVal, true)));
                                     }
                                     return CompletableFuture.completedFuture(null);
                                 default:

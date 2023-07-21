@@ -124,7 +124,11 @@ import org.netbeans.modules.java.source.ElementHandleAccessor;
 import org.netbeans.modules.java.source.ui.JavaSymbolProvider;
 import org.netbeans.modules.java.source.ui.JavaTypeProvider;
 import org.netbeans.modules.java.source.usages.ClassIndexImpl;
+import org.netbeans.modules.parsing.api.ParserManager;
+import org.netbeans.modules.parsing.api.ResultIterator;
+import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.lucene.support.Queries;
+import org.netbeans.modules.parsing.spi.ParseException;
 import org.netbeans.spi.java.classpath.support.ClassPathSupport;
 import org.netbeans.spi.jumpto.type.SearchType;
 import org.netbeans.spi.project.ActionProgress;
@@ -167,15 +171,15 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
 
     @Override
     public CompletableFuture<Object> executeCommand(ExecuteCommandParams params) {
-        String command = Utils.decodeCommand(params.getCommand(), client.getNbCodeCapabilities());
+        String command = params.getCommand();
         switch (command) {
-            case Server.NBLS_GRAALVM_PAUSE_SCRIPT:
+            case Server.GRAALVM_PAUSE_SCRIPT:
                 ActionsManager am = DebuggerManager.getDebuggerManager().getCurrentEngine().getActionsManager();
                 am.doAction("pauseInGraalScript");
                 return CompletableFuture.completedFuture(true);
-            case Server.NBLS_NEW_FROM_TEMPLATE:
+            case Server.JAVA_NEW_FROM_TEMPLATE:
                 return LspTemplateUI.createFromTemplate("Templates", client, params);
-            case Server.NBLS_NEW_PROJECT:
+            case Server.JAVA_NEW_PROJECT:
                 return LspTemplateUI.createProject("Templates/Project", client, params);
             case Server.NBLS_BUILD_WORKSPACE: {
                 final CommandProgress progressOfCompilation = new CommandProgress();
@@ -189,7 +193,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                 progressOfCompilation.checkStatus();
                 return progressOfCompilation.getFinishFuture();
             }
-            case Server.NBLS_RUN_PROJECT_ACTION: {
+            case Server.JAVA_RUN_PROJECT_ACTION: {
                 // TODO: maybe a structure would be better for future compatibility / extensions, i.e. what to place in the action's context Lookup.
                 List<FileObject> targets = new ArrayList<>();
                 ProjectActionParams actionParams = gson.fromJson(gson.toJson(params.getArguments().get(0)), ProjectActionParams.class);
@@ -318,7 +322,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                     return future;
                 });
             }
-            case Server.NBLS_LOAD_WORKSPACE_TESTS: {
+            case Server.JAVA_LOAD_WORKSPACE_TESTS: {
                 String uri = ((JsonPrimitive) params.getArguments().get(0)).getAsString();
                 FileObject file;
                 try {
@@ -401,7 +405,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                     return future;
                 });
             }
-            case Server.NBLS_RESOLVE_STACKTRACE_LOCATION: {
+            case Server.JAVA_RESOLVE_STACKTRACE_LOCATION: {
                 CompletableFuture<Object> future = new CompletableFuture<>();
                 try {
                     if (params.getArguments().size() >= 3) {
@@ -448,7 +452,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                 String uri = ((JsonPrimitive) params.getArguments().get(0)).getAsString();
                 Position pos = gson.fromJson(gson.toJson(params.getArguments().get(1)), Position.class);
                 return (CompletableFuture)((TextDocumentServiceImpl)server.getTextDocumentService()).superImplementations(uri, pos);
-            case Server.NBLS_FIND_PROJECT_CONFIGURATIONS: {
+            case Server.JAVA_FIND_PROJECT_CONFIGURATIONS: {
                 String fileUri = ((JsonPrimitive) params.getArguments().get(0)).getAsString();
                 
                 FileObject file;
@@ -470,7 +474,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
             case Server.NATIVE_IMAGE_FIND_DEBUG_PROCESS_TO_ATTACH: {
                 return AttachNativeConfigurations.findProcessAttachTo(client);
             }
-            case Server.NBLS_PROJECT_CONFIGURATION_COMPLETION: {
+            case Server.JAVA_PROJECT_CONFIGURATION_COMPLETION: {
                 // We expect one, two or three arguments.
                 // The first argument is always the URI of the launch.json file.
                 // When not more arguments are provided, all available configurations ought to be provided.
@@ -515,7 +519,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                         .thenApply(avoid -> completionFutures.stream().flatMap(c -> c.join().stream()).collect(Collectors.toList()));
                 return (CompletableFuture<Object>) (CompletableFuture<?>) joinedFuture;
             }
-            case Server.NBLS_PROJECT_RESOLVE_PROJECT_PROBLEMS: {
+            case Server.JAVA_PROJECT_RESOLVE_PROJECT_PROBLEMS: {
                 final CompletableFuture<Object> result = new CompletableFuture<>();
                 List<Object> arguments = params.getArguments();
                 if (!arguments.isEmpty()) {
@@ -571,7 +575,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                 }
                 return result;
             }
-            case Server.NBLS_CLEAR_PROJECT_CACHES: {
+            case Server.JAVA_CLEAR_PROJECT_CACHES: {
                 // politely clear project manager's cache of "no project" answers
                 ProjectManager.getDefault().clearNonProjectCache();
                 // impolitely clean the project-based traversal's cache, so any affiliation of intermediate folders will disappear
@@ -595,7 +599,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                 return (CompletableFuture<Object>) (CompletableFuture<?>)result;
             }
             
-            case Server.NBLS_PROJECT_INFO: {
+            case Server.JAVA_PROJECT_INFO: {
                 final CompletableFuture<Object> result = new CompletableFuture<>();
                 List<Object> arguments = params.getArguments();
                 if (arguments.size() < 1) {
@@ -898,16 +902,11 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
 
     @Override
     public CompletableFuture<Either<List<? extends SymbolInformation>, List<? extends WorkspaceSymbol>>> symbol(WorkspaceSymbolParams params) {
-        // shortcut: if the projects are not yet initialized, return empty:
-        if (server.openedProjects().getNow(null) == null) {
-            return CompletableFuture.completedFuture(Either.forLeft(Collections.emptyList()));
-        }
         String query = params.getQuery();
         if (query.isEmpty()) {
             //cannot query "all":
             return CompletableFuture.completedFuture(Either.forLeft(Collections.emptyList()));
         }
-        System.err.println("query=" + query);
         boolean exact = false;
         if (query.endsWith(" ")) {
             query = query.substring(0, query.length() - 1);
@@ -923,165 +922,180 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                 return super.cancel(mayInterruptIfRunning);
             }
         };
-        WORKER.post(() -> {
+        server.openedProjects().thenAccept(openedProjects -> {
             try {
-                List<WorkspaceSymbol> symbols = new ArrayList<>();
-                if (client.getNbCodeCapabilities().wantsJavaSupport()) {
-                    SearchType searchType = getSearchType(queryFin, exactFin, false, null, null);
-
-                    // CSL Part
-                    Collection<? extends IndexSearcher> providers = Lookup.getDefault().lookupAll(IndexSearcher.class);
-                    Set<? extends IndexSearcher.Descriptor> descriptors;
-                    if (!providers.isEmpty()) {
-                        for (IndexSearcher provider : providers) {
-                            descriptors = provider.getSymbols(null, queryFin, Utils.searchType2QueryKind(searchType), null);
-                            for (IndexSearcher.Descriptor desc : descriptors) {
-                                FileObject fo = desc.getFileObject();
-                                org.netbeans.modules.csl.api.ElementHandle element = desc.getElement();
-                                if (fo != null) {
-                                    Position startPos = Utils.createPosition(fo, desc.getOffset());
-                                    Position endPos = Utils.createPosition(fo, desc.getOffset() + desc.getSimpleName().length());
-                                    WorkspaceSymbol symbol = new WorkspaceSymbol(
-                                            desc.getSimpleName(),
-                                            Utils.cslElementKind2SymbolKind(element.getKind()),
-                                            Either.forLeft(new Location(Utils.toUri(fo), new Range(startPos, endPos))),
-                                            desc.getContextName());
-                                    symbols.add(symbol);
-                                }
-                            }
-                        }
-                    }
-
-                    // Java part
-                    JavaSymbolProvider.ResultHandler symbolHandler = new JavaSymbolProvider.ResultHandler() {
-                        @Override
-                        public void setHighlightText(String text) {
-                        }
-
-                        private Map<ElementHandle<TypeElement>, List<String>> type2Idents;
-
-                        @Override
-                        public void runRoot(FileObject root, ClassIndexImpl ci, Exec exec) throws IOException, InterruptedException {
-                            ClasspathInfo cpInfo = ClasspathInfo.create(root);
+                ParserManager.parseWhenScanFinished("text/x-java", new UserTask() {
+                    @Override
+                    public void run(ResultIterator resultIterator) throws Exception {
+                        WORKER.post(() -> {
                             try {
-                                type2Idents = new HashMap<>();
-                                exec.run();
-                                Map<FileObject, Map<ElementHandle<TypeElement>, List<String>>> sources = new HashMap<>();
-                                for (Entry<ElementHandle<TypeElement>, List<String>> e : type2Idents.entrySet()) {
-                                    FileObject sourceFile = SourceUtils.getFile(e.getKey(), cpInfo);
-                                    sources.computeIfAbsent(sourceFile, s -> new HashMap<>())
-                                           .put(e.getKey(), e.getValue());
-                                }
-                                if (!sources.isEmpty()) {
-                                    JavaSource.create(cpInfo, sources.keySet())
-                                            .runUserActionTask(cc -> {
-                                                if (Phase.ELEMENTS_RESOLVED.compareTo(cc.toPhase(Phase.ELEMENTS_RESOLVED))> 0) {
-                                                    return ;
+                                List<WorkspaceSymbol> symbols = new ArrayList<>();
+                                SearchType searchType = getSearchType(queryFin, exactFin, false, null, null);
+
+                                // CSL Part
+                                Collection<? extends IndexSearcher> providers = Lookup.getDefault().lookupAll(IndexSearcher.class);
+                                Set<? extends IndexSearcher.Descriptor> descriptors;
+                                for (Project project : openedProjects) {
+                                    if (!providers.isEmpty()) {
+                                        for (IndexSearcher provider : providers) {
+                                            descriptors = provider.getSymbols(project, queryFin, Utils.searchType2QueryKind(searchType), null);
+                                            for (IndexSearcher.Descriptor desc : descriptors) {
+                                                FileObject fo = desc.getFileObject();
+                                                org.netbeans.modules.csl.api.ElementHandle element = desc.getElement();
+                                                if (fo != null) {
+                                                    Position pos = Utils.createPosition(fo, desc.getOffset());
+                                                    WorkspaceSymbol symbol = new WorkspaceSymbol(
+                                                            desc.getSimpleName(),
+                                                            Utils.cslElementKind2SymbolKind(element.getKind()),
+                                                            Either.forLeft(new Location(Utils.toUri(fo), new Range(pos, pos))),
+                                                            desc.getContextName());
+                                                    symbols.add(symbol);
                                                 }
-                                                for (Entry<ElementHandle<TypeElement>, List<String>> e : sources.get(cc.getFileObject()).entrySet()) {
-                                                    TypeElement te = e.getKey().resolve(cc);
+                                            }
+                                        }
+                                    }
+                                }
 
-                                                    if (te == null) {
-                                                        //cannot resolve
-                                                        continue;
-                                                    }
+                                // Java part
+                                if (client.getNbCodeCapabilities().wantsJavaSupport()) {
+                                    JavaSymbolProvider.ResultHandler symbolHandler = new JavaSymbolProvider.ResultHandler() {
+                                        @Override
+                                        public void setHighlightText(String text) {
+                                        }
 
-                                                    for (String ident : e.getValue()) {
-                                                        if (ident.equals(getSimpleName(te, null, false))) {
-                                                            TreePath path = cc.getTrees().getPath(te);
+                                        private Map<ElementHandle<TypeElement>, List<String>> type2Idents;
 
-                                                            if (path != null) {
-                                                                final String symbolName = te.getSimpleName().toString();
-                                                                final ElementKind kind = te.getKind();
-                                                                if (!kind.isClass() && !kind.isInterface()) {
-                                                                    WorkspaceSymbol symbol = new WorkspaceSymbol(symbolName, Utils.elementKind2SymbolKind(kind), Either.forLeft(tree2Location(cc, path)), te.getQualifiedName().toString());
-                                                                    symbols.add(symbol);
+                                        @Override
+                                        public void runRoot(FileObject root, ClassIndexImpl ci, Exec exec) throws IOException, InterruptedException {
+                                            ClasspathInfo cpInfo = ClasspathInfo.create(root);
+                                            try {
+                                                type2Idents = new HashMap<>();
+                                                exec.run();
+                                                Map<FileObject, Map<ElementHandle<TypeElement>, List<String>>> sources = new HashMap<>();
+                                                for (Entry<ElementHandle<TypeElement>, List<String>> e : type2Idents.entrySet()) {
+                                                    FileObject sourceFile = SourceUtils.getFile(e.getKey(), cpInfo);
+                                                    sources.computeIfAbsent(sourceFile, s -> new HashMap<>())
+                                                           .put(e.getKey(), e.getValue());
+                                                }
+                                                if (!sources.isEmpty()) {
+                                                    JavaSource.create(cpInfo, sources.keySet())
+                                                            .runUserActionTask(cc -> {
+                                                                if (Phase.ELEMENTS_RESOLVED.compareTo(cc.toPhase(Phase.ELEMENTS_RESOLVED))> 0) {
+                                                                    return ;
                                                                 }
-                                                            }
-                                                        }
-                                                        for (Element ne : te.getEnclosedElements()) {
-                                                            if (ident.equals(getSimpleName(ne, te, false))) {
-                                                                TreePath path = cc.getTrees().getPath(ne);
+                                                                for (Entry<ElementHandle<TypeElement>, List<String>> e : sources.get(cc.getFileObject()).entrySet()) {
+                                                                    TypeElement te = e.getKey().resolve(cc);
 
-                                                                if (path != null) {
-                                                                    final Pair<String,String> name = JavaSymbolProvider.getDisplayName(ne, te);
-                                                                    final String symbolName = name.first() + (name.second() != null ? name.second() : "");
-                                                                    final ElementKind kind = ne.getKind();
-                                                                    if (!kind.isClass() && !kind.isInterface()) {
-                                                                        WorkspaceSymbol symbol = new WorkspaceSymbol(symbolName, Utils.elementKind2SymbolKind(kind), Either.forLeft(tree2Location(cc, path)), te.getQualifiedName().toString());
-                                                                        symbols.add(symbol);
+                                                                    if (te == null) {
+                                                                        //cannot resolve
+                                                                        continue;
+                                                                    }
+
+                                                                    for (String ident : e.getValue()) {
+                                                                        if (ident.equals(getSimpleName(te, null, false))) {
+                                                                            TreePath path = cc.getTrees().getPath(te);
+
+                                                                            if (path != null) {
+                                                                                final String symbolName = te.getSimpleName().toString();
+                                                                                final ElementKind kind = te.getKind();
+                                                                                if (!kind.isClass() && !kind.isInterface()) {
+                                                                                    WorkspaceSymbol symbol = new WorkspaceSymbol(symbolName, Utils.elementKind2SymbolKind(kind), Either.forLeft(tree2Location(cc, path)), te.getQualifiedName().toString());
+                                                                                    symbols.add(symbol);
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                        for (Element ne : te.getEnclosedElements()) {
+                                                                            if (ident.equals(getSimpleName(ne, te, false))) {
+                                                                                TreePath path = cc.getTrees().getPath(ne);
+
+                                                                                if (path != null) {
+                                                                                    final Pair<String,String> name = JavaSymbolProvider.getDisplayName(ne, te);
+                                                                                    final String symbolName = name.first() + (name.second() != null ? name.second() : "");
+                                                                                    final ElementKind kind = ne.getKind();
+                                                                                    if (!kind.isClass() && !kind.isInterface()) {
+                                                                                        WorkspaceSymbol symbol = new WorkspaceSymbol(symbolName, Utils.elementKind2SymbolKind(kind), Either.forLeft(tree2Location(cc, path)), te.getQualifiedName().toString());
+                                                                                        symbols.add(symbol);
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
                                                                     }
                                                                 }
-                                                            }
-                                                        }
-                                                    }
+                                                            }, true);
                                                 }
-                                            }, true);
+                                                //TODO: handle exceptions
+                                            } finally {
+                                                type2Idents = null;
+                                            }
+                                        }
+
+                                        @Override
+                                        public void handleResult(ElementHandle<TypeElement> owner, String ident, boolean caseSensitive) {
+                                            type2Idents.computeIfAbsent(owner, s -> new ArrayList<>()).add(ident);
+                                        }
+                                    };
+                                    JavaSymbolProvider.doComputeSymbols(searchType, queryFin, symbolHandler, true, cancel);
+                                    List<Pair<ElementHandle<TypeElement>, FileObject>> pairs = new ArrayList<>();
+                                    JavaTypeProvider.ResultHandler<Pair<ElementHandle<TypeElement>, FileObject>> typeHandler = new JavaTypeProvider.ResultHandler<Pair<ElementHandle<TypeElement>, FileObject>>() {
+                                        private FileObject root;
+
+                                        @Override
+                                        public void setMessage(String msg) {
+                                        }
+
+                                        @Override
+                                        public void setHighlightText(String text) {
+                                        }
+
+                                        @Override
+                                        public void pendingResult() {
+                                        }
+
+                                        @Override
+                                        public void runRoot(FileObject root, JavaTypeProvider.ResultHandler.Exec exec) throws IOException, InterruptedException {
+                                            this.root = root;
+                                            try {
+                                                exec.run();
+                                            } finally {
+                                                this.root = null;
+                                            }
+                                        }
+
+                                        @Override
+                                        public Pair<ElementHandle<TypeElement>, FileObject> create(JavaTypeProvider.CacheItem cacheItem, ElementHandle<TypeElement> handle, String simpleName, String relativePath) {
+                                            return Pair.of(handle, this.root);
+                                        }
+
+                                        @Override
+                                        public void addResult(List<? extends Pair<ElementHandle<TypeElement>, FileObject>> types) {
+                                            pairs.addAll(types);
+                                        }
+                                    };
+                                    JavaTypeProvider.doComputeTypes(searchType, queryFin, typeHandler, cancel);
+                                    for (Pair<ElementHandle<TypeElement>, FileObject> pair : pairs) {
+                                        ElementHandle<TypeElement> handle = pair.first();
+                                        String fqn = handle.getQualifiedName();
+                                        int idx = fqn.lastIndexOf('.');
+                                        String simpleName = idx < 0 ? fqn : fqn.substring(idx + 1);
+                                        String contextName = idx < 0 ? null : fqn.substring(0, idx);
+                                        String uri = URLEncoder.encode(pair.second().toURI().toString() + '?' + handle.getKind().name() + '#' + handle.getBinaryName(), StandardCharsets.UTF_8.toString());
+                                        WorkspaceSymbol symbol = new WorkspaceSymbol(simpleName, Utils.elementKind2SymbolKind(handle.getKind()), Either.forRight(new WorkspaceSymbolLocation(SOURCE_FOR + uri)), contextName);
+                                        symbols.add(symbol);
+                                    }
                                 }
-                                //TODO: handle exceptions
-                            } finally {
-                                type2Idents = null;
+                                result.complete(Either.forRight(symbols));
+                            } catch (Throwable t) {
+                                result.completeExceptionally(t);
                             }
-                        }
-
-                        @Override
-                        public void handleResult(ElementHandle<TypeElement> owner, String ident, boolean caseSensitive) {
-                            type2Idents.computeIfAbsent(owner, s -> new ArrayList<>()).add(ident);
-                        }
-                    };
-                    JavaSymbolProvider.doComputeSymbols(searchType, queryFin, symbolHandler, true, cancel);
-                    List<Pair<ElementHandle<TypeElement>, FileObject>> pairs = new ArrayList<>();
-                    JavaTypeProvider.ResultHandler<Pair<ElementHandle<TypeElement>, FileObject>> typeHandler = new JavaTypeProvider.ResultHandler<Pair<ElementHandle<TypeElement>, FileObject>>() {
-                        private FileObject root;
-
-                        @Override
-                        public void setMessage(String msg) {
-                        }
-
-                        @Override
-                        public void setHighlightText(String text) {
-                        }
-
-                        @Override
-                        public void pendingResult() {
-                        }
-
-                        @Override
-                        public void runRoot(FileObject root, JavaTypeProvider.ResultHandler.Exec exec) throws IOException, InterruptedException {
-                            this.root = root;
-                            try {
-                                exec.run();
-                            } finally {
-                                this.root = null;
-                            }
-                        }
-
-                        @Override
-                        public Pair<ElementHandle<TypeElement>, FileObject> create(JavaTypeProvider.CacheItem cacheItem, ElementHandle<TypeElement> handle, String simpleName, String relativePath) {
-                            return Pair.of(handle, this.root);
-                        }
-
-                        @Override
-                        public void addResult(List<? extends Pair<ElementHandle<TypeElement>, FileObject>> types) {
-                            pairs.addAll(types);
-                        }
-                    };
-                    JavaTypeProvider.doComputeTypes(searchType, queryFin, typeHandler, cancel);
-                    for (Pair<ElementHandle<TypeElement>, FileObject> pair : pairs) {
-                        ElementHandle<TypeElement> handle = pair.first();
-                        String fqn = handle.getQualifiedName();
-                        int idx = fqn.lastIndexOf('.');
-                        String simpleName = idx < 0 ? fqn : fqn.substring(idx + 1);
-                        String contextName = idx < 0 ? null : fqn.substring(0, idx);
-                        String uri = URLEncoder.encode(pair.second().toURI().toString() + '?' + handle.getKind().name() + '#' + handle.getBinaryName(), StandardCharsets.UTF_8.toString());
-                        WorkspaceSymbol symbol = new WorkspaceSymbol(simpleName, Utils.elementKind2SymbolKind(handle.getKind()), Either.forRight(new WorkspaceSymbolLocation(SOURCE_FOR + uri)), contextName);
-                        symbols.add(symbol);
+                        });
                     }
-                }
-                result.complete(Either.forRight(symbols));
-            } catch (Throwable t) {
-                result.completeExceptionally(t);
+                });
+            } catch (ParseException pe) {
+                result.completeExceptionally(pe);
             }
+        }).exceptionally(ex -> {
+            result.completeExceptionally(ex);
+            return null;
         });
         return result;
     }

@@ -26,13 +26,11 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.net.MalformedURLException;
 import java.net.URI;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
@@ -50,12 +48,9 @@ import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.SymbolKind;
 import org.eclipse.lsp4j.SymbolTag;
 import org.netbeans.api.annotations.common.NonNull;
-import org.netbeans.api.editor.document.LineDocument;
-import org.netbeans.api.editor.document.LineDocumentUtils;
 import org.netbeans.api.java.source.CompilationInfo;
 import org.netbeans.api.lsp.StructureElement;
 import org.netbeans.modules.editor.java.Utilities;
-import org.netbeans.modules.java.lsp.server.protocol.NbCodeClientCapabilities;
 import org.netbeans.modules.parsing.spi.indexing.support.QuerySupport;
 import org.netbeans.spi.jumpto.type.SearchType;
 import org.openide.cookies.EditorCookie;
@@ -69,8 +64,6 @@ import org.openide.util.Exceptions;
  * @author lahvac
  */
 public class Utils {
-
-    public static final String DEFAULT_COMMAND_PREFIX = "nbls";
 
     public static SymbolKind structureElementKind2SymbolKind (StructureElement.Kind kind) {
         switch (kind) {
@@ -332,19 +325,15 @@ public class Utils {
         }
     }
 
-    public static Position createPosition(LineDocument doc, int offset) {
-        try {
-            int line = LineDocumentUtils.getLineIndex(doc, offset);
-            int column = offset - LineDocumentUtils.getLineStart(doc, offset);
+    public static Position createPosition(StyledDocument doc, int offset) {
+        int line = NbDocument.findLineNumber(doc, offset);
+        int column = offset - NbDocument.findLineOffset(doc, line);
 
-            return new Position(line, column);
-        } catch (BadLocationException ex) {
-            throw new IllegalStateException(ex);
-        }
+        return new Position(line, column);
     }
 
-    public static int getOffset(LineDocument doc, Position pos) {
-        return LineDocumentUtils.getLineStartFromIndex(doc, pos.getLine()) + pos.getCharacter();
+    public static int getOffset(StyledDocument doc, Position pos) {
+        return NbDocument.findLineOffset(doc,pos.getLine()) + pos.getCharacter();
     }
 
     public static synchronized String toUri(FileObject file) {
@@ -449,38 +438,4 @@ public class Utils {
         return sb.toString();
     }
 
-    public static String encodeCommand(String cmd, NbCodeClientCapabilities capa) {
-        String prefix = capa != null ? capa.getCommandPrefix()
-                                     : DEFAULT_COMMAND_PREFIX;
-
-        if (cmd.startsWith(DEFAULT_COMMAND_PREFIX) &&
-            !DEFAULT_COMMAND_PREFIX.equals(prefix)) {
-            return prefix + cmd.substring(DEFAULT_COMMAND_PREFIX.length());
-        } else {
-            return cmd;
-        }
-    }
-
-    public static String decodeCommand(String cmd, NbCodeClientCapabilities capa) {
-        String prefix = capa != null ? capa.getCommandPrefix()
-                                     : DEFAULT_COMMAND_PREFIX;
-
-        if (cmd.startsWith(prefix) &&
-            !DEFAULT_COMMAND_PREFIX.equals(prefix)) {
-            return DEFAULT_COMMAND_PREFIX + cmd.substring(prefix.length());
-        } else {
-            return cmd;
-        }
-    }
-
-    public static void ensureCommandsPrefixed(Collection<String> commands) {
-        Set<String> wrongCommands = commands.stream()
-                                            .filter(cmd -> !cmd.startsWith(DEFAULT_COMMAND_PREFIX))
-                                            .filter(cmd -> !cmd.startsWith("test."))
-                                            .collect(Collectors.toSet());
-
-        if (!wrongCommands.isEmpty()) {
-            throw new IllegalStateException("Some commands are not properly prefixed: " + wrongCommands);
-        }
-    }
 }

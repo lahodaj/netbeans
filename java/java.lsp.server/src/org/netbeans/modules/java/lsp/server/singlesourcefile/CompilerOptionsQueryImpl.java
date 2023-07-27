@@ -27,8 +27,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.stream.Collectors;
+import javax.lang.model.SourceVersion;
 import javax.swing.event.ChangeListener;
 import org.netbeans.api.java.classpath.ClassPath;
+import org.netbeans.api.java.classpath.JavaClassPathConstants;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
 import org.netbeans.modules.java.lsp.server.protocol.NbCodeLanguageClient;
@@ -38,6 +40,7 @@ import org.netbeans.spi.java.classpath.ClassPathProvider;
 import org.netbeans.spi.java.classpath.PathResourceImplementation;
 import org.netbeans.spi.java.classpath.support.ClassPathSupport;
 import org.netbeans.spi.java.queries.CompilerOptionsQueryImplementation;
+import org.netbeans.spi.java.queries.SourceLevelQueryImplementation2;
 import org.openide.filesystems.FileObject;
 import org.openide.util.ChangeSupport;
 import org.openide.util.Lookup;
@@ -49,12 +52,12 @@ import org.openide.util.lookup.ServiceProviders;
     @ServiceProvider(service=ClassPathProvider.class, position=9999), //DefaultClassPathProvider has 10000
     @ServiceProvider(service=CompilerOptionsQueryImpl.class)
 })
-public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementation, ClassPathProvider {
+public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementation, ClassPathProvider, SourceLevelQueryImplementation2 {
 
     private final Map<NbCodeLanguageClient, Configuration> file2Configuration = new WeakHashMap<>();
 
     @Override
-    public Result getOptions(FileObject file) {
+    public CompilerOptionsQueryImplementation.Result getOptions(FileObject file) {
         if (isSingleSourceFile(file)) {
             NbCodeLanguageClient client = Lookup.getDefault().lookup(NbCodeLanguageClient.class);
             if (client != null) {
@@ -70,9 +73,22 @@ public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementat
             NbCodeLanguageClient client = Lookup.getDefault().lookup(NbCodeLanguageClient.class);
             if (client != null) {
                 switch (type) {
-                    case ClassPath.COMPILE:
+                    case ClassPath.COMPILE: case JavaClassPathConstants.MODULE_CLASS_PATH:
                         return getConfiguration(client).compileClassPath;
+                    case JavaClassPathConstants.MODULE_COMPILE_PATH:
+                        return getConfiguration(client).moduleCompileClassPath;
                 }
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public SourceLevelQueryImplementation2.Result getSourceLevel(FileObject file) {
+        if (isSingleSourceFile(file)) {
+            NbCodeLanguageClient client = Lookup.getDefault().lookup(NbCodeLanguageClient.class);
+            if (client != null) {
+                return getConfiguration(client).sourceLevelResult;
             }
         }
         return null;
@@ -97,7 +113,7 @@ public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementat
         return true;
     }
 
-    private static final class ResultImpl extends Result {
+    private static final class OptionsResultImpl extends CompilerOptionsQueryImplementation.Result {
 
         private final ChangeSupport cs = new ChangeSupport(this);
         private List<String> args = Collections.emptyList();
@@ -106,8 +122,11 @@ public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementat
             return parseLine(line);
         }
 
-        private synchronized void setArguments(List<String> newArguments) {
-            args = newArguments;
+        private void setArguments(List<String> newArguments) {
+            synchronized (this) {
+                args = newArguments;
+            }
+            cs.fireChange();
         }
 
         @Override
@@ -127,19 +146,55 @@ public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementat
 
     }
 
-    private static final class Configuration {
-        private List<String> currentOptions = Collections.emptyList();
-        public final ResultImpl compilerOptions;
-        public final ProxyClassPathImplementation compileClassPathImplementation;
-        public final ClassPath compileClassPath;
+    private static final class SourceLevelResultImpl implements SourceLevelQueryImplementation2.Result {
 
-        public Configuration() {
-            compilerOptions = new ResultImpl();
-            compileClassPathImplementation = new ProxyClassPathImplementation();
-            compileClassPath = ClassPathFactory.createClassPath(compileClassPathImplementation);
+        private static final String DEFAULT_SL = String.valueOf(SourceVersion.latest().ordinal() - SourceVersion.RELEASE_0.ordinal());
+        private final ChangeSupport cs = new ChangeSupport(this);
+        private String sourceLevel = DEFAULT_SL;
+
+        @Override
+        public synchronized String getSourceLevel() {
+            return sourceLevel;
         }
 
-        private boolean setConfiguration(String vmOptions) { //XXX: in separate thread to ensure sensible ordering??
+        private void setSourceLevel(String sourceLevel) {
+            synchronized (this) {
+                this.sourceLevel = sourceLevel;
+            }
+            cs.fireChange();
+        }
+
+        @Override
+        public void addChangeListener(ChangeListener listener) {
+            cs.addChangeListener(listener);
+        }
+
+        @Override
+        public void removeChangeListener(ChangeListener listener) {
+            cs.addChangeListener(listener);
+        }
+
+    }
+
+    private static final class Configuration {
+        private List<String> currentOptions = Collections.emptyList();
+        public final OptionsResultImpl compilerOptions;
+        public final SourceLevelResultImpl sourceLevelResult;
+        public final ProxyClassPathImplementation compileClassPathImplementation;
+        public final ProxyClassPathImplementation compileModulePathImplementation;
+        public final ClassPath compileClassPath;
+        public final ClassPath moduleCompileClassPath;
+
+        public Configuration() {
+            compilerOptions = new OptionsResultImpl();
+            sourceLevelResult = new SourceLevelResultImpl();
+            compileClassPathImplementation = new ProxyClassPathImplementation();
+            compileModulePathImplementation = new ProxyClassPathImplementation();
+            compileClassPath = ClassPathFactory.createClassPath(compileClassPathImplementation);
+            moduleCompileClassPath = ClassPathFactory.createClassPath(compileModulePathImplementation);
+        }
+
+        private boolean setConfiguration(String vmOptions) {
             List<String> newOptions = compilerOptions.doParse(vmOptions);
 
             synchronized (this) {
@@ -153,43 +208,90 @@ public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementat
             compilerOptions.setArguments(newOptions);
 
             String classpath = "";
+            String modulepath = "";
+            String sourceLevel = SourceLevelResultImpl.DEFAULT_SL;
 
             for (int i = 0; i < newOptions.size(); i++) {
-                if ("-classpath".equals(newOptions.get(i)) && i + 1 < newOptions.size()) {
-                    classpath = newOptions.get(i + 1);
+                if (i + 1 >= newOptions.size())
+                    continue;
+                String parameter = newOptions.get(i + 1);
+                switch (newOptions.get(i)) {
+                    case "-classpath": case "-cp": case "--class-path":
+                        classpath = parameter;
+                        break;
+                    case "--module-path": case "-p":
+                        modulepath = parameter;
+                        break;
+                    case "--source":
+                        sourceLevel = parameter;
+                        break;
                 }
             }
 
-            compileClassPathImplementation.setDelegates(Arrays.asList(ClassPathSupport.createClassPathImplementation(ClassPathSupport.createClassPath(classpath).entries().stream().map(e -> e.getURL()).map(ClassPathSupport::createResource).collect(Collectors.toList()))));
+            compileClassPathImplementation.setDelegates(spec2CP(classpath));
+            compileModulePathImplementation.setDelegates(spec2CP(modulepath));
+
+            System.err.println("compileClassPath: " + compileClassPath);
+            System.err.println("moduleCompileClassPath: " + moduleCompileClassPath);
+
+            sourceLevelResult.setSourceLevel(sourceLevel);
 
             return true;
         }
 
+        private List<ClassPathImplementation> spec2CP(String spec) {
+            List<PathResourceImplementation> entries;
+
+            if (spec.isEmpty()) {
+                entries = Collections.emptyList();
+            } else {
+                entries = ClassPathSupport.createClassPath(spec)
+                                          .entries()
+                                          .stream()
+                                          .map(e -> e.getURL())
+                                          .map(ClassPathSupport::createResource)
+                                          .collect(Collectors.toList());
+            }
+            return Arrays.asList(ClassPathSupport.createClassPathImplementation(entries));
+        }
     }
 
     private static final class ProxyClassPathImplementation implements ClassPathImplementation {
         private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
         private List<ClassPathImplementation> delegates = Collections.emptyList();
+        private List<? extends PathResourceImplementation> cachedResources = null;
 
         public void setDelegates(List<ClassPathImplementation> delegates) {
             synchronized (delegates) {
-                this.delegates = delegates;
+                this.delegates = new ArrayList<>(delegates);
+                this.cachedResources = null;
             }
             pcs.firePropertyChange(PROP_RESOURCES, null, null);
         }
 
         @Override
         public List<? extends PathResourceImplementation> getResources() {
-            //XXX: caching!!!
             List<ClassPathImplementation> delegates;
 
             synchronized (this) {
+                if (cachedResources != null) {
+                    return cachedResources;
+                }
+
                 delegates = this.delegates;
             }
 
             List<PathResourceImplementation> allResources = new ArrayList<>();
 
             delegates.stream().map(d -> d.getResources()).forEach(allResources::addAll);
+
+            allResources = Collections.unmodifiableList(allResources);
+
+            synchronized (this) {
+                if (cachedResources == null && this.delegates == delegates) {
+                    cachedResources = allResources;
+                }
+            }
 
             return allResources;
         }

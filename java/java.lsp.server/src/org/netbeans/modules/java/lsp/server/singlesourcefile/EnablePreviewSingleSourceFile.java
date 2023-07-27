@@ -19,9 +19,6 @@
 package org.netbeans.modules.java.lsp.server.singlesourcefile;
 
 import com.google.gson.JsonPrimitive;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -33,15 +30,11 @@ import org.netbeans.api.project.FileOwnerQuery;
 import org.openide.filesystems.FileObject;
 import org.openide.util.Parameters;
 import org.netbeans.api.project.Project;
-import org.netbeans.api.project.ProjectManager;
 import org.netbeans.modules.java.hints.spi.preview.PreviewEnabler;
 import org.netbeans.modules.java.lsp.server.Utils;
 import org.netbeans.modules.java.lsp.server.protocol.NbCodeLanguageClient;
 import org.netbeans.modules.java.lsp.server.protocol.UpdateConfigParams;
-import org.openide.util.EditableProperties;
 import org.openide.util.Lookup;
-import org.openide.util.Mutex;
-import org.openide.util.MutexException;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -105,13 +98,20 @@ public class EnablePreviewSingleSourceFile implements PreviewEnabler {
         return javaVersion;
     }
 
-    @ServiceProvider(service=Factory.class, supersedes = "org.netbeans.modules.java.hints.errors.EnablePreviewSingleSourceFile$FactoryImpl")
+    @ServiceProvider(service=Factory.class, position=10_000_000)
     public static final class FactoryImpl implements Factory {
 
         @Override
         public PreviewEnabler enablerFor(FileObject file) {
             if (file != null) {
-                final Project prj = FileOwnerQuery.getOwner(file);
+                NbCodeLanguageClient client = Lookup.getDefault().lookup(NbCodeLanguageClient.class);
+
+                if (client == null) {
+                    return null;
+                }
+
+                Project prj = FileOwnerQuery.getOwner(file);
+
                 if (prj == null) {
                     return new EnablePreviewSingleSourceFile(file);
                 }

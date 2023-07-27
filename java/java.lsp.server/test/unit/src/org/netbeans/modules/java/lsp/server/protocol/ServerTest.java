@@ -400,7 +400,7 @@ public class ServerTest extends NbTestCase {
         assertEquals(Arrays.asList("Method:test() : void"), actualItems);
         assertEquals(null, actualCompletionItem.get(0).getDocumentation());
         CompletionItem resolvedItem = server.getTextDocumentService().resolveCompletionItem(actualCompletionItem.get(0)).get();
-        assertEquals("**[Test](*0)**\n" +
+        assertEquals("**Test**\n" +
                      "\n" +
                      "```\n" +
                      "public void test()\n" +
@@ -423,6 +423,9 @@ public class ServerTest extends NbTestCase {
         assertTrue(log, codeActions.get(0).isRight());
         CodeAction action = codeActions.get(0).getRight();
         assertEquals("Cast ...o to String", action.getTitle());
+        assertNull(action.getEdit());
+        action = server.getTextDocumentService().resolveCodeAction(action).get();
+        assertNotNull(action.getEdit());
         assertEquals(1, action.getEdit().getDocumentChanges().size());
         assertEquals(1, action.getEdit().getDocumentChanges().get(0).getLeft().getEdits().size());
         TextEdit edit = action.getEdit().getDocumentChanges().get(0).getLeft().getEdits().get(0);
@@ -710,6 +713,9 @@ public class ServerTest extends NbTestCase {
         assertTrue(log, codeActions.get(0).isRight());
         CodeAction action = codeActions.get(0).getRight();
         assertEquals("Remove .toString()", action.getTitle());
+        assertNull(action.getEdit());
+        action = server.getTextDocumentService().resolveCodeAction(action).get();
+        assertNotNull(action.getEdit());
         assertEquals(1, action.getEdit().getDocumentChanges().size());
         assertEquals(1, action.getEdit().getDocumentChanges().get(0).getLeft().getEdits().size());
         TextEdit edit = action.getEdit().getDocumentChanges().get(0).getLeft().getEdits().get(0);
@@ -1386,9 +1392,7 @@ public class ServerTest extends NbTestCase {
         MarkupContent content = hover.getContents().getRight();
         assertNotNull(content);
         assertEquals(content.getKind(), "markdown");
-        assertEquals(content.getValue(), "**[](*0)**\n" +
-                "\n" +
-                "```\n" +
+        assertEquals(content.getValue(), "```\n" +
                 "public class Test\n" +
                 "extends Object\n" +
                 "```\n" +
@@ -1674,8 +1678,12 @@ public class ServerTest extends NbTestCase {
                            .filter(a -> "Add import for java.util.List".equals(a.getTitle()))
                            .findAny();
         assertTrue(addImport.isPresent());
-        assertEquals(addImport.get().getKind(), CodeActionKind.QuickFix);
-        List<Either<TextDocumentEdit, ResourceOperation>> changes = addImport.get().getEdit().getDocumentChanges();
+        CodeAction action = addImport.get();
+        assertEquals(action.getKind(), CodeActionKind.QuickFix);
+        assertNull(action.getEdit());
+        action = server.getTextDocumentService().resolveCodeAction(action).get();
+        assertNotNull(action.getEdit());
+        List<Either<TextDocumentEdit, ResourceOperation>> changes = action.getEdit().getDocumentChanges();
         assertEquals(1, changes.size());
         assertTrue(changes.get(0).isLeft());
         TextDocumentEdit edit = changes.get(0).getLeft();
@@ -1930,8 +1938,12 @@ public class ServerTest extends NbTestCase {
                            .filter(a -> "Create local variable \"name\"".equals(a.getTitle()))
                            .findAny();
         assertTrue(generateVariable.isPresent());
-        assertEquals(generateVariable.get().getKind(), CodeActionKind.QuickFix);
-        List<Either<TextDocumentEdit, ResourceOperation>> changes = generateVariable.get().getEdit().getDocumentChanges();
+        CodeAction gvAction = generateVariable.get();
+        assertEquals(gvAction.getKind(), CodeActionKind.QuickFix);
+        assertNull(gvAction.getEdit());
+        gvAction = server.getTextDocumentService().resolveCodeAction(gvAction).get();
+        assertNotNull(gvAction.getEdit());
+        List<Either<TextDocumentEdit, ResourceOperation>> changes = gvAction.getEdit().getDocumentChanges();
         assertEquals(1, changes.size());
         assertTrue(changes.get(0).isLeft());
         TextDocumentEdit edit = changes.get(0).getLeft();
@@ -1951,8 +1963,12 @@ public class ServerTest extends NbTestCase {
                            .filter(a -> "Create field \"name\" in Test".equals(a.getTitle()))
                            .findAny();
         assertTrue(generateField.isPresent());
-        assertEquals(generateField.get().getKind(), CodeActionKind.QuickFix);
-        changes = generateField.get().getEdit().getDocumentChanges();
+        CodeAction gfAction = generateField.get();
+        assertEquals(gfAction.getKind(), CodeActionKind.QuickFix);
+        assertNull(gfAction.getEdit());
+        gfAction = server.getTextDocumentService().resolveCodeAction(gfAction).get();
+        assertNotNull(gfAction.getEdit());
+        changes = gfAction.getEdit().getDocumentChanges();
         assertEquals(1, changes.size());
         assertTrue(changes.get(0).isLeft());
         edit = changes.get(0).getLeft();
@@ -1973,8 +1989,12 @@ public class ServerTest extends NbTestCase {
                            .filter(a -> "Create parameter \"name\"".equals(a.getTitle()))
                            .findAny();
         assertTrue(generateParameter.isPresent());
-        assertEquals(generateParameter.get().getKind(), CodeActionKind.QuickFix);
-        changes = generateParameter.get().getEdit().getDocumentChanges();
+        CodeAction gpAction = generateParameter.get();
+        assertEquals(gpAction.getKind(), CodeActionKind.QuickFix);
+        assertNull(gpAction.getEdit());
+        gpAction = server.getTextDocumentService().resolveCodeAction(gpAction).get();
+        assertNotNull(gpAction.getEdit());
+        changes = gpAction.getEdit().getDocumentChanges();
         assertEquals(1, changes.size());
         assertTrue(changes.get(0).isLeft());
         edit = changes.get(0).getLeft();
@@ -2058,8 +2078,12 @@ public class ServerTest extends NbTestCase {
                            .filter(a -> "Create method \"convertToString(int)\" in Test".equals(a.getTitle()))
                            .findAny();
         assertTrue(generateMehtod.isPresent());
-        assertEquals(generateMehtod.get().getKind(), CodeActionKind.QuickFix);
-        List<Either<TextDocumentEdit, ResourceOperation>> changes = generateMehtod.get().getEdit().getDocumentChanges();
+        CodeAction action = generateMehtod.get();
+        assertEquals(action.getKind(), CodeActionKind.QuickFix);
+        assertNull(action.getEdit());
+        action = server.getTextDocumentService().resolveCodeAction(action).get();
+        assertNotNull(action.getEdit());
+        List<Either<TextDocumentEdit, ResourceOperation>> changes = action.getEdit().getDocumentChanges();
         assertEquals(1, changes.size());
         assertTrue(changes.get(0).isLeft());
         TextDocumentEdit edit = changes.get(0).getLeft();
@@ -2144,8 +2168,12 @@ public class ServerTest extends NbTestCase {
                            .filter(a -> "Create class \"Hello\" in Test".equals(a.getTitle()))
                            .findAny();
         assertTrue(generateClass.isPresent());
-        assertEquals(generateClass.get().getKind(), CodeActionKind.QuickFix);
-        List<Either<TextDocumentEdit, ResourceOperation>> changes = generateClass.get().getEdit().getDocumentChanges();
+        CodeAction action = generateClass.get();
+        assertEquals(action.getKind(), CodeActionKind.QuickFix);
+        assertNull(action.getEdit());
+        action = server.getTextDocumentService().resolveCodeAction(action).get();
+        assertNotNull(action.getEdit());
+        List<Either<TextDocumentEdit, ResourceOperation>> changes = action.getEdit().getDocumentChanges();
         assertEquals(1, changes.size());
         assertTrue(changes.get(0).isLeft());
         TextDocumentEdit edit = changes.get(0).getLeft();
@@ -2231,8 +2259,12 @@ public class ServerTest extends NbTestCase {
                            .filter(a -> "Implement all abstract methods".equals(a.getTitle()))
                            .findAny();
         assertTrue(implementAllAbstractMethods.isPresent());
-        assertEquals(implementAllAbstractMethods.get().getKind(), CodeActionKind.QuickFix);
-        List<Either<TextDocumentEdit, ResourceOperation>> changes = implementAllAbstractMethods.get().getEdit().getDocumentChanges();
+        CodeAction action = implementAllAbstractMethods.get();
+        assertEquals(action.getKind(), CodeActionKind.QuickFix);
+        assertNull(action.getEdit());
+        action = server.getTextDocumentService().resolveCodeAction(action).get();
+        assertNotNull(action.getEdit());
+        List<Either<TextDocumentEdit, ResourceOperation>> changes = action.getEdit().getDocumentChanges();
         assertEquals(1, changes.size());
         assertTrue(changes.get(0).isLeft());
         TextDocumentEdit edit = changes.get(0).getLeft();
@@ -2321,8 +2353,12 @@ public class ServerTest extends NbTestCase {
                            .filter(a -> "Implement all abstract methods".equals(a.getTitle()))
                            .findAny();
         assertTrue(implementAllAbstractMethods.isPresent());
-        assertEquals(implementAllAbstractMethods.get().getKind(), CodeActionKind.QuickFix);
-        List<Either<TextDocumentEdit, ResourceOperation>> changes = implementAllAbstractMethods.get().getEdit().getDocumentChanges();
+        CodeAction action = implementAllAbstractMethods.get();
+        assertEquals(action.getKind(), CodeActionKind.QuickFix);
+        assertNull(action.getEdit());
+        action = server.getTextDocumentService().resolveCodeAction(action).get();
+        assertNotNull(action.getEdit());
+        List<Either<TextDocumentEdit, ResourceOperation>> changes = action.getEdit().getDocumentChanges();
         assertEquals(1, changes.size());
         assertTrue(changes.get(0).isLeft());
         TextDocumentEdit edit = changes.get(0).getLeft();
@@ -2408,8 +2444,12 @@ public class ServerTest extends NbTestCase {
                            .filter(a -> "Implement all abstract methods".equals(a.getTitle()))
                            .findAny();
         assertTrue(implementAllAbstractMethods.isPresent());
-        assertEquals(implementAllAbstractMethods.get().getKind(), CodeActionKind.QuickFix);
-        List<Either<TextDocumentEdit, ResourceOperation>> changes = implementAllAbstractMethods.get().getEdit().getDocumentChanges();
+        CodeAction action = implementAllAbstractMethods.get();
+        assertEquals(action.getKind(), CodeActionKind.QuickFix);
+        assertNull(action.getEdit());
+        action = server.getTextDocumentService().resolveCodeAction(action).get();
+        assertNotNull(action.getEdit());
+        List<Either<TextDocumentEdit, ResourceOperation>> changes = action.getEdit().getDocumentChanges();
         assertEquals(1, changes.size());
         assertTrue(changes.get(0).isLeft());
         TextDocumentEdit edit = changes.get(0).getLeft();

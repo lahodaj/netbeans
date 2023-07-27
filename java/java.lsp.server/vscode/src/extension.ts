@@ -36,7 +36,10 @@ import {
     RevealOutputChannelOn,
     DocumentSelector,
     ErrorHandlerResult,
-    CloseHandlerResult
+    CloseHandlerResult,
+    SymbolInformation,
+    TextDocumentFilter,
+    TelemetryEventNotification
 } from 'vscode-languageclient';
 
 import * as net from 'net';
@@ -53,12 +56,15 @@ import { asRanges, StatusMessageRequest, ShowStatusMessageParams, QuickPickReque
 import * as launchConfigurations from './launchConfigurations';
 import { createTreeViewService, TreeViewService, TreeItemDecorator, Visualizer, CustomizableTreeDataProvider } from './explorer';
 import { initializeRunConfiguration, runConfigurationProvider, runConfigurationNodeProvider, configureRunSettings, runConfigurationUpdateAll } from './runConfiguration';
+import { dBConfigurationProvider } from './dbConfigurationProvider';
 import { TLSSocket } from 'tls';
 import { InputStep, MultiStepInput } from './utils';
 import { env } from 'process';
+import { PropertiesView } from './propertiesView/propertiesView';
 
 const API_VERSION : string = "1.0";
 const DATABASE: string = 'Database';
+const listeners = new Map<string, string[]>();
 let client: Promise<NbLanguageClient>;
 let testAdapter: NbTestAdapter | undefined;
 let nbProcess : ChildProcess | null = null;
@@ -382,11 +388,20 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
     // find acceptable JDK and launch the Java part
     findJDK((specifiedJDK) => {
         let currentClusters = findClusters(context.extensionPath).sort();
+        const dsSorter = (a: TextDocumentFilter, b: TextDocumentFilter) => {
+            return (a.language || '').localeCompare(b.language || '')
+                || (a.pattern || '').localeCompare(b.pattern || '')
+                || (a.scheme || '').localeCompare(b.scheme || '');
+        };
+        let currentDocumentSelectors = collectDocumentSelectors().sort(dsSorter);
         context.subscriptions.push(vscode.extensions.onDidChange(() => {
             checkConflict();
             const newClusters = findClusters(context.extensionPath).sort();
-            if (newClusters.length !== currentClusters.length || newClusters.find((value, index) => value !== currentClusters[index])) {
+            const newDocumentSelectors = collectDocumentSelectors().sort(dsSorter);
+            if (newClusters.length !== currentClusters.length || newDocumentSelectors.length !== currentDocumentSelectors.length
+                || newClusters.find((value, index) => value !== currentClusters[index]) || newDocumentSelectors.find((value, index) => value !== currentDocumentSelectors[index])) {
                 currentClusters = newClusters;
+                currentDocumentSelectors = newDocumentSelectors;
                 activateWithJDK(specifiedJDK, context, log, true, clientResolve, clientReject);
             }
         }));
@@ -409,13 +424,11 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
     context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('java+', debugDescriptionFactory));
     context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('nativeimage', debugDescriptionFactory));
 
-    // register content provider
-    let sourceForContentProvider = new NetBeansSourceForContentProvider(context);
-    context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('sourceFor', sourceForContentProvider));
-
     // initialize Run Configuration
     initializeRunConfiguration().then(initialized => {
 		if (initialized) {
+            context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('java+', dBConfigurationProvider));
+            context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('java', dBConfigurationProvider));
 			context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('java+', runConfigurationProvider));
 			context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('java', runConfigurationProvider));
 			context.subscriptions.push(vscode.window.registerTreeDataProvider('run-config', runConfigurationNodeProvider));
@@ -484,7 +497,9 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
         wrapProjectActionWithProgress('clean', undefined, 'Cleaning...', log, true, args);
     }));
     context.subscriptions.push(commands.registerCommand('java.open.type', () => {
-        wrapCommandWithProgress('java.quick.open', 'Opening type...', log, true);
+        wrapCommandWithProgress('java.quick.open', 'Opening type...', log, true).then(() => {
+            commands.executeCommand('workbench.action.focusActiveEditorGroup');
+        });
     }));
     context.subscriptions.push(commands.registerCommand('java.goto.super.implementation', async () => {
         if (window.activeTextEditor?.document.languageId !== "java") {
@@ -600,9 +615,42 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
     context.subscriptions.push(commands.registerCommand('java.package.test', async (uri, launchConfiguration?) => {
         await runDebug(true, true, uri, undefined, launchConfiguration);
     }));
+    context.subscriptions.push(commands.registerCommand('java.open.stacktrace', async (uri, methodName, fileName, line) => {
+        const location: string | undefined = uri ? await commands.executeCommand('java.resolve.stacktrace.location', uri, methodName, fileName) : undefined;
+        if (location) {
+            const lNum = line - 1;
+            window.showTextDocument(vscode.Uri.parse(location), { selection: new vscode.Range(new vscode.Position(lNum, 0), new vscode.Position(lNum, 0)) });
+        } else {
+            if (methodName) {
+                const fqn: string = methodName.substring(0, methodName.lastIndexOf('.'));
+                commands.executeCommand('workbench.action.quickOpen', '#' + fqn.substring(fqn.lastIndexOf('.') + 1));
+            }
+        }
+    }));
+    context.subscriptions.push(commands.registerCommand('nbls.workspace.symbols', async (query) => {
+        const c = await client;
+        return (await c.sendRequest<SymbolInformation[]>("workspace/symbol", { "query": query })) ?? [];
+    }));
+    context.subscriptions.push(commands.registerCommand('java.complete.abstract.methods', async () => {
+        const active = vscode.window.activeTextEditor;
+        if (active) {
+            const position = new vscode.Position(active.selection.start.line, active.selection.start.character);
+            await commands.executeCommand('java.implement.all.abstract.methods', active.document.uri.toString(), position);
+        }
+    }));
     context.subscriptions.push(commands.registerCommand('nbls.startup.condition', async () => {
         return client;
     }));
+    context.subscriptions.push(commands.registerCommand('nbls.addEventListener', (eventName, listener) => {
+        let ls = listeners.get(eventName);
+        if (!ls) {
+            ls = [];
+            listeners.set(eventName, ls);
+        }
+        ls.push(listener);
+    }));
+    context.subscriptions.push(commands.registerCommand('nbls.node.properties.edit',
+        async (node) => await PropertiesView.createOrShow(context, node, (await client).findTreeViewService())));
 
     launchConfigurations.updateLaunchConfig();
 
@@ -881,6 +929,7 @@ function doActivateWithJDK(specifiedJDK: string | null, context: ExtensionContex
                 { language: 'xml', pattern: '**/pom.xml' },
                 { pattern: '**/build.gradle'}
         ];
+        documentSelectors.push(...collectDocumentSelectors());
         const enableJava = isJavaSupportEnabled();
         const enableGroovy : boolean = conf.get("netbeans.groovySupport.enabled") as boolean;
         if (enableGroovy) {
@@ -1036,6 +1085,14 @@ function doActivateWithJDK(specifiedJDK: string | null, context: ExtensionContex
                             map.delete(key);
                         }
                     });
+                }
+            });
+            c.onNotification(TelemetryEventNotification.type, (param) => {
+                const ls = listeners.get(param);
+                if (ls) {
+                    for (const listener of ls) {
+                        commands.executeCommand(listener);
+                    }
                 }
             });
             handleLog(log, 'Language Client: Ready');
@@ -1283,6 +1340,20 @@ export function deactivate(): Thenable<void> {
     return stopClient(client);
 }
 
+function collectDocumentSelectors(): TextDocumentFilter[] {
+    const selectors = [];
+    for (const extension of vscode.extensions.all) {
+        const contributesSection = extension.packageJSON['contributes'];
+        if (contributesSection) {
+            const documentSelectors = contributesSection['netbeans.documentSelectors'];
+            if (Array.isArray(documentSelectors) && documentSelectors.length) {
+                selectors.push(...documentSelectors);
+            }
+        }
+    }
+    return selectors;
+}
+
 class NetBeansDebugAdapterTrackerFactory implements vscode.DebugAdapterTrackerFactory {
 
     createDebugAdapterTracker(_session: vscode.DebugSession): vscode.ProviderResult<vscode.DebugAdapterTracker> {
@@ -1464,32 +1535,5 @@ class NetBeansConfigurationNativeResolver implements vscode.DebugConfigurationPr
         }
 
         return config;
-    }
-}
-
-class NetBeansSourceForContentProvider implements vscode.TextDocumentContentProvider {
-
-    private uri: vscode.Uri | undefined;
-
-    constructor(context: ExtensionContext) {
-        context.subscriptions.push(vscode.window.onDidChangeVisibleTextEditors(eds => {
-            eds.forEach(ed => {
-                if (this.uri && this.uri.toString() === ed.document.uri.toString()) {
-                    ed.hide();
-                    this.uri = undefined;
-                }
-            });
-        }));
-    }
-
-    provideTextDocumentContent(uri: vscode.Uri, token: vscode.CancellationToken): vscode.ProviderResult<string> {
-        this.uri = uri;
-        vscode.window.withProgress({location: ProgressLocation.Notification, title: 'Finding source...', cancellable: false}, () => {
-            return vscode.commands.executeCommand('java.source.for', uri.toString()).then(() => {
-            }, (reason: any) => {
-                vscode.window.showErrorMessage(reason.data);
-            });
-        });
-        return Promise.resolve('');
     }
 }

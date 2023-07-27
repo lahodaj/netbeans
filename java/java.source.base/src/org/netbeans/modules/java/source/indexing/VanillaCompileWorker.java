@@ -47,7 +47,7 @@ import com.sun.tools.javac.code.DeferredCompletionFailureHandler;
 import com.sun.tools.javac.code.DeferredCompletionFailureHandler.Handler;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds.Kind;
-import com.sun.tools.javac.code.Preview;
+import com.sun.tools.javac.code.Source;
 import com.sun.tools.javac.code.Source.Feature;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symbol.ClassSymbol;
@@ -549,7 +549,7 @@ final class VanillaCompileWorker extends CompileWorker {
         Types types = Types.instance(ctx);
         TreeMaker make = TreeMaker.instance(ctx);
         Elements el = JavacElements.instance(ctx);
-        Preview preview = Preview.instance(ctx);
+        Source source = Source.instance(ctx);
         boolean hasMatchException = el.getTypeElement("java.lang.MatchException") != null;
         DeferredCompletionFailureHandler dcfh = DeferredCompletionFailureHandler.instance(ctx);
         //TODO: should preserve error types!!!
@@ -975,7 +975,7 @@ final class VanillaCompileWorker extends CompileWorker {
             }
 
             private void handleSwitch(boolean patternSwitch) {
-                if (patternSwitch && !preview.isEnabled() && preview.isPreview(Feature.PATTERN_SWITCH)) {
+                if (patternSwitch && !Feature.PATTERN_SWITCH.allowedInSource(source)) {
                     errorFound = true;
                 }
             }

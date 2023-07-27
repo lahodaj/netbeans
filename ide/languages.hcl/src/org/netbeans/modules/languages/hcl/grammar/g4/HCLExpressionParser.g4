@@ -45,7 +45,8 @@ exprTerm
 
 literalValue
     : NUMERIC_LIT
-    | BOOL_LIT
+    | TRUE
+    | FALSE
     | NULL
     ;
 
@@ -85,16 +86,28 @@ stringContent
     : STRING_CONTENT+
     ;
 
+interpolationContent
+    : INTERPOLATION_CONTENT+
+    ;
+
 interpolation
-    : INTERPOLATION_START ( INTERPOLATION_CONTENT | quotedTemplate) * INTERPOLATION_END
+    : INTERPOLATION_START ( interpolationContent | quotedTemplate)* INTERPOLATION_END
+    ;
+
+templateContent
+    : TEMPLATE_CONTENT+
     ;
 
 template
-    : TEMPLATE_START TEMPLATE_CONTENT* TEMPLATE_END
+    : TEMPLATE_START ( templateContent | quotedTemplate)* TEMPLATE_END
+    ;
+
+heredocContent
+    : HEREDOC_CONTENT+
     ;
 
 heredocTemplate
-    : HEREDOC_START HEREDOC_CONTENT* HEREDOC_END
+    : HEREDOC_START (heredocContent | interpolation | template)* HEREDOC_END
     ;
 
 variableExpr

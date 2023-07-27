@@ -712,8 +712,9 @@ public class ModelVisitor extends PathNodeVisitor implements ModelResolver {
             );
             JsObject origClassObject = parent.getProperty(className.getName());
             if (origClassObject != null) {
-                for (Entry<String, ? extends JsObject> e : origClassObject.getProperties().entrySet()) {
-                    ModelUtils.moveProperty(classObject, e.getValue());
+                List<JsObject> properties = new ArrayList<>(origClassObject.getProperties().values());
+                for (JsObject property : properties) {
+                    ModelUtils.moveProperty(classObject, property);
                 }
             }
             parent.addProperty(className.getName(), classObject);
@@ -919,7 +920,7 @@ public class ModelVisitor extends PathNodeVisitor implements ModelResolver {
 
     @Override
     public boolean enterFunctionNode(FunctionNode functionNode) {
-        if (functionNode.isClassConstructor() && !(ModelUtils.CONSTRUCTOR.equals(functionNode.getName()) || functionNode.getName().startsWith(ModelUtils.CONSTRUCTOR))) {
+        if (isArtificialConstructor(functionNode)) {
             // don't process artificail constructors.
             return false;
         }
@@ -1024,6 +1025,18 @@ public class ModelVisitor extends PathNodeVisitor implements ModelResolver {
         return false;
     }
 
+    /**
+     * The parse tree for classes holds constructors for all classes. For the
+     * structure scanner it is relevent to detect whether or not this
+     * constructor is generated or defined
+     *
+     * @param functionNode to check
+     * @return true if functionNode is detected to be generated
+     */
+    private static boolean isArtificialConstructor(FunctionNode functionNode) {
+        return functionNode.isClassConstructor() && functionNode.isGenerated();
+    }
+
     private void correctNameAndOffsets(JsFunctionImpl jsFunction, FunctionNode fn) {
         OffsetRange decNameOffset = jsFunction.getDeclarationName().getOffsetRange();
         Node lastVisited = getPreviousFromPath(2);
@@ -1113,6 +1126,11 @@ public class ModelVisitor extends PathNodeVisitor implements ModelResolver {
                     isPrivate = true;
                 }
             }
+        }
+
+        if (fn.getKind() == FunctionNode.Kind.ARROW) {
+            // marking the function as an arrow function
+            jsFunction.setJsKind(JsElement.Kind.ARROW_FUNCTION);
         }
 
         if (fn.getKind() == FunctionNode.Kind.GENERATOR) {
@@ -1476,7 +1494,7 @@ public class ModelVisitor extends PathNodeVisitor implements ModelResolver {
         }
     }
 
-    private void  processDeclarations(final JsFunctionImpl parentFn, final FunctionNode inNode) {
+    private void processDeclarations(final JsFunctionImpl parentFn, final FunctionNode inNode) {
         LOGGER.log(Level.FINEST, "in function: {0}, ident: {1}", new Object[]{inNode.getName(), inNode.getIdent()});
         final JsDocumentationHolder docHolder = JsDocumentationSupport.getDocumentationHolder(parserResult);
 
@@ -1595,7 +1613,7 @@ public class ModelVisitor extends PathNodeVisitor implements ModelResolver {
         LOGGER.log(Level.FINEST, "       function: {0}", debugInfo(fnNode)); // NOI18N
         String name = fnNode.isAnonymous() ? modelBuilder.getFunctionName(fnNode) : fnNode.getIdent().getName();
         Identifier fnName = new Identifier(name, new OffsetRange(fnNode.getIdent().getStart(), fnNode.getIdent().getFinish()));
-        if (fnNode.isClassConstructor() && !ModelUtils.CONSTRUCTOR.equals(fnName.getName())) {
+        if (isArtificialConstructor(fnNode)) {
             // skip artifical/ syntetic constructor nodes, that are created
             // when a class extends different class
             return;
@@ -2964,7 +2982,7 @@ public class ModelVisitor extends PathNodeVisitor implements ModelResolver {
             }
             object.addOccurrence(name.getOffsetRange());
         } else {
-            JsObject current = modelBuilder.getCurrentDeclarationFunction();
+            JsObject current = modelBuilder.getCurrentObject();
             object = (JsObjectImpl)resolveThis(current);
             if (object != null) {
                 // find out, whether is not defined in prototype
@@ -3363,23 +3381,30 @@ public class ModelVisitor extends PathNodeVisitor implements ModelResolver {
      * @return JsObject that should represent this.
      */
     @Override
+    @SuppressWarnings("AssignmentToMethodParameter")
     public JsObject resolveThis(JsObject where) {
+        while(
+                (! (where instanceof JsFunction && where.getJSKind() != JsElement.Kind.ARROW_FUNCTION))
+                && where != null && where.getJSKind() != JsElement.Kind.CLASS
+        ) {
+            where = where.getParent();
+        }
+
         JsElement.Kind whereKind = where.getJSKind();
-//        if (canBeSingletonPattern()) {
-//            JsObject result = resolveThisInSingletonPattern(where);
-//            if (result != null) {
-//                return result;
-//            }
-//        }
         if (whereKind == JsElement.Kind.FILE) {
             // this is used in global context
+            return where;
+        }
+        if (whereKind == JsElement.Kind.CLASS) {
             return where;
         }
         if (whereKind.isFunction() && where.getModifiers().contains(Modifier.PRIVATE)) {
             // the case where is defined private function in another function
             return where;
         }
+
         JsObject parent = where.getParent();
+
         if (parent == null) {
             return where;
         }

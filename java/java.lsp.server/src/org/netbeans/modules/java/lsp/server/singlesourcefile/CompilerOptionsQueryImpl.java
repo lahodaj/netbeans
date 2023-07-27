@@ -211,10 +211,9 @@ public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementat
             String modulepath = "";
             String sourceLevel = SourceLevelResultImpl.DEFAULT_SL;
 
-            for (int i = 0; i < newOptions.size(); i++) {
-                if (i + 1 >= newOptions.size())
-                    continue;
+            for (int i = 0; i < newOptions.size() - 1; i++) {
                 String parameter = newOptions.get(i + 1);
+
                 switch (newOptions.get(i)) {
                     case "-classpath": case "-cp": case "--class-path":
                         classpath = parameter;
@@ -230,9 +229,6 @@ public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementat
 
             compileClassPathImplementation.setDelegates(spec2CP(classpath));
             compileModulePathImplementation.setDelegates(spec2CP(modulepath));
-
-            System.err.println("compileClassPath: " + compileClassPath);
-            System.err.println("moduleCompileClassPath: " + moduleCompileClassPath);
 
             sourceLevelResult.setSourceLevel(sourceLevel);
 

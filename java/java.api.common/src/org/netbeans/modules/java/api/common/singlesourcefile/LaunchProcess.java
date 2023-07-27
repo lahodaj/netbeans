@@ -29,6 +29,7 @@ import org.netbeans.api.extexecution.base.ExplicitProcessParameters;
 import org.netbeans.api.java.platform.JavaPlatformManager;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.util.BaseUtilities;
 
 final class LaunchProcess implements Callable<Process> {
 
@@ -122,6 +123,6 @@ final class LaunchProcess implements Callable<Process> {
         if (!(argumentsObject instanceof String)) {
             return null;
         }
-        return Arrays.asList(((String) argumentsObject).trim().split(" "));  //NOI18N
+        return Arrays.asList(BaseUtilities.parseParameters(((String) argumentsObject).trim()));
     }
 }

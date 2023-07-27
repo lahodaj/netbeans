@@ -80,7 +80,7 @@ public class EnablePreviewSingleSourceFile implements PreviewEnabler {
             }
 
             if (compilerArgs.contains(SOURCE_FLAG)) {
-                compilerArgs = m.replaceAll("--enable-preview " + SOURCE_FLAG + " " + realNewSourceLevel);
+                compilerArgs = m.replaceAll(ENABLE_PREVIEW_FLAG + " " + SOURCE_FLAG + " " + realNewSourceLevel);
             } else {
                 compilerArgs += (compilerArgs.isEmpty() ? "" : " ") + ENABLE_PREVIEW_FLAG + " " + SOURCE_FLAG + " " + realNewSourceLevel;
             }

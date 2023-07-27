@@ -18,19 +18,14 @@
  */
 package org.netbeans.modules.java.file.launcher.queries;
 
-import com.sun.source.tree.PackageTree;
-import com.sun.source.util.JavacTask;
 import java.io.IOException;
-import java.io.StringWriter;
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
-import javax.tools.SimpleJavaFileObject;
-import javax.tools.ToolProvider;
 import org.netbeans.api.java.classpath.ClassPath;
 import org.netbeans.api.java.classpath.GlobalPathRegistry;
 import org.netbeans.api.java.lexer.JavaTokenId;
@@ -65,7 +60,17 @@ public class MultiSourceRootProvider implements ClassPathProvider {
                         FileObject root = file.getParent();
 
                         if (packName != null) {
-                            for (String packagePart : packName.split("\\.")) {
+                            List<String> packageParts = Arrays.asList(packName.split("\\."));
+
+                            Collections.reverse(packageParts);
+
+                            for (String packagePart : packageParts) {
+                                if (!root.getNameExt().equalsIgnoreCase(packagePart)) {
+                                    //ignore files outside of proper package structure,
+                                    //those may too easily lead to using a too general
+                                    //directory as a root, leading to too much indexing:
+                                    return null;
+                                } 
                                 root = root.getParent();
                             }
                         }
@@ -81,7 +86,19 @@ public class MultiSourceRootProvider implements ClassPathProvider {
                     return null;
                 });
             } else {
-                return root2SourceCP.get(file);
+                FileObject folder = file;
+
+                while (!folder.isRoot()) {
+                    ClassPath cp = root2SourceCP.get(folder);
+
+                    if (cp != null) {
+                        return cp;
+                    }
+
+                    folder = folder.getParent();
+                }
+
+                return null;
             }
         }
     }
@@ -112,19 +129,4 @@ public class MultiSourceRootProvider implements ClassPathProvider {
         return null;
     }
 
-    private static final class JFOImpl extends SimpleJavaFileObject {
-
-        private final String content;
-
-        public JFOImpl(String content) throws URISyntaxException {
-            super(new URI("mem://Input.java"), Kind.SOURCE);
-            this.content = content;
-        }
-
-        @Override
-        public CharSequence getCharContent(boolean ignoreEncodingErrors) throws IOException {
-            return content;
-        }
-
-    }
 }

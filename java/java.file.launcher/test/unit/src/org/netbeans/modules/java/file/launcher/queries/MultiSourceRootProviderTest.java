@@ -18,22 +18,47 @@
  */
 package org.netbeans.modules.java.file.launcher.queries;
 
-import org.junit.Test;
-import static org.junit.Assert.*;
+import org.netbeans.api.java.classpath.ClassPath;
+import org.netbeans.api.java.source.TestUtilities;
+import org.netbeans.junit.NbTestCase;
+import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 
 /**
  *
  * @author lahvac
  */
-public class MultiSourceRootProviderTest {
+public class MultiSourceRootProviderTest extends NbTestCase {
 
-    public MultiSourceRootProviderTest() {
+    public MultiSourceRootProviderTest(String name) {
+        super(name);
     }
 
-    @Test
     public void testFindPackage() {
         assertEquals("test.pack.nested", MultiSourceRootProvider.findPackage("/*package*/package test/**pack*/\n.pack.//package\nnested;"));
         assertEquals(null, MultiSourceRootProvider.findPackage("/*package pack*/"));
     }
 
+    public void testSourcePathFiltering() throws Exception {
+        clearWorkDir();
+
+        FileObject wd = FileUtil.toFileObject(getWorkDir());
+        FileObject validTest = FileUtil.createData(wd, "valid/pack/Test1.java");
+        FileObject invalidTest1 = FileUtil.createData(wd, "valid/pack/Test2.java");
+        FileObject invalidTest2 = FileUtil.createData(wd, "valid/pack/Test3.java");
+
+        TestUtilities.copyStringToFile(validTest, "package valid.pack;");
+        TestUtilities.copyStringToFile(invalidTest1, "package invalid.pack;");
+        TestUtilities.copyStringToFile(invalidTest2, "package invalid;");
+
+        MultiSourceRootProvider provider = new MultiSourceRootProvider();
+        ClassPath valid = provider.findClassPath(validTest, ClassPath.SOURCE);
+
+        assertNotNull(valid);
+        assertEquals(1, valid.entries().size());
+        assertEquals(wd, valid.getRoots()[0]);
+
+        assertNull(provider.findClassPath(invalidTest1, ClassPath.SOURCE));
+        assertNull(provider.findClassPath(invalidTest2, ClassPath.SOURCE));
+    } 
 }

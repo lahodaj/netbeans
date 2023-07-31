@@ -28,13 +28,16 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import org.netbeans.api.java.classpath.ClassPath;
 import org.netbeans.api.java.classpath.GlobalPathRegistry;
+import org.netbeans.api.java.classpath.JavaClassPathConstants;
 import org.netbeans.api.java.lexer.JavaTokenId;
+import org.netbeans.api.java.platform.JavaPlatformManager;
 import org.netbeans.api.lexer.TokenHierarchy;
 import org.netbeans.api.lexer.TokenSequence;
 import org.netbeans.api.queries.FileEncodingQuery;
 import org.netbeans.spi.java.classpath.ClassPathProvider;
 import org.netbeans.spi.java.classpath.support.ClassPathSupport;
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 import org.openide.util.Exceptions;
 import org.openide.util.lookup.ServiceProvider;
 
@@ -47,9 +50,16 @@ public class MultiSourceRootProvider implements ClassPathProvider {
 
     @Override
     public ClassPath findClassPath(FileObject file, String type) {
-        if (!ClassPath.SOURCE.equals(type)) {
-            return null;
+        switch (type) {
+            case ClassPath.SOURCE: return getSourcePath(file);
+            case ClassPath.BOOT:
+            case JavaClassPathConstants.MODULE_BOOT_PATH:
+                return getBootPath(file);
         }
+        return null;
+    }
+
+    private ClassPath getSourcePath(FileObject file) {
         synchronized (this) {
             //XXX: what happens if there's a Java file in user's home???
             if (file.isData() && "text/x-java".equals(file.getMIMEType())) {
@@ -101,6 +111,18 @@ public class MultiSourceRootProvider implements ClassPathProvider {
                 return null;
             }
         }
+    }
+
+    private synchronized ClassPath getBootPath(FileObject file) {
+        for (FileObject root : root2SourceCP.keySet()) {
+            if (FileUtil.isParentOf(root, file) || root.equals(file)) {
+                return JavaPlatformManager.getDefault()
+                                          .getDefaultPlatform()
+                                          .getBootstrapLibraries();
+            }
+        }
+
+        return null;
     }
 
     private static final Set<JavaTokenId> IGNORED_TOKENS = EnumSet.of(

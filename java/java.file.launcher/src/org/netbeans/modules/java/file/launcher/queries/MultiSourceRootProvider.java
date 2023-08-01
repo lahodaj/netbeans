@@ -40,8 +40,12 @@ import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.util.Exceptions;
 import org.openide.util.lookup.ServiceProvider;
+import org.openide.util.lookup.ServiceProviders;
 
-@ServiceProvider(service=ClassPathProvider.class, position=100_000)
+@ServiceProviders({
+    @ServiceProvider(service=ClassPathProvider.class, position=100_000),
+    @ServiceProvider(service=MultiSourceRootProvider.class)
+})
 public class MultiSourceRootProvider implements ClassPathProvider {
 
     //TODO: the cache will probably be never cleared, as the ClassPath/value refers to the key(?)
@@ -113,13 +117,21 @@ public class MultiSourceRootProvider implements ClassPathProvider {
         }
     }
 
-    private synchronized ClassPath getBootPath(FileObject file) {
+    public synchronized boolean isSourceLauncher(FileObject file) {
         for (FileObject root : root2SourceCP.keySet()) {
             if (FileUtil.isParentOf(root, file) || root.equals(file)) {
-                return JavaPlatformManager.getDefault()
-                                          .getDefaultPlatform()
-                                          .getBootstrapLibraries();
+                return true;
             }
+        }
+
+        return false;
+    }
+
+    private ClassPath getBootPath(FileObject file) {
+        if (isSourceLauncher(file)) {
+            return JavaPlatformManager.getDefault()
+                                      .getDefaultPlatform()
+                                      .getBootstrapLibraries();
         }
 
         return null;

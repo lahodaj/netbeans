@@ -258,7 +258,9 @@
                     </test-dependency>
                 </test-type>
             </test-dependencies>
-            <public-packages/>
+            <public-packages>
+                <package>org.netbeans.modules.java.file.launcher.api</package>
+            </public-packages>
         </data>
     </configuration>
 </project>

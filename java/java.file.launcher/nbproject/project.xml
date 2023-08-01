@@ -258,9 +258,11 @@
                     </test-dependency>
                 </test-type>
             </test-dependencies>
-            <public-packages>
+            <friend-packages>
+                <friend>org.netbeans.modules.java.lsp.server</friend>
+                <friend>org.netbeans.modules.refactoring.java</friend>
                 <package>org.netbeans.modules.java.file.launcher.api</package>
-            </public-packages>
+            </friend-packages>
         </data>
     </configuration>
 </project>

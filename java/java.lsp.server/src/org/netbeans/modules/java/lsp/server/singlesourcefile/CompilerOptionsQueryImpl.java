@@ -33,6 +33,7 @@ import org.netbeans.api.java.classpath.ClassPath;
 import org.netbeans.api.java.classpath.JavaClassPathConstants;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
+import org.netbeans.modules.java.file.launcher.api.SourceLauncher;
 import org.netbeans.modules.java.lsp.server.protocol.NbCodeLanguageClient;
 import org.netbeans.spi.java.classpath.ClassPathFactory;
 import org.netbeans.spi.java.classpath.ClassPathImplementation;
@@ -62,7 +63,7 @@ public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementat
             NbCodeLanguageClient client = Lookup.getDefault().lookup(NbCodeLanguageClient.class);
             if (client != null) {
                 return getConfiguration(client).compilerOptions;
-            }
+            } 
         }
         return null;
     }
@@ -107,10 +108,13 @@ public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementat
     //copied from SingleSourceFileUtil:
     static boolean isSingleSourceFile(FileObject fObj) {
         Project p = FileOwnerQuery.getOwner(fObj);
-        if (p != null || !fObj.getExt().equalsIgnoreCase("java")) { //NOI18N
+        if (p != null) {
             return false;
         }
-        return true;
+        if (!fObj.isFolder() && !fObj.getExt().equalsIgnoreCase("java")) { //NOI18N
+            return false;
+        }
+        return SourceLauncher.isSourceLauncherFile(fObj);
     }
 
     private static final class OptionsResultImpl extends CompilerOptionsQueryImplementation.Result {

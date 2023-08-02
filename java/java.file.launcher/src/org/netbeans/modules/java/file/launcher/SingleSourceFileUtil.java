@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.netbeans.modules.java.api.common.singlesourcefile;
+package org.netbeans.modules.java.file.launcher;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,10 +37,10 @@ import org.openide.util.Lookup;
  *
  * @author Arunava Sinha
  */
-final class SingleSourceFileUtil {
-    static final Logger LOG = Logger.getLogger(SingleSourceFileUtil.class.getPackage().getName());
+public final class SingleSourceFileUtil {
+    public static final Logger LOG = Logger.getLogger(SingleSourceFileUtil.class.getPackage().getName());
 
-    static int findJavaVersion() throws NumberFormatException {
+    public static int findJavaVersion() throws NumberFormatException {
         // JEP-330 is supported only on JDK-11 and above.
         String javaVersion = System.getProperty("java.specification.version"); //NOI18N
         if (javaVersion.startsWith("1.")) { //NOI18N
@@ -53,7 +53,7 @@ final class SingleSourceFileUtil {
     public static final String FILE_ARGUMENTS = "single_file_run_arguments"; //NOI18N
     public static final String FILE_VM_OPTIONS = "single_file_vm_options"; //NOI18N
 
-    static FileObject getJavaFileWithoutProjectFromLookup(Lookup lookup) {
+    public static FileObject getJavaFileWithoutProjectFromLookup(Lookup lookup) {
         for (DataObject dObj : lookup.lookupAll(DataObject.class)) {
             FileObject fObj = dObj.getPrimaryFile();
             if (isSingleSourceFile(fObj)) {
@@ -68,7 +68,7 @@ final class SingleSourceFileUtil {
         return null;
     }
 
-    static boolean isSingleSourceFile(FileObject fObj) {
+    public static boolean isSingleSourceFile(FileObject fObj) {
         Project p = FileOwnerQuery.getOwner(fObj);
         if (p != null || !fObj.getExt().equalsIgnoreCase("java")) { //NOI18N
             return false;
@@ -76,7 +76,7 @@ final class SingleSourceFileUtil {
         return true;
     }
 
-    static Process compileJavaSource(FileObject fileObject) {
+    public static Process compileJavaSource(FileObject fileObject) {
         FileObject javac = JavaPlatformManager.getDefault().getDefaultPlatform().findTool("javac"); //NOI18N
         File javacFile = FileUtil.toFile(javac);
         String javacPath = javacFile.getAbsolutePath();
@@ -101,7 +101,7 @@ final class SingleSourceFileUtil {
         return null;
     }
 
-    static boolean hasClassSibling(FileObject fo) {
+    public static boolean hasClassSibling(FileObject fo) {
         return fo.getParent().getFileObject(fo.getName(), "class") != null;
     }
 

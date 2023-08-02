@@ -253,6 +253,7 @@ import org.openide.util.RequestProcessor;
 import org.openide.util.Union2;
 import org.openide.util.WeakSet;
 import org.openide.util.lookup.Lookups;
+import org.openide.util.lookup.ProxyLookup;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -311,7 +312,10 @@ public class TextDocumentServiceImpl implements TextDocumentService, LanguageCli
                 delegates = this.delegates.toArray(new TextDocumentServiceImpl[this.delegates.size()]);
             }
             for (TextDocumentServiceImpl delegate : delegates) {
-                delegate.reRunDiagnostics();
+                ProxyLookup augmentedLookup = new ProxyLookup(Lookup.getDefault(), Lookups.fixed(delegate.client));
+                Lookups.executeWith(augmentedLookup, () -> {
+                    delegate.reRunDiagnostics();
+                });
             }
         }
     }
@@ -1824,6 +1828,9 @@ public class TextDocumentServiceImpl implements TextDocumentService, LanguageCli
                 SourceAccessor.getINSTANCE().invalidate(Source.create(originalDoc), true);
             }
         }
+        if (Lookup.getDefault().lookup(NbCodeLanguageClient.class) == null) {
+            new Exception("no NbCodeLanguageClient!").printStackTrace();
+        } 
 
         diagnosticTasks.computeIfAbsent(uri, u -> {
             return BACKGROUND_TASKS.create(() -> {

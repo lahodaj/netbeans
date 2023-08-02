@@ -56,7 +56,7 @@ import { asRanges, StatusMessageRequest, ShowStatusMessageParams, QuickPickReque
 import * as launchConfigurations from './launchConfigurations';
 import { createTreeViewService, TreeViewService, TreeItemDecorator, Visualizer, CustomizableTreeDataProvider } from './explorer';
 import { initializeRunConfiguration, runConfigurationProvider, runConfigurationNodeProvider, configureRunSettings, runConfigurationUpdateAll } from './runConfiguration';
-import { DBConfigurationProvider } from './dbConfigurationProvider';
+import { dBConfigurationProvider } from './dbConfigurationProvider';
 import { TLSSocket } from 'tls';
 import { InputStep, MultiStepInput } from './utils';
 import { env } from 'process';
@@ -428,7 +428,8 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
     // initialize Run Configuration
     initializeRunConfiguration().then(initialized => {
 		if (initialized) {
-            context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('java+', new DBConfigurationProvider()));
+            context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('java+', dBConfigurationProvider));
+            context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('java', dBConfigurationProvider));
 			context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('java+', runConfigurationProvider));
 			context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('java', runConfigurationProvider));
 			context.subscriptions.push(vscode.window.registerTreeDataProvider('run-config', runConfigurationNodeProvider));
@@ -650,7 +651,7 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
         ls.push(listener);
     }));
     context.subscriptions.push(commands.registerCommand('nbls.node.properties.edit',
-        async (node) => await PropertiesView.createOrShow(context, node)));
+        async (node) => await PropertiesView.createOrShow(context, node, (await client).findTreeViewService())));
 
     launchConfigurations.updateLaunchConfig();
 
@@ -942,7 +943,8 @@ function doActivateWithJDK(specifiedJDK: string | null, context: ExtensionContex
             synchronize: {
                 configurationSection: [
                     'netbeans.format',
-                    'netbeans.java.imports'
+                    'netbeans.java.imports',
+                    'java+.runConfig.vmOptions'
                 ],
                 fileEvents: [
                     workspace.createFileSystemWatcher('**/*.java')

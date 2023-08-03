@@ -1211,17 +1211,24 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
 
     @Override
     public void didChangeConfiguration(DidChangeConfigurationParams params) {
+        String fullConfigPrefix = client.getNbCodeCapabilities().getConfigurationPrefix();
+        String configPrefix = fullConfigPrefix.substring(0, fullConfigPrefix.length() - 1);
         server.openedProjects().thenAccept(projects -> {
             if (projects != null && projects.length > 0) {
-                updateJavaFormatPreferences(projects[0].getProjectDirectory(), ((JsonObject) params.getSettings()).getAsJsonObject("netbeans").getAsJsonObject("format"));
-                updateJavaImportPreferences(projects[0].getProjectDirectory(), ((JsonObject) params.getSettings()).getAsJsonObject("netbeans").getAsJsonObject("java").getAsJsonObject("imports"));
+                updateJavaFormatPreferences(projects[0].getProjectDirectory(), ((JsonObject) params.getSettings()).getAsJsonObject(configPrefix).getAsJsonObject("format"));
+                updateJavaImportPreferences(projects[0].getProjectDirectory(), ((JsonObject) params.getSettings()).getAsJsonObject(configPrefix).getAsJsonObject("java").getAsJsonObject("imports"));
             }
         });
+        String fullAltConfigPrefix = client.getNbCodeCapabilities().getAltConfigurationPrefix();
+        String altConfigPrefix = fullConfigPrefix.substring(0, fullAltConfigPrefix.length() - 1);
         boolean modified = false;
         String newVMOptions = "";
-        JsonObject javaPlus = ((JsonObject) params.getSettings()).getAsJsonObject("java+");
+        JsonObject javaPlus = ((JsonObject) params.getSettings()).getAsJsonObject(altConfigPrefix);
         if (javaPlus != null) {
-            newVMOptions = javaPlus.getAsJsonObject("runConfig").getAsJsonPrimitive("vmOptions").getAsString();
+            JsonObject runConfig = javaPlus.getAsJsonObject("runConfig");
+            if (runConfig != null) {
+                newVMOptions = runConfig.getAsJsonPrimitive("vmOptions").getAsString();
+            }
         }
         for (CompilerOptionsQueryImpl query : Lookup.getDefault().lookupAll(CompilerOptionsQueryImpl.class)) {
             modified |= query.setConfiguration(client, newVMOptions);

@@ -82,9 +82,14 @@ public final class NbCodeClientCapabilities {
     private String commandPrefix = Utils.DEFAULT_COMMAND_PREFIX;
 
     /**
-     * Common prefix for all configuration.
+     * Common prefix for configuration.
      */
     private String configurationPrefix = "netbeans.";
+
+    /**
+     * Secondary prefix for configuration.
+     */
+    private String altConfigurationPrefix = "java+.";
 
     public ClientCapabilities getClientCapabilities() {
         return clientCaps;
@@ -164,6 +169,14 @@ public final class NbCodeClientCapabilities {
 
     public void setConfigurationPrefix(String configurationPrefix) {
         this.configurationPrefix = configurationPrefix;
+    }
+
+    public String getAltConfigurationPrefix() {
+        return altConfigurationPrefix;
+    }
+
+    public void setAltConfigurationPrefix(String altConfigurationPrefix) {
+        this.altConfigurationPrefix = altConfigurationPrefix;
     }
 
     private NbCodeClientCapabilities withCapabilities(ClientCapabilities caps) {

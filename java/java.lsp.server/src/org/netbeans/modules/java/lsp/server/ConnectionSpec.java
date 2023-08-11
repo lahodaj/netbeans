@@ -50,9 +50,9 @@ final class ConnectionSpec implements Closeable {
     private final boolean hash;
     private final int port;
     // @GuardedBy (this)
-    private final List<AutoCloseable> close = new ArrayList<>();
+    private final List<Closeable> close = new ArrayList<>();
     // @GuardedBy (this)
-    private final List<AutoCloseable> closed = new ArrayList<>();
+    private final List<Closeable> closed = new ArrayList<>();
 
     private ConnectionSpec(Boolean listen, boolean hash, int port) {
         this.listen = listen;
@@ -208,7 +208,7 @@ final class ConnectionSpec implements Closeable {
         connectedThread.start();
     }
     
-    private boolean isClosed(AutoCloseable c) {
+    private boolean isClosed(Closeable c) {
         synchronized (this) {
             return closed.contains(c);
         }
@@ -217,11 +217,11 @@ final class ConnectionSpec implements Closeable {
     @Override
     public void close() throws IOException {
         synchronized (this) {
-            for (AutoCloseable c : close) {
+            for (Closeable c : close) {
                 try {
                     c.close();
                     closed.add(c);
-                } catch (Exception ex) {
+                } catch (IOException ex) {
                     Exceptions.printStackTrace(ex);
                 }
             }

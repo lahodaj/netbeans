@@ -25,6 +25,7 @@ import org.openide.util.Lookup;
 public class SourceLauncher {
 
     public static boolean isSourceLauncherFile(FileObject file) {
-        return Lookup.getDefault().lookup(MultiSourceRootProvider.class).isSourceLauncher(file);
+        MultiSourceRootProvider msrp = Lookup.getDefault().lookup(MultiSourceRootProvider.class);
+        return msrp != null && msrp.isSourceLauncher(file);
     }
 }

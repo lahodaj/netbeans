@@ -48,12 +48,15 @@ import org.openide.util.lookup.ServiceProviders;
 })
 public class MultiSourceRootProvider implements ClassPathProvider {
 
+    public static boolean DISABLE_MULTI_SOURCE_ROOT = false;
+
     //TODO: the cache will probably be never cleared, as the ClassPath/value refers to the key(?)
     private Map<FileObject, ClassPath> file2SourceCP = new WeakHashMap<>();
     private Map<FileObject, ClassPath> root2SourceCP = new WeakHashMap<>();
 
     @Override
     public ClassPath findClassPath(FileObject file, String type) {
+        if (DISABLE_MULTI_SOURCE_ROOT) return null;
         switch (type) {
             case ClassPath.SOURCE: return getSourcePath(file);
             case ClassPath.BOOT:

@@ -28,11 +28,15 @@ import org.netbeans.api.java.classpath.JavaClassPathConstants;
 import org.netbeans.junit.NbTestCase;
 import org.netbeans.modules.java.lsp.server.TestCodeLanguageClient;
 import org.netbeans.modules.java.lsp.server.protocol.NbCodeLanguageClient;
+import org.netbeans.modules.java.lsp.server.protocol.ServerTest;
+import org.netbeans.modules.java.lsp.server.protocol.ServerTest.ClassPathProviderImpl;
 import org.netbeans.spi.java.queries.CompilerOptionsQueryImplementation;
 import org.netbeans.spi.java.queries.SourceLevelQueryImplementation2;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.util.Lookup;
 import org.openide.util.lookup.Lookups;
+import org.openide.util.lookup.ProxyLookup;
 
 public class CompilerOptionsQueryImplTest extends NbTestCase {
 
@@ -60,7 +64,8 @@ public class CompilerOptionsQueryImplTest extends NbTestCase {
         AtomicReference<SourceLevelQueryImplementation2.Result> sourceLevelResult = new AtomicReference<>();
         AtomicInteger sourceLevelResultModificationCount = new AtomicInteger();
 
-        Lookups.executeWith(Lookups.fixed(client), () -> {
+        Lookups.executeWith(new ProxyLookup(Lookups.fixed(client), Lookups.exclude(Lookup.getDefault(), ClassPathProviderImpl.class)), () -> {
+            ClassPath.getClassPath(testFO, ClassPath.SOURCE); //ensure the multi-file root is registered
             optionsResult.set(query.getOptions(testFO));
             compileCP.set(query.findClassPath(testFO, ClassPath.COMPILE));
             compileModuleCP.set(query.findClassPath(testFO, JavaClassPathConstants.MODULE_COMPILE_PATH));

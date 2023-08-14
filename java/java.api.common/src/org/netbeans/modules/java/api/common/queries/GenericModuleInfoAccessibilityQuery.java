@@ -42,6 +42,9 @@ import javax.tools.SimpleJavaFileObject;
 import javax.tools.ToolProvider;
 import org.netbeans.api.java.classpath.ClassPath;
 import org.netbeans.api.java.queries.AccessibilityQuery;
+import org.netbeans.api.project.FileOwnerQuery;
+import org.netbeans.api.project.Project;
+import org.netbeans.spi.java.queries.AccessibilityQueryImplementation;
 import org.netbeans.spi.java.queries.AccessibilityQueryImplementation2;
 import org.openide.filesystems.FileChangeAdapter;
 import org.openide.filesystems.FileEvent;
@@ -60,6 +63,12 @@ public class GenericModuleInfoAccessibilityQuery implements AccessibilityQueryIm
     @Override
     public Result isPubliclyAccessible(FileObject folder) {
         return path2Result.computeIfAbsent(folder, f -> {
+            Project p = FileOwnerQuery.getOwner(f);
+            if (p != null && (p.getLookup().lookup(AccessibilityQueryImplementation2.class) != null ||
+                              p.getLookup().lookup(AccessibilityQueryImplementation.class) != null)) {
+                //if there's a project-based AccessibilityQuery for this file, don't provide the generic results
+                return null;
+            }
             ClassPath sourcePath = ClassPath.getClassPath(folder, ClassPath.SOURCE);
             if (sourcePath == null) {
                 return null;

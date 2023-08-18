@@ -811,7 +811,7 @@ public final class Server {
                         NBLS_CLEAR_PROJECT_CACHES,
                         NATIVE_IMAGE_FIND_DEBUG_PROCESS_TO_ATTACH,
                         NBLS_PROJECT_INFO,
-                        JAVA_ENABLE_PREVIEW
+                        JAVA_ENABLE_PREVIEW,
                         NBLS_DOCUMENT_SYMBOLS
                 ));
                 for (CodeActionsProvider codeActionsProvider : Lookup.getDefault().lookupAll(CodeActionsProvider.class)) {

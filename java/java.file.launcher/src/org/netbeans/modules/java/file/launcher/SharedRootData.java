@@ -18,21 +18,23 @@
  */
 package org.netbeans.modules.java.file.launcher;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Properties;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import org.netbeans.api.annotations.common.CheckForNull;
-import org.netbeans.modules.java.file.launcher.SingleSourceFileUtil;
+import org.netbeans.modules.java.file.launcher.api.SourceLauncher;
 import org.openide.filesystems.FileAttributeEvent;
 import org.openide.filesystems.FileChangeAdapter;
 import org.openide.filesystems.FileChangeListener;
+import org.openide.filesystems.FileEvent;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.modules.SpecificationVersion;
 import org.openide.util.Exceptions;
 
 /**
@@ -41,9 +43,7 @@ import org.openide.util.Exceptions;
  */
 public class SharedRootData {
 
-    private static final Pattern ENABLE_PREVIEW_PATTERN = Pattern.compile("(^|[ \t])--enable-preview($|[ \t])");
-    private static final Pattern SOURCE_PATTERN = Pattern.compile("(^|[ \t])--source[ \t]+([0-9]+(\\.[0-9]+)*)($|[ \t])");
-    private static Map<FileObject, SharedRootData> root2Data = new HashMap<>();
+    private static final Map<FileObject, SharedRootData> root2Data = new HashMap<>();
 
     public static synchronized void ensureRootRegistered(FileObject root) {
         root2Data.computeIfAbsent(root, r -> new SharedRootData(r));
@@ -54,13 +54,20 @@ public class SharedRootData {
     }
 
     private final FileObject root;
-    private final Properties options = new Properties();
+    private final Map<String, String> options = new TreeMap<>();
     private final FileChangeListener listener = new FileChangeAdapter() {
         @Override
         public void fileAttributeChanged(FileAttributeEvent fe) {
             Map<String, String> newProperties = new HashMap<>();
 
             addPropertiesFor(fe.getFile(), newProperties);
+            setNewProperties(newProperties);
+        }
+        @Override
+        public void fileDeleted(FileEvent fe) {
+            Map<String, String> newProperties = new HashMap<>();
+
+            newProperties.put(FileUtil.getRelativePath(root, fe.getFile()), null);
             setNewProperties(newProperties);
         }
     };
@@ -92,25 +99,12 @@ public class SharedRootData {
             if (value == null) {
                 options.remove(key);
             } else {
-                options.setProperty(key, value);
+                options.put(key, value);
             }
         }
-        Map<String, String> joinedOptions = new HashMap<>();
-        for (String key : options.stringPropertyNames()) {
-            String value = options.getProperty(key);
-            if (ENABLE_PREVIEW_PATTERN.matcher(value).find()) {
-                joinedOptions.put("--enable-preview", null);
-            }
-            Matcher sourceMatcher = SOURCE_PATTERN.matcher(value);
-            if (sourceMatcher.find()) {
-                //TODO: merging sources!
-                joinedOptions.put("--source", sourceMatcher.group(2));
-            }
-        }
-        String joinedCommandLine = joinedOptions.entrySet().stream().map(e -> e.getKey() + (e.getValue() != null ? " " + e.getValue() : "")).collect(Collectors.joining(" "));
+        String joinedCommandLine = SourceLauncher.joinCommandLines(options.values());
         try {
             if (!joinedCommandLine.equals(root.getAttribute(SingleSourceFileUtil.FILE_VM_OPTIONS))) {
-                //TODO: reindex if changed?  listening on CompilerOptionsQuery.Result should do that automatically?
                 root.setAttribute(SingleSourceFileUtil.FILE_VM_OPTIONS, joinedCommandLine);
             }
         } catch (IOException ex) {

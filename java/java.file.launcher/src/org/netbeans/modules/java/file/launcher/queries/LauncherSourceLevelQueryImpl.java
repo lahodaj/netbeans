@@ -18,11 +18,13 @@
  */
 package org.netbeans.modules.java.file.launcher.queries;
 
+import java.util.List;
+import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import org.netbeans.api.java.platform.JavaPlatformManager;
-import org.netbeans.modules.java.file.launcher.SharedRootData;
+import org.netbeans.modules.java.file.launcher.SingleSourceFileUtil;
+import org.netbeans.modules.java.file.launcher.spi.SingleFileOptionsQueryImplementation;
 import org.netbeans.spi.java.queries.SourceLevelQueryImplementation2;
-import org.openide.*;
 import org.openide.filesystems.FileObject;
 import org.openide.util.ChangeSupport;
 import org.openide.util.lookup.ServiceProvider;
@@ -36,27 +38,55 @@ public class LauncherSourceLevelQueryImpl implements SourceLevelQueryImplementat
 
     @Override
     public Result getSourceLevel(FileObject javaFile) {
-        //for files, DefaultSourceLevelQueryImpl will respond:
-        if (javaFile.isFolder()) {
-            while (javaFile != null) {
-                SharedRootData d = SharedRootData.getDataForRoot(javaFile);
-                if (d != null) {
-                    return new ResultImpl();
-                }
-                javaFile = javaFile.getParent();
-            }
-        }
+        SingleFileOptionsQueryImplementation.Result delegate = SingleSourceFileUtil.getOptionsFor(javaFile);
 
-        return null;
+        if (delegate != null) {
+            return new ResultImpl(delegate);
+        } else {
+            return null;
+        }
     }
 
-    private static final class ResultImpl implements Result {
+    private static final class ResultImpl implements ChangeListener, Result {
+
+        private static final String DEFAULT_SOURCE_LEVEL =
+                JavaPlatformManager.getDefault().getDefaultPlatform().getSpecification().getVersion().toString();
 
         private final ChangeSupport cs = new ChangeSupport(this);
+        private final SingleFileOptionsQueryImplementation.Result delegate;
+        private String sourceLevel;
+
+        public ResultImpl(SingleFileOptionsQueryImplementation.Result delegate) {
+            this.delegate = delegate;
+            this.delegate.addChangeListener(this);
+            updateDelegate();
+        }
+
+        private void updateDelegate() {
+            List<String> parsed = SingleSourceFileUtil.parseLine(delegate.getOptions());
+            String sourceLevel = DEFAULT_SOURCE_LEVEL;
+
+            for (int i = 0; i < parsed.size(); i++) {
+                if ("--source".equals(parsed.get(i)) && i + 1 < parsed.size()) {
+                    sourceLevel = parsed.get(i + 1);
+                }
+            }
+
+            synchronized (this) {
+                this.sourceLevel = sourceLevel;
+            }
+
+            cs.fireChange();
+        }
 
         @Override
-        public String getSourceLevel() {
-            return JavaPlatformManager.getDefault().getDefaultPlatform().getSpecification().getVersion().toString();
+        public void stateChanged(ChangeEvent ce) {
+            updateDelegate();
+        }
+
+        @Override
+        public synchronized String getSourceLevel() {
+            return sourceLevel;
         }
 
         @Override

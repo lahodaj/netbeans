@@ -57,7 +57,6 @@ public class CompilerOptionsIndexer extends CustomIndexer {
 
         @Override
         public void filesDeleted(Iterable<? extends Indexable> deleted, Context context) {
-            //TODO:
         }
 
         @Override

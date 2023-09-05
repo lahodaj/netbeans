@@ -18,21 +18,14 @@
  */
 package org.netbeans.modules.java.file.launcher.queries;
 
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
-import java.util.ArrayList;
 import java.util.List;
+import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
-import org.netbeans.api.project.FileOwnerQuery;
-import org.netbeans.modules.java.file.launcher.SharedRootData;
 import org.netbeans.modules.java.file.launcher.SingleSourceFileUtil;
+import org.netbeans.modules.java.file.launcher.spi.SingleFileOptionsQueryImplementation;
 import org.netbeans.spi.java.queries.CompilerOptionsQueryImplementation;
-import org.openide.filesystems.FileAttributeEvent;
-import org.openide.filesystems.FileChangeAdapter;
-import org.openide.filesystems.FileChangeListener;
 import org.openide.filesystems.FileObject;
 import org.openide.util.ChangeSupport;
-import org.openide.util.WeakListeners;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -44,41 +37,29 @@ public class SingleSourceCompilerOptQueryImpl implements CompilerOptionsQueryImp
 
     @Override
     public CompilerOptionsQueryImplementation.Result getOptions(FileObject file) {
-        Result res = null;
-        if (SingleSourceFileUtil.isSingleSourceFile(file)) {
-            return new ResultImpl(file);
+        SingleFileOptionsQueryImplementation.Result delegate = SingleSourceFileUtil.getOptionsFor(file);
+
+        if (delegate != null) {
+            return new ResultImpl(delegate);
+        } else {
+            return null;
         }
-        if (file.isFolder()) {
-            SharedRootData data = SharedRootData.getDataForRoot(file);
-            if (data != null) {
-                return new ResultImpl(file);
-            }
-        }
-        return res;
     }
 
-    private static final class ResultImpl extends CompilerOptionsQueryImplementation.Result implements PropertyChangeListener {
+    private static final class ResultImpl extends CompilerOptionsQueryImplementation.Result implements ChangeListener {
 
         private final ChangeSupport cs;
-        private final FileObject file;
-        private final FileChangeListener attributeChanges = new FileChangeAdapter() {
-            @Override
-            public void fileAttributeChanged(FileAttributeEvent fe) {
-                cs.fireChange();
-            }
-        };
+        private final SingleFileOptionsQueryImplementation.Result delegate;
 
-        ResultImpl(FileObject file) {
+        ResultImpl(SingleFileOptionsQueryImplementation.Result delegate) {
             this.cs = new ChangeSupport(this);
-            this.file = file;
-            this.file.addFileChangeListener(WeakListeners.create(FileChangeListener.class, attributeChanges, this.file));
+            this.delegate = delegate;
+            this.delegate.addChangeListener(this);
         }
 
         @Override
         public List<? extends String> getArguments() {
-            Object vmOptionsObj = file.getAttribute(SingleSourceFileUtil.FILE_VM_OPTIONS);
-
-            return vmOptionsObj != null ? parseLine((String) vmOptionsObj) : new ArrayList<String>();
+            return parseLine(delegate.getOptions());
         }
 
         @Override
@@ -92,7 +73,7 @@ public class SingleSourceCompilerOptQueryImpl implements CompilerOptionsQueryImp
         }
 
         @Override
-        public void propertyChange(PropertyChangeEvent evt) {
+        public void stateChanged(ChangeEvent ce) {
             cs.fireChange();
         }
     }

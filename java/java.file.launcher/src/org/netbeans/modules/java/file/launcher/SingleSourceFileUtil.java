@@ -25,9 +25,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.event.ChangeListener;
 import org.netbeans.api.java.platform.JavaPlatformManager;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
+import org.netbeans.modules.java.file.launcher.spi.SingleFileOptionsQueryImplementation;
+import org.netbeans.modules.java.file.launcher.spi.SingleFileOptionsQueryImplementation.Result;
+import org.netbeans.spi.java.queries.CompilerOptionsQueryImplementation;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
@@ -104,5 +108,39 @@ public final class SingleSourceFileUtil {
     public static boolean hasClassSibling(FileObject fo) {
         return fo.getParent().getFileObject(fo.getName(), "class") != null;
     }
+
+    public static Result getOptionsFor(FileObject file) {
+        for (SingleFileOptionsQueryImplementation  i : Lookup.getDefault().lookupAll(SingleFileOptionsQueryImplementation.class)) {
+            Result r = i.optionsFor(file);
+
+            if (r != null) {
+                return r;
+            }
+        }
+        return null;
+    }
+
+    public static List<String> parseLine(String line) {
+        return PARSER.doParse(line);
+    }
+
+    private static final LineParser PARSER = new LineParser();
+
+    private static class LineParser extends CompilerOptionsQueryImplementation.Result {
+        public List<String> doParse(String line) {
+            return parseLine(line);
+        } 
+
+        @Override
+        public List<? extends String> getArguments() {
+            return null;
+        }
+
+        @Override
+        public void addChangeListener(ChangeListener listener) {}
+
+        @Override
+        public void removeChangeListener(ChangeListener listener) {}
+    } 
 
 }

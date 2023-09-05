@@ -120,7 +120,7 @@ import org.netbeans.modules.java.lsp.server.Utils;
 import org.netbeans.modules.java.lsp.server.debugging.attach.AttachConfigurations;
 import org.netbeans.modules.java.lsp.server.debugging.attach.AttachNativeConfigurations;
 import org.netbeans.modules.java.lsp.server.project.LspProjectInfo;
-import org.netbeans.modules.java.lsp.server.singlesourcefile.CompilerOptionsQueryImpl;
+import org.netbeans.modules.java.lsp.server.singlesourcefile.SingleFileOptionsQueryImpl;
 import org.netbeans.modules.java.source.ElementHandleAccessor;
 import org.netbeans.modules.java.source.ui.JavaSymbolProvider;
 import org.netbeans.modules.java.source.ui.JavaTypeProvider;
@@ -1223,7 +1223,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
         if (javaPlus != null) {
             newVMOptions = javaPlus.getAsJsonObject("runConfig").getAsJsonPrimitive("vmOptions").getAsString();
         }
-        for (CompilerOptionsQueryImpl query : Lookup.getDefault().lookupAll(CompilerOptionsQueryImpl.class)) {
+        for (SingleFileOptionsQueryImpl query : Lookup.getDefault().lookupAll(SingleFileOptionsQueryImpl.class)) {
             modified |= query.setConfiguration(client, newVMOptions);
         }
         if (modified) {

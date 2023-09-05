@@ -18,14 +18,22 @@
  */
 package org.netbeans.modules.java.file.launcher.queries;
 
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
 import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.WeakHashMap;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 import org.netbeans.api.java.classpath.ClassPath;
 import org.netbeans.api.java.classpath.GlobalPathRegistry;
 import org.netbeans.api.java.classpath.JavaClassPathConstants;
@@ -34,7 +42,13 @@ import org.netbeans.api.java.platform.JavaPlatformManager;
 import org.netbeans.api.lexer.TokenHierarchy;
 import org.netbeans.api.lexer.TokenSequence;
 import org.netbeans.api.queries.FileEncodingQuery;
+import org.netbeans.modules.java.file.launcher.SingleSourceFileUtil;
+import org.netbeans.modules.java.file.launcher.spi.SingleFileOptionsQueryImplementation;
+import org.netbeans.spi.java.classpath.ClassPathFactory;
+import org.netbeans.spi.java.classpath.ClassPathImplementation;
+import static org.netbeans.spi.java.classpath.ClassPathImplementation.PROP_RESOURCES;
 import org.netbeans.spi.java.classpath.ClassPathProvider;
+import org.netbeans.spi.java.classpath.PathResourceImplementation;
 import org.netbeans.spi.java.classpath.support.ClassPathSupport;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -43,7 +57,7 @@ import org.openide.util.lookup.ServiceProvider;
 import org.openide.util.lookup.ServiceProviders;
 
 @ServiceProviders({
-    @ServiceProvider(service=ClassPathProvider.class, position=100_000),
+    @ServiceProvider(service=ClassPathProvider.class, position=9_999),
     @ServiceProvider(service=MultiSourceRootProvider.class)
 })
 public class MultiSourceRootProvider implements ClassPathProvider {
@@ -53,12 +67,21 @@ public class MultiSourceRootProvider implements ClassPathProvider {
     //TODO: the cache will probably be never cleared, as the ClassPath/value refers to the key(?)
     private Map<FileObject, ClassPath> file2SourceCP = new WeakHashMap<>();
     private Map<FileObject, ClassPath> root2SourceCP = new WeakHashMap<>();
+    private Map<FileObject, ClassPath> file2AllPath = new WeakHashMap<>();
+    private Map<FileObject, ClassPath> file2ClassPath = new WeakHashMap<>();
+    private Map<FileObject, ClassPath> file2ModulePath = new WeakHashMap<>();
 
     @Override
     public ClassPath findClassPath(FileObject file, String type) {
         if (DISABLE_MULTI_SOURCE_ROOT) return null;
         switch (type) {
             case ClassPath.SOURCE: return getSourcePath(file);
+            case ClassPath.COMPILE:
+                return attributeBasedPath(file, file2AllPath, "-classpath", "-cp", "--class-path", "--module-path", "-p");
+            case JavaClassPathConstants.MODULE_CLASS_PATH:
+                return attributeBasedPath(file, file2ClassPath, "-classpath", "-cp", "--class-path");
+            case JavaClassPathConstants.MODULE_COMPILE_PATH:
+                return attributeBasedPath(file, file2ModulePath, "--module-path", "-p");
             case ClassPath.BOOT:
             case JavaClassPathConstants.MODULE_BOOT_PATH:
                 return getBootPath(file);
@@ -120,14 +143,29 @@ public class MultiSourceRootProvider implements ClassPathProvider {
         }
     }
 
-    public synchronized boolean isSourceLauncher(FileObject file) {
+    private synchronized FileObject getSourceRootImpl(FileObject file) {
         for (FileObject root : root2SourceCP.keySet()) {
             if (FileUtil.isParentOf(root, file) || root.equals(file)) {
-                return true;
+                return root;
             }
         }
 
-        return false;
+        return null;
+    }
+
+    public FileObject getSourceRoot(FileObject file) {
+        FileObject root = getSourceRootImpl(file);
+
+        if (root == null) {
+            getSourcePath(file);
+            root = getSourceRootImpl(file);
+        }
+
+        return root;
+    }
+
+    public boolean isSourceLauncher(FileObject file) {
+        return getSourceRoot(file) != null;
     }
 
     private ClassPath getBootPath(FileObject file) {
@@ -147,6 +185,13 @@ public class MultiSourceRootProvider implements ClassPathProvider {
         JavaTokenId.WHITESPACE
     );
 
+    private static final Set<JavaTokenId> STOP_TOKENS = EnumSet.of(
+        JavaTokenId.PUBLIC,
+        JavaTokenId.PROTECTED,
+        JavaTokenId.PRIVATE,
+        JavaTokenId.CLASS
+    );
+
     static String findPackage(String fileContext) {
         TokenHierarchy<String> th = TokenHierarchy.create(fileContext, true, JavaTokenId.language(), IGNORED_TOKENS, null);
         TokenSequence<JavaTokenId> ts = th.tokenSequence(JavaTokenId.language());
@@ -160,10 +205,96 @@ public class MultiSourceRootProvider implements ClassPathProvider {
                     packageName.append(ts.token().text());
                 }
                 return packageName.toString();
-            }
+            } else if (STOP_TOKENS.contains(ts.token().id())) {
+                break;
+            } 
         }
 
         return null;
+    }
+
+    private ClassPath attributeBasedPath(FileObject file, Map<FileObject, ClassPath> file2ClassPath, String... optionKeys) {
+        if (!isSourceLauncher(file)) {
+            return null;
+        }
+
+        synchronized (this) { 
+        return file2ClassPath.computeIfAbsent(file, f -> { 
+            SingleFileOptionsQueryImplementation.Result delegate = SingleSourceFileUtil.getOptionsFor(f);
+
+            if (delegate == null) {
+                return null;
+            }
+            AttributeBasedClassPathImplementation cpi = new AttributeBasedClassPathImplementation(delegate, optionKeys);
+            
+            return ClassPathFactory.createClassPath(cpi);
+        });
+        }
+    }
+
+    private static final class AttributeBasedClassPathImplementation implements ChangeListener, ClassPathImplementation {
+        private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
+        private final SingleFileOptionsQueryImplementation.Result delegate;
+        private final Set<String> optionKeys;
+        private Set<URL> currentURLs;
+        private List<? extends PathResourceImplementation> delegates = Collections.emptyList();
+
+        public AttributeBasedClassPathImplementation(SingleFileOptionsQueryImplementation.Result delegate, String... optionKeys) {
+            this.delegate = delegate;
+            this.optionKeys = new HashSet<>(Arrays.asList(optionKeys));
+            delegate.addChangeListener(this);
+            updateDelegates();
+        }
+
+        @Override
+        public void stateChanged(ChangeEvent ce) {
+            updateDelegates();
+        }
+
+        private void updateDelegates() {
+            Set<URL> newURLs = new HashSet<>();
+            List<PathResourceImplementation> newDelegates = new ArrayList<>();
+            List<String> parsed = SingleSourceFileUtil.parseLine(delegate.getOptions());
+
+            for (int i = 0; i < parsed.size(); i++) {
+                if (optionKeys.contains(parsed.get(i)) && i + 1 < parsed.size()) {
+                    ClassPathSupport.createClassPath(parsed.get(i + 1))
+                        .entries()
+                        .stream()
+                        .map(e -> e.getURL())
+                        .forEach(u -> {
+                            newURLs.add(u);
+                            newDelegates.add(ClassPathSupport.createResource(u));
+                        });
+                } 
+            } 
+
+            synchronized (this) {
+                if (Objects.equals(currentURLs, newURLs)) {
+                    return ;
+                }
+                this.currentURLs = newURLs;
+                this.delegates = newDelegates;
+            }
+
+            pcs.firePropertyChange(PROP_RESOURCES, null, null);
+        }
+
+        @Override
+        public synchronized List<? extends PathResourceImplementation> getResources() {
+            return delegates;
+        }
+
+        @Override
+        public void addPropertyChangeListener(PropertyChangeListener listener) {
+            pcs.addPropertyChangeListener(listener);
+        }
+
+        @Override
+        public void removePropertyChangeListener(PropertyChangeListener listener) {
+            pcs.removePropertyChangeListener(listener);
+        }
+
     }
 
 }

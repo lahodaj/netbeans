@@ -312,7 +312,7 @@ public class TextDocumentServiceImpl implements TextDocumentService, LanguageCli
                 delegates = this.delegates.toArray(new TextDocumentServiceImpl[this.delegates.size()]);
             }
             for (TextDocumentServiceImpl delegate : delegates) {
-                ProxyLookup augmentedLookup = new ProxyLookup(Lookup.getDefault(), Lookups.fixed(delegate.client));
+                ProxyLookup augmentedLookup = new ProxyLookup(Lookups.fixed(delegate.client), Lookup.getDefault());
                 Lookups.executeWith(augmentedLookup, () -> {
                     delegate.reRunDiagnostics();
                 });

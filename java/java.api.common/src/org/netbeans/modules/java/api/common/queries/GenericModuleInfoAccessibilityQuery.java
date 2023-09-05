@@ -28,14 +28,20 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.lang.ref.Reference;
+import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.tools.SimpleJavaFileObject;
@@ -52,30 +58,81 @@ import org.openide.filesystems.FileObject;
 import org.openide.util.ChangeSupport;
 import org.openide.util.RequestProcessor;
 import org.openide.util.RequestProcessor.Task;
+import org.openide.util.Utilities;
 import org.openide.util.lookup.ServiceProvider;
 
 @ServiceProvider(service=AccessibilityQueryImplementation2.class)
 public class GenericModuleInfoAccessibilityQuery implements AccessibilityQueryImplementation2 {
 
-    private final Map<ClassPath, ClassPathListener> sourcePath2Listener = new WeakHashMap<>();
-    private final Map<FileObject, Result> path2Result = new WeakHashMap<>();
+    private static final Logger LOG = Logger.getLogger(GenericModuleInfoAccessibilityQuery.class.getName());
+
+    private final Map<ClassPath, Reference<ClassPathListener>> sourcePath2Listener = new WeakHashMap<>();
+    private final Map<FileObject, Reference<Result>> path2Result = new HashMap<>();
 
     @Override
     public Result isPubliclyAccessible(FileObject folder) {
-        return path2Result.computeIfAbsent(folder, f -> {
-            Project p = FileOwnerQuery.getOwner(f);
-            if (p != null && (p.getLookup().lookup(AccessibilityQueryImplementation2.class) != null ||
-                              p.getLookup().lookup(AccessibilityQueryImplementation.class) != null)) {
-                //if there's a project-based AccessibilityQuery for this file, don't provide the generic results
-                return null;
+        Result result;
+        synchronized (this) {
+            Reference<Result> ref = path2Result.get(folder);
+            result = ref != null ? ref.get() : null;
+            if (result != null) {
+                return result;
             }
-            ClassPath sourcePath = ClassPath.getClassPath(folder, ClassPath.SOURCE);
-            if (sourcePath == null) {
-                return null;
+        }
+        
+        Project p = FileOwnerQuery.getOwner(folder);
+        if (p != null && (p.getLookup().lookup(AccessibilityQueryImplementation2.class) != null ||
+                          p.getLookup().lookup(AccessibilityQueryImplementation.class) != null)) {
+            //if there's a project-based AccessibilityQuery for this file, don't provide the generic results
+            return null;
+        }
+        ClassPath sourcePath = ClassPath.getClassPath(folder, ClassPath.SOURCE);
+        if (sourcePath == null) {
+            return null;
+        }
+
+        synchronized (this) { 
+            Reference<Result> ref = path2Result.get(folder);
+
+            result = ref != null ? ref.get() : null;
+
+            if (result != null) {
+                return result;
             }
-            ClassPathListener cpl = sourcePath2Listener.computeIfAbsent(sourcePath, sp -> new ClassPathListener(sourcePath));
-            return new ResultImpl(cpl, sourcePath, folder);
-        });
+
+            Reference<ClassPathListener> listenerRef = sourcePath2Listener.get(sourcePath);
+            ClassPathListener cpl = listenerRef != null ? listenerRef.get() : null;
+            
+            if (cpl == null) {
+                cpl = new ClassPathListener(sourcePath);
+            }
+
+            sourcePath2Listener.put(sourcePath, new WeakReference<>(cpl));
+
+            result = new ResultImpl(cpl, sourcePath, folder);
+
+            path2Result.put(folder, new CleanPath2Result(result, folder));
+
+            return result;
+        }
+    }
+
+    private final class CleanPath2Result extends WeakReference<Result> implements Runnable {
+
+        private final FileObject key;
+
+        public CleanPath2Result(Result value, FileObject key) {
+            super(value, Utilities.activeReferenceQueue());
+            this.key = key;
+        }
+
+        @Override
+        public void run() {
+            synchronized (GenericModuleInfoAccessibilityQuery.this) {
+                path2Result.remove(key);
+            }
+        }
+
     }
 
     private static final class ResultImpl implements Result, ChangeListener {
@@ -83,19 +140,18 @@ public class GenericModuleInfoAccessibilityQuery implements AccessibilityQueryIm
         private final ChangeSupport cs = new ChangeSupport(this);
         private final ClassPathListener listener;
         private final Reference<ClassPath> sourcePath;
-        private final Reference<FileObject> folder;
+        private final FileObject folder;
 
         public ResultImpl(ClassPathListener listener, ClassPath sourcePath, FileObject folder) {
             this.listener = listener;
             this.sourcePath = new WeakReference<>(sourcePath);
-            this.folder = new WeakReference<>(folder);
+            this.folder = folder;
             listener.addChangeListener(this);
         }
 
         @Override
         public AccessibilityQuery.Accessibility getAccessibility() {
             ClassPath sourcePath = this.sourcePath.get();
-            FileObject folder = this.folder.get();
             Set<String> exported = listener.getExportedPackages();
 
             if (sourcePath == null || folder == null || exported == null) {
@@ -147,6 +203,9 @@ public class GenericModuleInfoAccessibilityQuery implements AccessibilityQueryIm
             }
         };
 
+        private Set<FileObject> oldRoots = new HashSet<>();
+        private Set<FileObject> oldModuleInfos = new HashSet<>();
+
         public ClassPathListener(ClassPath sourcePath) {
             this.sourcePath = new WeakReference<>(sourcePath);
             this.parseTask = WORKER.create(() -> {
@@ -172,8 +231,7 @@ public class GenericModuleInfoAccessibilityQuery implements AccessibilityQueryIm
                             } 
                         }
                     } catch (IOException ex) {
-                        //TODO: log
-                        ex.printStackTrace();
+                        LOG.log(Level.FINE, null, ex);
                     } 
                 } else {
                     exported = null;
@@ -182,21 +240,42 @@ public class GenericModuleInfoAccessibilityQuery implements AccessibilityQueryIm
                 exportedPackages.set(exported);
                 cs.fireChange();
             });
-            sourcePath.addPropertyChangeListener(this);
             rootsTask = WORKER.create(() -> {
                 ClassPath cp = ClassPathListener.this.sourcePath.get();
+
+                if (cp == null) {
+                    return ;
+                }
+
+                Set<FileObject> removedRoots = new HashSet<>(oldRoots);
+                Set<FileObject> removedModuleInfos = new HashSet<>(oldModuleInfos);
+
                 for (FileObject root : cp.getRoots()) {
-                    root.removeFileChangeListener(folderListener);
-                    root.addFileChangeListener(folderListener);
+                    removedRoots.remove(root);
+                    if (oldRoots.add(root)) { 
+                        root.addFileChangeListener(folderListener);
+                    }
                     FileObject moduleInfo = root.getFileObject("module-info.java");
                     if (moduleInfo != null) {
-                        moduleInfo.removeFileChangeListener(moduleInfoListener);
-                        moduleInfo.addFileChangeListener(moduleInfoListener);
+                        removedModuleInfos.remove(moduleInfo);
+                        if (oldModuleInfos.add(moduleInfo)) { 
+                            moduleInfo.addFileChangeListener(moduleInfoListener);
+                        }
                     } 
                 }
+
+                for (FileObject root : removedRoots) { 
+                    root.removeFileChangeListener(folderListener);
+                }
+
+                for (FileObject moduleInfo : removedModuleInfos) { 
+                    moduleInfo.removeFileChangeListener(moduleInfoListener);
+                }
+
                 parseTask.schedule(DELAY);
             });
             rootsTask.schedule(DELAY);
+            sourcePath.addPropertyChangeListener(this);
         }
 
         public Set<String> getExportedPackages() {

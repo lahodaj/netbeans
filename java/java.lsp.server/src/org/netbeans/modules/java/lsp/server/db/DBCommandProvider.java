@@ -44,7 +44,7 @@ public class DBCommandProvider extends CodeActionsProvider {
     private static final String  COMMAND_GET_PREFERRED_CONNECTION = "nbls.db.preferred.connection";
     
     @Override
-    public List<CodeAction> getCodeActions(ResultIterator resultIterator, CodeActionParams params) throws Exception {
+    public List<CodeAction> getCodeActions(NbCodeLanguageClient client, ResultIterator resultIterator, CodeActionParams params) throws Exception {
         return Collections.emptyList();
     }
 

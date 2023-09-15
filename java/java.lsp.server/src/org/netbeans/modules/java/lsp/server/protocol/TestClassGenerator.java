@@ -83,7 +83,7 @@ public final class TestClassGenerator extends CodeActionsProvider {
         "# {1} - the location where the test class will be created",
         "DN_GenerateTestClass=Create Test Class [{0} in {1}]"
     })
-    public List<CodeAction> getCodeActions(ResultIterator resultIterator, CodeActionParams params) throws Exception {
+    public List<CodeAction> getCodeActions(NbCodeLanguageClient client, ResultIterator resultIterator, CodeActionParams params) throws Exception {
         CompilationController info = CompilationController.get(resultIterator.getParserResult());
         if (info == null) {
             return Collections.emptyList();
@@ -123,7 +123,7 @@ public final class TestClassGenerator extends CodeActionsProvider {
         for (Map.Entry<Object, List<String>> entrySet : validCombinations.entrySet()) {
             Object location = entrySet.getKey();
             for (String testingFramework : entrySet.getValue()) {
-                result.add((createCodeAction(Bundle.DN_GenerateTestClass(testingFramework, getLocationText(location)), CodeActionKind.Refactor, null, GENERATE_TEST_CLASS_COMMAND, Utils.toUri(fileObject), testingFramework, Utils.toUri(getTargetFolder(location)))));
+                result.add((createCodeAction(client, Bundle.DN_GenerateTestClass(testingFramework, getLocationText(location)), CodeActionKind.Refactor, null, GENERATE_TEST_CLASS_COMMAND, Utils.toUri(fileObject), testingFramework, Utils.toUri(getTargetFolder(location)))));
             }
         }
 	return result;

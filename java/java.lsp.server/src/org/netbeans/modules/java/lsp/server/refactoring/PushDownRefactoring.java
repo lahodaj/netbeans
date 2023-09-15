@@ -80,7 +80,7 @@ public final class PushDownRefactoring extends CodeRefactoring {
     @NbBundle.Messages({
         "DN_PushDown=Push Down...",
     })
-    public List<CodeAction> getCodeActions(ResultIterator resultIterator, CodeActionParams params) throws Exception {
+    public List<CodeAction> getCodeActions(NbCodeLanguageClient client, ResultIterator resultIterator, CodeActionParams params) throws Exception {
         List<String> only = params.getContext().getOnly();
         if (only == null || !only.contains(CodeActionKind.Refactor)) {
             return Collections.emptyList();
@@ -136,7 +136,7 @@ public final class PushDownRefactoring extends CodeRefactoring {
         }
         QuickPickItem elementItem = new QuickPickItem(createLabel(info, element));
         elementItem.setUserData(new ElementData(element));
-        return Collections.singletonList(createCodeAction(Bundle.DN_PushDown(), PUSH_DOWN_REFACTORING_KIND, null, PUSH_DOWN_REFACTORING_COMMAND, uri, elementItem, members));
+        return Collections.singletonList(createCodeAction(client, Bundle.DN_PushDown(), PUSH_DOWN_REFACTORING_KIND, null, PUSH_DOWN_REFACTORING_COMMAND, uri, elementItem, members));
     }
 
     @Override

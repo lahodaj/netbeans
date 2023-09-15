@@ -85,7 +85,7 @@ public final class ChangeMethodParametersRefactoring extends CodeRefactoring {
     @NbBundle.Messages({
         "DN_ChangeMethodParams=Change Method Parameters...",
     })
-    public List<CodeAction> getCodeActions(ResultIterator resultIterator, CodeActionParams params) throws Exception {
+    public List<CodeAction> getCodeActions(NbCodeLanguageClient client, ResultIterator resultIterator, CodeActionParams params) throws Exception {
         List<String> only = params.getContext().getOnly();
         if (only == null || !only.contains(CodeActionKind.Refactor)) {
             return Collections.emptyList();
@@ -125,7 +125,7 @@ public final class ChangeMethodParametersRefactoring extends CodeRefactoring {
         }
         QuickPickItem elementItem = new QuickPickItem(createLabel(info, element, true));
         elementItem.setUserData(new ElementData(element));
-        return Collections.singletonList(createCodeAction(Bundle.DN_ChangeMethodParams(), CHANGE_METHOD_PARAMS_REFACTORING_KIND, null, CHANGE_METHOD_PARAMS_REFACTORING_COMMAND, Utils.toUri(elementSource), elementItem));
+        return Collections.singletonList(createCodeAction(client, Bundle.DN_ChangeMethodParams(), CHANGE_METHOD_PARAMS_REFACTORING_KIND, null, CHANGE_METHOD_PARAMS_REFACTORING_COMMAND, Utils.toUri(elementSource), elementItem));
     }
 
     @Override

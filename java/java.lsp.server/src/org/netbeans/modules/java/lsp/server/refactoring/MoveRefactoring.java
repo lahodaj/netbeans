@@ -108,7 +108,7 @@ public final class MoveRefactoring extends CodeRefactoring {
     @NbBundle.Messages({
         "DN_Move=Move...",
     })
-    public List<CodeAction> getCodeActions(ResultIterator resultIterator, CodeActionParams params) throws Exception {
+    public List<CodeAction> getCodeActions(NbCodeLanguageClient client, ResultIterator resultIterator, CodeActionParams params) throws Exception {
         List<String> only = params.getContext().getOnly();
         if (only == null || !only.contains(CodeActionKind.Refactor)) {
             return Collections.emptyList();
@@ -127,9 +127,9 @@ public final class MoveRefactoring extends CodeRefactoring {
         String uri = Utils.toUri(info.getFileObject());
         Element element = elementForOffset(info, offset);
         if (element != null) {
-            return Collections.singletonList(createCodeAction(Bundle.DN_Move(), MOVE_REFACTORING_KIND, null, MOVE_REFACTORING_COMMAND, uri, new ElementData(element)));
+            return Collections.singletonList(createCodeAction(client, Bundle.DN_Move(), MOVE_REFACTORING_KIND, null, MOVE_REFACTORING_COMMAND, uri, new ElementData(element)));
         } else {
-            return Collections.singletonList(createCodeAction(Bundle.DN_Move(), MOVE_REFACTORING_KIND, null, MOVE_REFACTORING_COMMAND, uri));
+            return Collections.singletonList(createCodeAction(client, Bundle.DN_Move(), MOVE_REFACTORING_KIND, null, MOVE_REFACTORING_COMMAND, uri));
         }
     }
 

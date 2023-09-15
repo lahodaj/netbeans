@@ -1016,7 +1016,7 @@ public class TextDocumentServiceImpl implements TextDocumentService, LanguageCli
                         //code generators:
                         for (CodeActionsProvider codeGenerator : Lookup.getDefault().lookupAll(CodeActionsProvider.class)) {
                             try {
-                                for (CodeAction codeAction : codeGenerator.getCodeActions(resultIterator, params)) {
+                                for (CodeAction codeAction : codeGenerator.getCodeActions(client, resultIterator, params)) {
                                     result.add(Either.forRight(codeAction));
                                 }
                             } catch (Exception ex) {

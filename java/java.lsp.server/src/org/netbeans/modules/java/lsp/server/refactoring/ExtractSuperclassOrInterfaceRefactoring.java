@@ -91,7 +91,7 @@ public final class ExtractSuperclassOrInterfaceRefactoring extends CodeRefactori
         "DN_ExtractSuperclass=Extract Superclass...",
         "DN_ExtractInterface=Extract Interface...",
     })
-    public List<CodeAction> getCodeActions(ResultIterator resultIterator, CodeActionParams params) throws Exception {
+    public List<CodeAction> getCodeActions(NbCodeLanguageClient client, ResultIterator resultIterator, CodeActionParams params) throws Exception {
         List<String> only = params.getContext().getOnly();
         if (only == null || !only.contains(CodeActionKind.Refactor)) {
             return Collections.emptyList();
@@ -158,10 +158,10 @@ public final class ExtractSuperclassOrInterfaceRefactoring extends CodeRefactori
             QuickPickItem elementItem = new QuickPickItem(createLabel(info, type));
             elementItem.setUserData(new ElementData(type));
             if (!type.getKind().isInterface()) {
-                result.add(createCodeAction(Bundle.DN_ExtractSuperclass(), CodeActionKind.RefactorExtract, null, EXTRACT_SUPERCLASS_REFACTORING_COMMAND, uri, elementItem, allMembers));
+                result.add(createCodeAction(client, Bundle.DN_ExtractSuperclass(), CodeActionKind.RefactorExtract, null, EXTRACT_SUPERCLASS_REFACTORING_COMMAND, uri, elementItem, allMembers));
             }
             if (!members.isEmpty()) {
-                result.add(createCodeAction(Bundle.DN_ExtractInterface(), CodeActionKind.RefactorExtract, null, EXTRACT_INTERFACE_REFACTORING_COMMAND, uri, elementItem, members));
+                result.add(createCodeAction(client, Bundle.DN_ExtractInterface(), CodeActionKind.RefactorExtract, null, EXTRACT_INTERFACE_REFACTORING_COMMAND, uri, elementItem, members));
             }
         }
         return result;

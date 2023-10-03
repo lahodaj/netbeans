@@ -481,7 +481,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                 return findProjectConfigurations(file);
             }
             case Server.JAVA_FIND_DEBUG_ATTACH_CONFIGURATIONS: {
-                return AttachConfigurations.findConnectors();
+                return AttachConfigurations.findConnectors(client.getNbCodeCapabilities());
             }
             case Server.JAVA_FIND_DEBUG_PROCESS_TO_ATTACH: {
                 return AttachConfigurations.findProcessAttachTo(client);
@@ -497,7 +497,11 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                 // and additional attributes valid in that particular configuration ought to be provided.
                 // When a third argument is present, it's an attribute name whose possible values ought to be provided.
                 List<Object> arguments = params.getArguments();
-                Collection<? extends LaunchConfigurationCompletion> configurations = Lookup.getDefault().lookupAll(LaunchConfigurationCompletion.class);
+                Collection<? extends LaunchConfigurationCompletion> configurations = Lookup.getDefault()
+                                                                                           .lookupAll(LaunchConfigurationCompletion.Factory.class)
+                                                                                           .stream()
+                                                                                           .map(f -> f.createLaunchConfigurationCompletion(client.getNbCodeCapabilities()))
+                                                                                           .collect(Collectors.toList());
                 List<CompletableFuture<List<CompletionItem>>> completionFutures;
                 String configUri = ((JsonPrimitive) arguments.get(0)).getAsString();
                 Supplier<CompletableFuture<Project>> projectSupplier = () -> {

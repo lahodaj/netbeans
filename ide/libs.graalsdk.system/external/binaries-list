@@ -14,5 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-8E62643FD621053E00EE52D797C7FBD08D7FDEDC org.graalvm.sdk:graal-sdk:20.3.0
-8968BDBE4058F4E6610AF0DC184BD885B236A2B1 org.graalvm.sdk:launcher-common:20.3.0
+#not used for now: org.graakvm.sdk:nativeimage
+6C29B7A33B248CA2B64490F64E4CFDEF4B8F24D5 org.graalvm.sdk:collections:23.1.0
+7D529FC6AF38BB42972F4F278615F0A372DE52C5 org.graalvm.sdk:nativeimage:23.1.0
+1E3BF049D534DBED4C2AA66B50F3BB3538F409FB org.graalvm.sdk:word:23.1.0
+F7D4AC23C0EEC757AD5072F679DF0844A0E01926 org.graalvm.sdk:launcher-common:23.1.0
+BC70CA08E5E63E3C36F8068833940E6F0C36360B org.graalvm.polyglot:polyglot:23.1.0

@@ -82,12 +82,24 @@
             </test-dependencies>
             <public-packages/>
             <class-path-extension>
-                <runtime-relative-path></runtime-relative-path>
-                <binary-origin>external/graal-sdk-20.3.0.jar</binary-origin>
+                <runtime-relative-path>ext/collections-23.1.0.jar</runtime-relative-path>
+                <binary-origin>external/collections-23.1.0.jar</binary-origin>
             </class-path-extension>
             <class-path-extension>
-                <runtime-relative-path></runtime-relative-path>
-                <binary-origin>external/launcher-common-20.3.0.jar</binary-origin>
+                <runtime-relative-path>ext/nativeimage-23.1.0.jar</runtime-relative-path>
+                <binary-origin>external/nativeimage-23.1.0.jar</binary-origin>
+            </class-path-extension>
+            <class-path-extension>
+                <runtime-relative-path>ext/polyglot-23.1.0.jar</runtime-relative-path>
+                <binary-origin>external/polyglot-23.1.0.jar</binary-origin>
+            </class-path-extension>
+            <class-path-extension>
+                <runtime-relative-path>ext/word-23.1.0.jar</runtime-relative-path>
+                <binary-origin>external/word-23.1.0.jar</binary-origin>
+            </class-path-extension>
+            <class-path-extension>
+                <runtime-relative-path>ext/launcher-common-23.1.0.jar</runtime-relative-path>
+                <binary-origin>external/launcher-common-23.1.0.jar</binary-origin>
             </class-path-extension>
         </data>
     </configuration>

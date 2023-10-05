@@ -51,8 +51,8 @@
                 <package>com.oracle.truffle.api.utilities</package>
             </public-packages>
             <class-path-extension>
-                <runtime-relative-path>ext/truffle-api-20.3.0.jar</runtime-relative-path>
-                <binary-origin>external/truffle-api-20.3.0.jar</binary-origin>
+                <runtime-relative-path>ext/truffle-api-23.1.0.jar</runtime-relative-path>
+                <binary-origin>external/truffle-api-23.1.0.jar</binary-origin>
             </class-path-extension>
         </data>
     </configuration>

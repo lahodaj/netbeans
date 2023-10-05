@@ -1,9 +1,9 @@
-Name: icu4j
+Name: icu4j (shaded by GraalVM)
 Description: icu4j license
 License: MIT-icu4j
 Origin: http://site.icu-project.org/
-Version: 67.1
-Files: icu4j-67.1.jar
+Version: 23.1.0
+Files: icu4j-23.1.0.jar
 
 ICU License - ICU 1.8.1 and later
 

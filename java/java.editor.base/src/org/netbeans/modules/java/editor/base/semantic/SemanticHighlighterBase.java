@@ -24,6 +24,7 @@ import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.ExportsTree;
 import com.sun.source.tree.ExpressionStatementTree;
+import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.LiteralTree;
 import com.sun.source.tree.MemberReferenceTree;
@@ -43,6 +44,7 @@ import com.sun.source.tree.UsesTree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.SourcePositions;
 import com.sun.source.util.TreePath;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -83,6 +85,7 @@ import org.netbeans.modules.parsing.spi.Scheduler;
 import org.netbeans.modules.parsing.spi.SchedulerEvent;
 import org.netbeans.modules.parsing.spi.TaskIndexingMode;
 import org.openide.filesystems.FileUtil;
+import org.openide.util.Exceptions;
 import org.openide.util.NbPreferences;
 import org.openide.util.Pair;
 
@@ -1106,10 +1109,28 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
             addParameterInlineHint(node);
             return super.visitLiteral(node, p);
         }
-
+        
         @Override
         public Void scan(Tree tree, Void p) {
             if (tree != null && "YIELD".equals(tree.getKind().name())) {
+                tl.moveToOffset(sourcePositions.getStartPosition(info.getCompilationUnit(), tree));
+                Token t = firstIdentifierToken("yield"); //NOI18N
+                if (t != null) {
+                    contextKeywords.add(t);
+                }
+            } else if (tree != null && "RECONSTRUCTION".equals(tree.getKind().name())) {
+                try {
+                    ExpressionTree expr = (ExpressionTree) tree.getKind().asInterface().getDeclaredMethod("getExpression").invoke(tree);
+                    int idx = tl.index();
+                    tl.moveToOffset(sourcePositions.getStartPosition(info.getCompilationUnit(), expr));
+                    Token t = firstIdentifierToken("with"); //NOI18N
+                    if (t != null) {
+                        contextKeywords.add(t);
+                    }
+                    tl.resetToIndex(idx);
+                } catch (ReflectiveOperationException | SecurityException ex) {
+                    throw new IllegalStateException(ex);
+                }
                 tl.moveToOffset(sourcePositions.getStartPosition(info.getCompilationUnit(), tree));
                 Token t = firstIdentifierToken("yield"); //NOI18N
                 if (t != null) {

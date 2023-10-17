@@ -491,10 +491,14 @@
 				"title": "Delete"
 			},
 			{
-				"command": "db.add.connection",
+				"command": "db.add.all.connection",
 				"title": "Add Database Connection",
 				"category": "Database",
 				"icon": "$(add)"
+			},
+			{
+				"command": "db.add.connection",
+				"title": "Add JDBC Database Connection"
 			},
 			{
 				"command": "nbls:Database:netbeans.db.explorer.action.Connect",
@@ -603,6 +607,10 @@
 			{
 				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.OpenServiceConsoleAction",
 				"title": "Open Service Console"
+			},
+			{
+				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddDbConnectionToVault",
+				"title": "Add to OCI Vault"
 			},
 			{
 				"command": "java.select.editor.projects",
@@ -722,7 +730,15 @@
 					"when": "false"
 				},
 				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddDbConnectionToVault",
+					"when": "false"
+				},
+				{
 					"command": "java.workspace.configureRunSettings",
+					"when": "false"
+				},
+				{
+					"command": "db.add.all.connection",
 					"when": "false"
 				},
 				{
@@ -757,7 +773,7 @@
 					"when": "nbJavaLSReady && view == foundProjects && config.netbeans.javaSupport.enabled"
 				},
 				{
-					"command": "db.add.connection",
+					"command": "db.add.all.connection",
 					"when": "view == database.connections",
 					"group": "navigation@3"
 				}
@@ -834,6 +850,10 @@
 				{
 					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.OpenServiceConsoleAction",
 					"when": "viewItem =~ /class:oracle.database.DatabaseItem/"
+				},
+				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddDbConnectionToVault",
+					"when": "viewItem =~ /class:org.netbeans.api.db.explorer.DatabaseConnection/"
 				},
 				{
 					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.CreateAutonomousDBAction",
@@ -940,6 +960,18 @@
 			{
 				"uriExpression": "nbres:/org/netbeans/modules/cloud/oracle/resources/database.svg",
 				"codeicon": "database"
+			},
+			{
+				"uriExpression": "nbres:/org/netbeans/modules/cloud/oracle/resources/vault.svg",
+				"codeicon": "lock"
+			},
+                        {
+				"uriExpression": "nbres:/org/netbeans/modules/cloud/oracle/resources/key.svg",
+				"codeicon": "gist-secret"
+			},
+			{
+				"uriExpression": "nbres:/org/netbeans/modules/cloud/oracle/resources/secret.svg",
+				"codeicon": "key"
 			},
 			{
 				"uriExpression": "nbres:/org/netbeans/modules/cloud/oracle/resources/devops_project.svg",

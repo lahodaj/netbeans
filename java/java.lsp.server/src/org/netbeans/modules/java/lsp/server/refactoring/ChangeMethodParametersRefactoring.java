@@ -25,7 +25,6 @@ import com.sun.source.util.Trees;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.EnumSet;
@@ -80,7 +79,6 @@ public final class ChangeMethodParametersRefactoring extends CodeRefactoring {
     private static final String CHANGE_METHOD_PARAMS_REFACTORING_KIND = "refactor.change.method.params";
     private static final String CHANGE_METHOD_PARAMS_REFACTORING_COMMAND =  "java.refactor.change.method.params";
 
-    private final Set<String> commands = Collections.singleton(CHANGE_METHOD_PARAMS_REFACTORING_COMMAND);
     private final Gson gson = new Gson();
 
     @Override
@@ -92,7 +90,7 @@ public final class ChangeMethodParametersRefactoring extends CodeRefactoring {
         if (only == null || !only.contains(CodeActionKind.Refactor)) {
             return Collections.emptyList();
         }
-        CompilationController info = CompilationController.get(resultIterator.getParserResult());
+        CompilationController info = resultIterator.getParserResult() != null ? CompilationController.get(resultIterator.getParserResult()) : null;
         if (info == null || !JavaRefactoringUtils.isRefactorable(info.getFileObject())) {
             return Collections.emptyList();
         }
@@ -132,7 +130,7 @@ public final class ChangeMethodParametersRefactoring extends CodeRefactoring {
 
     @Override
     public Set<String> getCommands() {
-        return commands;
+        return Collections.singleton(CHANGE_METHOD_PARAMS_REFACTORING_COMMAND);
     }
 
     @Override

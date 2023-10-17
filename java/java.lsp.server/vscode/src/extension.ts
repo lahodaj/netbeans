@@ -56,7 +56,7 @@ import { asRanges, StatusMessageRequest, ShowStatusMessageParams, QuickPickReque
 import * as launchConfigurations from './launchConfigurations';
 import { createTreeViewService, TreeViewService, TreeItemDecorator, Visualizer, CustomizableTreeDataProvider } from './explorer';
 import { initializeRunConfiguration, runConfigurationProvider, runConfigurationNodeProvider, configureRunSettings, runConfigurationUpdateAll } from './runConfiguration';
-import { dBConfigurationProvider } from './dbConfigurationProvider';
+import { dBConfigurationProvider, onDidTerminateSession } from './dbConfigurationProvider';
 import { TLSSocket } from 'tls';
 import { InputStep, MultiStepInput } from './utils';
 import { env } from 'process';
@@ -419,6 +419,7 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
     context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('java+', configResolver));
     let configNativeResolver = new NetBeansConfigurationNativeResolver();
     context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('nativeimage', configNativeResolver));
+    context.subscriptions.push(vscode.debug.onDidTerminateDebugSession(((session) => onDidTerminateSession(session))));
 
     let debugDescriptionFactory = new NetBeansDebugAdapterDescriptionFactory();
     context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('java+', debugDescriptionFactory));
@@ -538,6 +539,16 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
             await commands.executeCommand(selected.userData.command.command, ...(selected.userData.command.arguments || []));
         }
     }));
+    context.subscriptions.push(commands.registerCommand('db.add.all.connection', async () => {
+        const ADD_JDBC = 'Add Database Connection';
+        const ADD_ADB = 'Add Oracle Autonomous DB';
+        const selected: any = await window.showQuickPick([ADD_JDBC, ADD_ADB], { placeHolder: 'Select type...' });
+        if (selected == ADD_JDBC) {
+            await commands.executeCommand('db.add.connection');
+        } else if (selected == ADD_ADB) {
+            await commands.executeCommand('nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddADBAction');
+        }
+    }));
     const mergeWithLaunchConfig = (dconfig : vscode.DebugConfiguration) => {
         const folder = vscode.workspace.workspaceFolders?.[0];
         const uri = folder?.uri;
@@ -651,6 +662,14 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
     }));
     context.subscriptions.push(commands.registerCommand('nbls.node.properties.edit',
         async (node) => await PropertiesView.createOrShow(context, node, (await client).findTreeViewService())));
+
+    const archiveFileProvider = <vscode.TextDocumentContentProvider> {
+        provideTextDocumentContent: async (uri: vscode.Uri, token: vscode.CancellationToken): Promise<string> => {
+            return await commands.executeCommand('nbls.get.archive.file.content', uri.toString());
+        }
+    };
+    context.subscriptions.push(workspace.registerTextDocumentContentProvider('jar', archiveFileProvider));
+    context.subscriptions.push(workspace.registerTextDocumentContentProvider('nbjrt', archiveFileProvider));
 
     launchConfigurations.updateLaunchConfig();
 

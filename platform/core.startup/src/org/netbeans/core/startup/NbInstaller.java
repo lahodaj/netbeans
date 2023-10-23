@@ -237,7 +237,11 @@ final class NbInstaller extends ModuleInstaller {
                     Module _m = mgr.get((String) Util.parseCodeName(d.getName())[0]);
                     assert _m != null : d;
                     mWithDeps.add(_m);
-                    mWithDeps.addAll(mgr.getAttachedFragments(_m));
+                    for (Module fragment : mgr.getAttachedFragments(_m)) {
+                        if (mgr.isOrWillEnable(fragment)) {
+                            mWithDeps.add(fragment);
+                        }
+                    }
                 }
             }
         }

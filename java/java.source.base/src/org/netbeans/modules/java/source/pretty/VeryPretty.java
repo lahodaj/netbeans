@@ -3503,7 +3503,7 @@ public final class VeryPretty extends JCTree.Visitor implements DocTreeVisitor<V
 	case SELECT:
             JCFieldAccess sel = (JCFieldAccess)tree;
 	    Name sname = fullName(sel.selected);
-	    return sname != null && sname.isEmpty() ? sname.append('.', sel.name) : sel.name;
+	    return sname != null && !sname.isEmpty() ? sname.append('.', sel.name) : sel.name;
 	default:
 	    return null;
 	}

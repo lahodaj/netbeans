@@ -1333,9 +1333,11 @@ public final class ModuleManager extends Modules {
                 throw new IllegalModuleException(IllegalModuleException.Reason.ENABLE_MISSING, errors);
             }
             for (Module m : testing) {
+                //lookup host here, to ensure enablement fails in the host is already enabled:
+                Module maybeHost =  findHostModule(m, true);
+
                 if (!modules.contains(m) && !m.isAutoload() && !m.isEager()) {
                     // it is acceptable if the module is a non-autoload host fragment, and its host enabled (thus enabled the fragment):
-                    Module maybeHost =  findHostModule(m, true);
                     if (maybeHost == null && !testing.contains(maybeHost)) {
                         throw new IllegalModuleException(IllegalModuleException.Reason.ENABLE_TESTING, m);
                     }

@@ -30,7 +30,6 @@ import org.netbeans.api.lexer.LanguagePath;
 import org.netbeans.api.lexer.TokenHierarchy;
 import org.netbeans.api.lexer.TokenSequence;
 import org.netbeans.api.xml.lexer.XMLTokenId;
-import org.netbeans.editor.BaseDocument;
 import org.netbeans.editor.Utilities;
 import org.netbeans.modules.editor.indent.api.IndentUtils;
 import org.netbeans.modules.editor.indent.spi.Context;
@@ -39,6 +38,9 @@ import org.netbeans.modules.xml.text.folding.TokenElement.TokenType;
 import org.netbeans.modules.xml.text.folding.XmlFoldManager;
 import org.openide.util.CharSequences;
 import org.openide.util.Exceptions;
+import org.openide.text.NbDocument;
+import javax.swing.text.StyledDocument;
+import javax.swing.text.Document;
 
 /**
  * New XML formatter based on Lexer APIs.
@@ -70,12 +72,9 @@ public class XMLLexerFormatter {
 // # 170343
     public void reformat(Context context, final int startOffset, final int endOffset)
             throws BadLocationException {
-        final BaseDocument doc = (BaseDocument) context.document();
-        doc.runAtomic(new Runnable() {
-
-            public void run() {
-                doReformat(doc, startOffset, endOffset);
-            }
+        final Document doc = context.document();
+        NbDocument.runAtomic((StyledDocument)doc, () -> {
+            doReformat((LineDocument)doc, startOffset, endOffset);
         });
     }
 
@@ -236,7 +235,7 @@ public class XMLLexerFormatter {
         } else {
             try {
                 // align with the actual tag:
-                indentLevel = Utilities.getVisualColumn((BaseDocument)basedoc, 
+                indentLevel = Utilities.getVisualColumn((LineDocument)basedoc, 
                         LineDocumentUtils.getNextNonWhitespace(basedoc, 
                         LineDocumentUtils.getLineStart(basedoc, tokenSequence.offset())));
                 if (!increase) {
@@ -348,7 +347,7 @@ public class XMLLexerFormatter {
             } else {
                 // align one space after the tagname:
                 TokenIndent tagIndent = stack.peek();
-                int current = Utilities.getVisualColumn((BaseDocument)basedoc, tokenSequence.offset());
+                int current = Utilities.getVisualColumn((LineDocument)basedoc, tokenSequence.offset());
                 if (tagIndent == null) {
                     // fallback
                     firstAttributeIndent = current;

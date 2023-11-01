@@ -38,9 +38,8 @@ import org.netbeans.modules.xml.text.folding.TokenElement.TokenType;
 import org.netbeans.modules.xml.text.folding.XmlFoldManager;
 import org.openide.util.CharSequences;
 import org.openide.util.Exceptions;
-import org.openide.text.NbDocument;
-import javax.swing.text.StyledDocument;
 import javax.swing.text.Document;
+import org.netbeans.api.editor.document.AtomicLockDocument;
 
 /**
  * New XML formatter based on Lexer APIs.
@@ -73,12 +72,8 @@ public class XMLLexerFormatter {
     public void reformat(Context context, final int startOffset, final int endOffset)
             throws BadLocationException {
         final Document doc = context.document();
-        NbDocument.runAtomic((StyledDocument)doc,new Runnable() {
-
-            public void run() {
-                doReformat((LineDocument)doc, startOffset, endOffset);
-            }
-        });
+        LineDocumentUtils.asRequired(doc, AtomicLockDocument.class)
+                         .runAtomic(() -> doReformat((LineDocument)doc, startOffset, endOffset));
     }
 
     public LineDocument doReformat(LineDocument doc, int startOffset, int endOffset) {

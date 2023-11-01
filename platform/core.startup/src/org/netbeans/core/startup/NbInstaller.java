@@ -231,17 +231,13 @@ final class NbInstaller extends ModuleInstaller {
         List<Module> mWithDeps = new LinkedList<Module>();
         mWithDeps.add(m);
         if (mgr != null) {
-            mWithDeps.addAll(mgr.getAttachedFragments(m));
+            addEnabledFragments(m, mWithDeps);
             for (Dependency d : m.getDependencies()) {
                 if (d.getType() == Dependency.TYPE_MODULE) {
                     Module _m = mgr.get((String) Util.parseCodeName(d.getName())[0]);
                     assert _m != null : d;
                     mWithDeps.add(_m);
-                    for (Module fragment : mgr.getAttachedFragments(_m)) {
-                        if (mgr.isOrWillEnable(fragment)) {
-                            mWithDeps.add(fragment);
-                        }
-                    }
+                    addEnabledFragments(_m, mWithDeps);
                 }
             }
         }
@@ -287,6 +283,14 @@ final class NbInstaller extends ModuleInstaller {
         }
     }
     
+    private void addEnabledFragments(Module forModule, List<Module> moduleWithDependencies) {
+        for (Module fragment : mgr.getAttachedFragments(forModule)) {
+            if (mgr.isOrWillEnable(fragment)) {
+                moduleWithDependencies.add(fragment);
+            }
+        }
+    }
+
     public void dispose(Module m) {
         Util.err.fine("dispose: " + m);
         // Events probably not needed here.

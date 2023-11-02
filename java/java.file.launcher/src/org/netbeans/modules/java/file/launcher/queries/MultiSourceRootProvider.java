@@ -73,7 +73,6 @@ public class MultiSourceRootProvider implements ClassPathProvider {
 
     @Override
     public ClassPath findClassPath(FileObject file, String type) {
-        if (DISABLE_MULTI_SOURCE_ROOT) return null;
         switch (type) {
             case ClassPath.SOURCE: return getSourcePath(file);
             case ClassPath.COMPILE:
@@ -90,6 +89,7 @@ public class MultiSourceRootProvider implements ClassPathProvider {
     }
 
     private ClassPath getSourcePath(FileObject file) {
+        if (DISABLE_MULTI_SOURCE_ROOT) return null;
         synchronized (this) {
             //XXX: what happens if there's a Java file in user's home???
             if (file.isData() && "text/x-java".equals(file.getMIMEType())) {

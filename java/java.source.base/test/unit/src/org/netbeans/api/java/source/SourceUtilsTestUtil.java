@@ -41,6 +41,7 @@ import org.netbeans.core.startup.Main;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.junit.NbTestCase;
 import org.netbeans.modules.java.JavaDataLoader;
+import org.netbeans.modules.java.file.launcher.queries.MultiSourceRootProvider;
 import org.netbeans.modules.java.source.BootClassPathUtil;
 import org.netbeans.modules.java.source.TestUtil;
 import org.netbeans.modules.java.source.indexing.JavaCustomIndexer;
@@ -183,6 +184,7 @@ public final class SourceUtilsTestUtil extends ProxyLookup {
         SourceUtilsTestUtil.class.getClassLoader().setDefaultAssertionStatus(true);
         System.setProperty("org.openide.util.Lookup", SourceUtilsTestUtil.class.getName());
         Assert.assertEquals(SourceUtilsTestUtil.class, Lookup.getDefault().getClass());
+        MultiSourceRootProvider.DISABLE_MULTI_SOURCE_ROOT = true;
     }
     
     public static void prepareTest(FileObject sourceRoot, FileObject buildRoot, FileObject cache) throws Exception {

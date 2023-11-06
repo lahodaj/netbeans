@@ -1279,6 +1279,12 @@ public class HintTest {
     static {
         System.setProperty("org.openide.util.Lookup", TestLookup.class.getName());
         assertEquals(TestLookup.class, Lookup.getDefault().getClass());
+        try {
+            Class multiSourceRootProvider = Class.forName("org.netbeans.modules.java.file.launcher.queries.MultiSourceRootProvider");
+            multiSourceRootProvider.getField("DISABLE_MULTI_SOURCE_ROOT").set(null, true);
+        } catch (Exception ex) {
+            //ignore
+        }
     }
 
     //workdir computation (copied from NbTestCase):

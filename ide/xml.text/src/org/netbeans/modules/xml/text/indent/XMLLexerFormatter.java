@@ -40,6 +40,8 @@ import org.openide.util.CharSequences;
 import org.openide.util.Exceptions;
 import javax.swing.text.Document;
 import org.netbeans.api.editor.document.AtomicLockDocument;
+import org.openide.text.NbDocument;
+import javax.swing.text.StyledDocument;
 
 /**
  * New XML formatter based on Lexer APIs.
@@ -344,7 +346,7 @@ public class XMLLexerFormatter {
                 firstAttributeIndent += spacesPerTab;
             } else {
                 // align one space after the tagname:
-                TokenIndent tagIndent = stack.peek();  
+                TokenIndent tagIndent = stack.peek();
                 int current = Utilities.getVisualColumn((LineDocument)basedoc, tokenSequence.offset());
                 if (tagIndent == null) {
                     // fallback

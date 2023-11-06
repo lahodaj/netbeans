@@ -40,8 +40,6 @@ import org.openide.util.CharSequences;
 import org.openide.util.Exceptions;
 import javax.swing.text.Document;
 import org.netbeans.api.editor.document.AtomicLockDocument;
-import org.openide.text.NbDocument;
-import javax.swing.text.StyledDocument;
 
 /**
  * New XML formatter based on Lexer APIs.

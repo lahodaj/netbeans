@@ -29,6 +29,7 @@ import javax.swing.event.ChangeListener;
 import org.netbeans.api.java.platform.JavaPlatformManager;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
+import org.netbeans.modules.java.file.launcher.queries.MultiSourceRootProvider;
 import org.netbeans.modules.java.file.launcher.spi.SingleFileOptionsQueryImplementation;
 import org.netbeans.modules.java.file.launcher.spi.SingleFileOptionsQueryImplementation.Result;
 import org.netbeans.spi.java.queries.CompilerOptionsQueryImplementation;
@@ -110,6 +111,10 @@ public final class SingleSourceFileUtil {
     }
 
     public static Result getOptionsFor(FileObject file) {
+        if (MultiSourceRootProvider.DISABLE_MULTI_SOURCE_ROOT) {
+            return null;
+        }
+
         for (SingleFileOptionsQueryImplementation  i : Lookup.getDefault().lookupAll(SingleFileOptionsQueryImplementation.class)) {
             Result r = i.optionsFor(file);
 

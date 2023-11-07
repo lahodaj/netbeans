@@ -56,7 +56,7 @@ import org.netbeans.spi.java.classpath.ClassPathProvider;
 import org.netbeans.spi.java.classpath.support.ClassPathSupport;
 import org.netbeans.spi.java.queries.CompilerOptionsQueryImplementation;
 import org.netbeans.spi.java.queries.SourceForBinaryQueryImplementation;
-import org.netbeans.spi.java.queries.SourceLevelQueryImplementation2;
+import org.netbeans.spi.java.queries.SourceLevelQueryImplementation;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileSystem;
 import org.openide.filesystems.FileUtil;
@@ -323,29 +323,9 @@ public final class SourceUtilsTestUtil extends ProxyLookup {
         
     }
 
-    public static class TestSourceLevelQueryImplementation implements SourceLevelQueryImplementation2 {
+    public static class TestSourceLevelQueryImplementation implements SourceLevelQueryImplementation {
         
-        public Result getSourceLevel(FileObject javaFile) {
-            String level = getSourceLevelImpl(javaFile);
-
-            if (level == null) {
-                return null;
-            }
-
-            return new Result() {
-                @Override
-                public String getSourceLevel() {
-                    return level;
-                }
-
-                @Override
-                public void addChangeListener(ChangeListener listener) {}
-
-                @Override
-                public void removeChangeListener(ChangeListener listener) {}
-            };
-        }
-        public String getSourceLevelImpl(FileObject javaFile) {
+        public String getSourceLevel(FileObject javaFile) {
             String level = file2SourceLevel.get(javaFile);
             
             if (level == null) {

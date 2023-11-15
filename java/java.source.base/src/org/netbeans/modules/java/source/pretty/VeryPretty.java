@@ -268,7 +268,7 @@ public final class VeryPretty extends JCTree.Visitor implements DocTreeVisitor<V
     public final void print(Name n) {
         if (n == null)
             return;
-	out.append(n.toString());
+	out.appendUtf8(n.getByteArray(), n.getByteOffset(), n.getByteLength());
     }
     
     private void print(javax.lang.model.element.Name n) {
@@ -1074,7 +1074,7 @@ public final class VeryPretty extends JCTree.Visitor implements DocTreeVisitor<V
     public void printVarInit(final JCVariableDecl tree) {
         int col = out.col;
         if (!ERROR.contentEquals(tree.name))
-            col -= tree.name.length();
+            col -= tree.name.getByteLength();
         wrapAssignOpTree("=", col, new Runnable() {
             @Override public void run() {
                 printNoParenExpr(tree.init);
@@ -3503,7 +3503,7 @@ public final class VeryPretty extends JCTree.Visitor implements DocTreeVisitor<V
 	case SELECT:
             JCFieldAccess sel = (JCFieldAccess)tree;
 	    Name sname = fullName(sel.selected);
-	    return sname != null && !sname.isEmpty() ? sname.append('.', sel.name) : sel.name;
+	    return sname != null && sname.getByteLength() > 0 ? sname.append('.', sel.name) : sel.name;
 	default:
 	    return null;
 	}

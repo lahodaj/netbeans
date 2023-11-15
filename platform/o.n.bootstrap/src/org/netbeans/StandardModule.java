@@ -678,7 +678,7 @@ class StandardModule extends Module {
         }
 
         protected @Override boolean shouldDelegateResource(String pkg, ClassLoader parent) {
-            if (!super.shouldDelegateResource(pkg, parent)) {
+              if (!super.shouldDelegateResource(pkg, parent)) {
                 return false;
             }
             Module other;

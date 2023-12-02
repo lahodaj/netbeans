@@ -195,6 +195,19 @@ public class Tiny {
         return ErrorDescriptionFactory.forTree(ctx, ctx.getPath(), displayName, fix);
     }
 
+    @Hint(displayName = "#DN_org.netbeans.modules.java.hints.bugs.Tiny.varTypeDiamondOperator", description = "#DESC_org.netbeans.modules.java.hints.bugs.Tiny.varTypeDiamondOperator", category="bugs", suppressWarnings="AllowVarTypeDiamondOperator")
+    @TriggerPattern(value="$mods$ $varType $name = new $type<>($args$)")
+    public static ErrorDescription varTypeDiamondOperator(HintContext ctx) {
+        TreePath path = ctx.getPath();
+        Boolean isVarUsed = ctx.getInfo().getTreeUtilities().isVarType(path);
+        if(!isVarUsed){
+            return null;
+        }
+        String displayName = NbBundle.getMessage(Tiny.class, "ERR_varTypeDiamondOperator");
+
+        return ErrorDescriptionFactory.forTree(ctx, path, displayName);
+    }
+    
     @Hint(displayName = "#DN_org.netbeans.modules.java.hints.bugs.Tiny.resultSet", description = "#DESC_org.netbeans.modules.java.hints.bugs.Tiny.resultSet", category="bugs", suppressWarnings="UseOfIndexZeroInJDBCResultSet", options=Options.QUERY)
     @TriggerPattern(value="$set.$method($columnIndex, $other$)",
                     constraints={

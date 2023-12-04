@@ -23,8 +23,6 @@ import java.awt.EventQueue;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.concurrent.Semaphore;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.Action;
@@ -33,12 +31,11 @@ import javax.swing.SwingUtilities;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
+import org.netbeans.api.gototest.TestOppositesLocator;
+import org.netbeans.api.gototest.TestOppositesLocator.LocatorResult;
 import org.netbeans.modules.gsf.testrunner.ui.api.TestCreatorPanelDisplayer;
 import org.netbeans.modules.gsf.testrunner.ui.api.UICommonUtils;
 import org.netbeans.modules.parsing.api.Source;
-import org.netbeans.spi.gototest.TestLocator;
-import org.netbeans.spi.gototest.TestLocator.FileType;
-import org.netbeans.spi.gototest.TestLocator.LocationListener;
 import org.netbeans.spi.gototest.TestLocator.LocationResult;
 import org.openide.DialogDisplayer;
 import org.openide.NotifyDescriptor;
@@ -64,8 +61,6 @@ import org.openide.windows.TopComponent;
  * @author Tor Norbye
  */
 public class GotoOppositeAction extends CallableSystemAction {
-    private HashMap<LocationResult, String> locationResults = new HashMap<LocationResult, String>();
-    private Semaphore lock;
 
     public GotoOppositeAction() {
         putValue("noIconInMenu", Boolean.TRUE); //NOI18N
@@ -113,7 +108,6 @@ public class GotoOppositeAction extends CallableSystemAction {
     }
     
     @Override
-    @NbBundle.Messages("No_Test_Or_Tested_Class_Found=No Test or Tested class found")
     public void performAction() {
         int caretOffsetHolder[] = { -1 };
         final FileObject fo = getApplicableFileObject(caretOffsetHolder);
@@ -126,9 +120,10 @@ public class GotoOppositeAction extends CallableSystemAction {
 
                 @Override
                 public void run() {
-                    FileType currentFileType = getCurrentFileType();
-                    if(currentFileType == FileType.NEITHER) {
-                        StatusDisplayer.getDefault().setStatusText(Bundle.No_Test_Or_Tested_Class_Found());
+                    LocatorResult opposites = TestOppositesLocator.getDefault().findOpposites(fo, caretOffset);
+
+                    if (opposites.errorMessage != null) {
+                        StatusDisplayer.getDefault().setStatusText(opposites.errorMessage);
                         SwingUtilities.invokeLater(new Runnable() {
                             @Override
                             public void run() {
@@ -137,15 +132,14 @@ public class GotoOppositeAction extends CallableSystemAction {
                         });
                     }
                     else {
-                        populateLocationResults(fo, caretOffset);
                         SwingUtilities.invokeLater(new Runnable() {
 
                             @Override
                             public void run() {
-                                if (locationResults.size() == 1) {
-                                    handleResult(locationResults.keySet().iterator().next());
-                                } else if (locationResults.size() > 1) {
-                                    showPopup(fo);
+                                if (opposites.locations.size() == 1) {
+                                    handleResult(opposites.locations.iterator().next().location);
+                                } else if (opposites.locations.size() > 1) {
+                                    showPopup(fo, opposites);
                                 }
                             }
                         });
@@ -155,82 +149,8 @@ public class GotoOppositeAction extends CallableSystemAction {
         }
     }
 
-    private void populateLocationResults(FileObject fo, int caretOffset) {
-        locationResults.clear();
-
-        Collection<? extends TestLocator> locators = Lookup.getDefault().lookupAll(TestLocator.class);
-
-        int permits = 0;
-        for (TestLocator locator : locators) {
-            if (locator.appliesTo(fo)) {
-                permits++;
-            }
-        }
-
-        lock = new Semaphore(permits);
-        try {
-            lock.acquire(permits);
-        } catch (InterruptedException e) {
-        }
-
-        for (TestLocator locator : locators) {
-            if (locator.appliesTo(fo)) {
-                doPopulateLocationResults(fo, caretOffset, locator);
-            }
-        }
-        try {
-            lock.acquire(permits);
-        } catch (InterruptedException ex) {
-            Exceptions.printStackTrace(ex);
-        }
-    }
-
-    private void doPopulateLocationResults(FileObject fo, int caretOffset, TestLocator locator) {
-        if (locator != null) {
-            if (locator.appliesTo(fo)) {
-                if (locator.asynchronous()) {
-                    locator.findOpposite(fo, caretOffset, new LocationListener() {
-
-                        @Override
-                        public void foundLocation(FileObject fo, LocationResult location) {
-                            if (location != null) {
-                                FileObject fileObject = location.getFileObject();
-                                if(fileObject == null) {
-                                    String msg = location.getErrorMessage();
-                                    if (msg != null) {
-                                        DialogDisplayer.getDefault().notify(
-                                                new NotifyDescriptor.Message(msg, NotifyDescriptor.INFORMATION_MESSAGE));
-                                    }
-                                } else {
-                                    locationResults.put(location, fileObject.getName());
-                                }
-                            }
-                            lock.release();
-                        }
-                    });
-                } else {
-                    LocationResult opposite = locator.findOpposite(fo, caretOffset);
-
-                    if (opposite != null) {
-                        FileObject fileObject = opposite.getFileObject();
-                        if (fileObject == null) {
-                            String msg = opposite.getErrorMessage();
-                            if (msg != null) {
-                                DialogDisplayer.getDefault().notify(
-                                        new NotifyDescriptor.Message(msg, NotifyDescriptor.INFORMATION_MESSAGE));
-                            }
-                        } else {
-                            locationResults.put(opposite, fileObject.getName());
-                        }
-                    }
-                    lock.release();
-                }
-            }
-        }
-    }
-
     @NbBundle.Messages("LBL_PickExpression=Go to Test")
-    private void showPopup(FileObject fo) {
+    private void showPopup(FileObject fo, LocatorResult opposites) {
         JTextComponent pane;
         Point l = new Point(-1, -1);
 
@@ -243,7 +163,7 @@ public class GotoOppositeAction extends CallableSystemAction {
                 SwingUtilities.convertPointToScreen(l, pane);
 
                 String label = Bundle.LBL_PickExpression();
-                PopupUtil.showPopup(new OppositeCandidateChooser(this, label, locationResults), label, l.x, l.y, true, -1);
+                PopupUtil.showPopup(new OppositeCandidateChooser(this, label, opposites.locations), label, l.x, l.y, true, -1);
             }
         } catch (BadLocationException ex) {
             Logger.getLogger(GotoOppositeAction.class.getName()).log(Level.WARNING, null, ex);
@@ -262,32 +182,6 @@ public class GotoOppositeAction extends CallableSystemAction {
         }
     }
     
-    private TestLocator getLocatorFor(FileObject fo) {
-        Collection<? extends TestLocator> locators = Lookup.getDefault().lookupAll(TestLocator.class);
-        for (TestLocator locator : locators) {
-            if (locator.appliesTo(fo)) {
-                return locator;
-            }
-        }
-        
-        return null;
-    }
-    
-    private FileType getFileType(FileObject fo) {
-        TestLocator locator = getLocatorFor(fo);
-        if (locator != null) {
-            return locator.getFileType(fo);
-        }
-        
-        return FileType.NEITHER;
-    }
-    
-    private FileType getCurrentFileType() {
-        FileObject fo = getApplicableFileObject(new int[1]);
-        
-        return (fo != null) ? getFileType(fo) : FileType.NEITHER;
-    }
-
     private FileObject getApplicableFileObject(int[] caretPosHolder) {
         if (!EventQueue.isDispatchThread()) {
             // Unsafe to ask for an editor pane from a random thread.

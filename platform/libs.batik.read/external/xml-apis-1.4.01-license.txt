@@ -1,7 +1,7 @@
 Name: Apache XML Commons XML APIs
 Version: 1.4.01
 Description: Apache XML Graphics Commons is a library that consists of several reusable components used by Apache Batik and Apache FOP.
-License: Apache-2.0-XML-Commons-APIs
+License: Apache-2.0-XML-Commons-APIs-api
 Origin: https://xmlgraphics.apache.org/commons/
 
 ======================  Parts of this work are licensed: ======================
@@ -260,3 +260,27 @@ The name and trademarks of copyright holders may NOT be used in advertising or
 publicity pertaining to the software without specific, written prior permission.
 Title to copyright in this software and any associated documentation will at
 all times remain with copyright holders.
+
+xml-commons/java/external/LICENSE.sax.txt $Id: LICENSE.sax.txt 225954 2002-01-31 23:26:48Z curcuru $
+
+
+This license came from: http://www.megginson.com/SAX/copying.html
+  However please note future versions of SAX may be covered
+  under http://saxproject.org/?selected=pd
+
+
+This page is now out of date -- see the new SAX site at
+http://www.saxproject.org/ for more up-to-date
+releases and other information. Please change your bookmarks.
+
+
+SAX2 is Free!
+
+I hereby abandon any property rights to SAX 2.0 (the Simple API for
+XML), and release all of the SAX 2.0 source code, compiled code, and
+documentation contained in this distribution into the Public Domain.
+SAX comes with NO WARRANTY or guarantee of fitness for any
+purpose.
+
+David Megginson, david@megginson.com
+2000-05-05

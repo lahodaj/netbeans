@@ -1,0 +1,3 @@
+JDKTools version 11.0.11
+
+Copyright 2022 Gerrit Grunwald.

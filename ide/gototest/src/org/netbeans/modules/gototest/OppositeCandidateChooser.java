@@ -24,12 +24,13 @@ import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
-import java.util.HashMap;
+import java.util.Collection;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.ListModel;
+import org.netbeans.api.gototest.TestOppositesLocator.NamedLocation;
 import org.netbeans.spi.gototest.TestLocator.LocationResult;
 
 /**
@@ -39,10 +40,10 @@ import org.netbeans.spi.gototest.TestLocator.LocationResult;
 public class OppositeCandidateChooser extends JPanel implements FocusListener {
 
     private final String caption;
-    private static HashMap<LocationResult, String> toShow;
+    private static Collection<NamedLocation> toShow;
     private static GotoOppositeAction action;
     
-    public OppositeCandidateChooser(GotoOppositeAction action, String caption, HashMap<LocationResult, String> toShow) {
+    public OppositeCandidateChooser(GotoOppositeAction action, String caption, Collection<NamedLocation> toShow) {
         this.caption = caption;
         OppositeCandidateChooser.action = action;
         OppositeCandidateChooser.toShow = toShow;
@@ -129,8 +130,8 @@ public class OppositeCandidateChooser extends JPanel implements FocusListener {
     
     private ListModel createListModel() {
         DefaultListModel dlm = new DefaultListModel();
-        for (LocationResult cand: toShow.keySet()) {
-            dlm.addElement(cand);
+        for (NamedLocation cand: toShow) {
+            dlm.addElement(cand.location);
         }
         
         return dlm;
@@ -146,9 +147,9 @@ public class OppositeCandidateChooser extends JPanel implements FocusListener {
                 boolean cellHasFocus) {
             Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
             
-            if (value instanceof LocationResult) {
-                LocationResult locator = (LocationResult) value;
-                setText(toShow.get(locator));
+            if (value instanceof NamedLocation) {
+                NamedLocation locator = (NamedLocation) value;
+                setText(locator.displayName);
             }
             
             return c;

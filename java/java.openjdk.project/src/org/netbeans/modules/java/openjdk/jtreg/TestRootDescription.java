@@ -18,15 +18,17 @@
  */
 package org.netbeans.modules.java.openjdk.jtreg;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.netbeans.modules.java.openjdk.common.BuildUtils;
 import org.openide.filesystems.FileObject;
 
 public class TestRootDescription {
-    public final FileObject testProperties;
+    public final List<FileObject> testProperties;
     public final FileObject testRoot;
     public final FileObject testRootFile;
 
-    private TestRootDescription(FileObject testProperties, FileObject testRoot, FileObject testRootFile) {
+    private TestRootDescription(List<FileObject> testProperties, FileObject testRoot, FileObject testRootFile) {
         this.testProperties = testProperties;
         this.testRoot = testRoot;
         this.testRootFile = testRootFile;
@@ -34,11 +36,13 @@ public class TestRootDescription {
 
     public static TestRootDescription findRootDescriptionFor(FileObject file) {
         FileObject search = file.getParent();
-        FileObject testProperties = null;
+        List<FileObject> testProperties = new ArrayList<>();
 
         while (search != null) {
-            if (testProperties == null) {
-                testProperties =  BuildUtils.getFileObject(search, "TEST.properties");
+            FileObject testProps =  BuildUtils.getFileObject(search, "TEST.properties");
+
+            if (testProps != null) {
+                testProperties.add(testProps);
             }
 
             FileObject testRoot = BuildUtils.getFileObject(search, "TEST.ROOT");

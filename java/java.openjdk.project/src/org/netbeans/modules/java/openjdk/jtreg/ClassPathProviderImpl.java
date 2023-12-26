@@ -27,6 +27,7 @@ import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Properties;
@@ -36,7 +37,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.netbeans.api.java.classpath.ClassPath;
+import org.netbeans.api.java.lexer.JavaTokenId;
 import org.netbeans.api.java.source.JavaSource;
+import org.netbeans.api.lexer.TokenHierarchy;
+import org.netbeans.api.lexer.TokenSequence;
 import org.netbeans.api.project.libraries.Library;
 import org.netbeans.api.project.libraries.LibraryManager;
 import org.netbeans.api.queries.FileEncodingQuery;
@@ -64,7 +68,7 @@ public class ClassPathProviderImpl implements ClassPathProvider {
             return null;
         }
 
-        FileObject testProperties = rootDesc.testProperties;
+        List<FileObject> testProperties = rootDesc.testProperties;
         FileObject testRoot = rootDesc.testRoot;
         FileObject testRootFile = rootDesc.testRootFile;
 
@@ -126,23 +130,23 @@ public class ClassPathProviderImpl implements ClassPathProvider {
 
         Set<FileObject> roots = new LinkedHashSet<>();
 
-        if (testProperties != null) {
-            roots.add(testProperties.getParent());
-
-            try (InputStream in = testProperties.getInputStream()) {
+        for (FileObject testProps : testProperties) {
+            try (InputStream in = testProps.getInputStream()) {
                 Properties p = new Properties();
                 p.load(in);
                 String libDirsText = p.getProperty("lib.dirs");
-                FileObject libDirsRoot = libDirsText != null ? resolve(testProperties, testRoot, libDirsText) : null;
-
-                if (libDirsRoot != null) roots.add(libDirsRoot);
+                if (libDirsText != null) {
+                    for (String libDir : libDirsText.split("\\s+")) {
+                        FileObject libDirsRoot = libDirsText != null ? resolve(testProps, testRoot, libDir) : null;
+                        if (libDirsRoot != null) roots.add(libDirsRoot);
+                    }
+                }
             } catch (IOException ex) {
                 Exceptions.printStackTrace(ex);
             }
-        } else {
-            if (file.isFolder()) return null;
+        }
 
-            roots.add(file.getParent());
+        if (!file.isFolder()) {
             try (Reader r = new InputStreamReader(file.getInputStream(), FileEncodingQuery.getEncoding(file))) {
                 StringBuilder content = new StringBuilder();
                 int read;
@@ -150,6 +154,17 @@ public class ClassPathProviderImpl implements ClassPathProvider {
                 while ((read = r.read()) != (-1)) {
                     content.append((char) read);
                 }
+
+                String pckge = findPackage(content.toString());
+                FileObject root = file.getParent();
+
+                if (pckge != null) {
+                    for (String p : pckge.split("\\.")) {
+                        root = root.getParent();
+                    }
+                }
+
+                roots.add(root);
 
                 Pattern library = Pattern.compile("@library (.*)\n");
                 Matcher m = library.matcher(content.toString());
@@ -241,4 +256,43 @@ public class ClassPathProviderImpl implements ClassPathProvider {
             Exceptions.printStackTrace(ex);
         }
     }
+
+    //XXX: copied from java.file.launcher:
+    private static final Set<JavaTokenId> IGNORED_TOKENS = EnumSet.of(
+        JavaTokenId.BLOCK_COMMENT,
+        JavaTokenId.JAVADOC_COMMENT,
+        JavaTokenId.LINE_COMMENT,
+        JavaTokenId.WHITESPACE
+    );
+
+    private static final Set<JavaTokenId> STOP_TOKENS = EnumSet.of(
+        JavaTokenId.IMPORT,
+        JavaTokenId.PUBLIC,
+        JavaTokenId.PROTECTED,
+        JavaTokenId.PRIVATE,
+        JavaTokenId.CLASS,
+        JavaTokenId.LBRACE
+    );
+
+    static String findPackage(String fileContext) {
+        TokenHierarchy<String> th = TokenHierarchy.create(fileContext, true, JavaTokenId.language(), IGNORED_TOKENS, null);
+        TokenSequence<JavaTokenId> ts = th.tokenSequence(JavaTokenId.language());
+
+        ts.moveStart();
+
+        while (ts.moveNext()) {
+            if (ts.token().id() == JavaTokenId.PACKAGE) {
+                StringBuilder packageName = new StringBuilder();
+                while (ts.moveNext() && (ts.token().id() == JavaTokenId.DOT || ts.token().id() == JavaTokenId.IDENTIFIER)) {
+                    packageName.append(ts.token().text());
+                }
+                return packageName.toString();
+            } else if (STOP_TOKENS.contains(ts.token().id())) {
+                break;
+            }
+        }
+
+        return null;
+    }
+
 }

@@ -82,7 +82,7 @@ public class ClassPathProviderImplTest extends NbTestCase {
 
         FileUtil.createFolder(new File(workDir, "src/share/classes"));
         FileObject testRoot = createData("test/TEST.ROOT", "");
-        FileObject testUse = FileUtil.createData(new File(workDir, "test/dir/use/org/Use.java"));
+        FileObject testUse = createData("test/dir/use/org/Use.java", "package org;");
         FileObject testLib = FileUtil.createData(new File(workDir, "test/dir/lib/org/Lib.java"));
         FileObject testProperties = createData("test/dir/use/TEST.properties", "lib.dirs=../lib");
         ClassPath sourceCP = new ClassPathProviderImpl().findClassPath(testUse, ClassPath.SOURCE);
@@ -118,6 +118,60 @@ public class ClassPathProviderImplTest extends NbTestCase {
         ClassPath sourceCP = new ClassPathProviderImpl().findClassPath(testUse, ClassPath.SOURCE);
 
         Assert.assertEquals(new HashSet<>(Arrays.asList(testUse.getParent(), testLib0.getParent(), testLib1.getParent(), testLib2.getParent(), testLib3.getParent())),
+                            new HashSet<>(Arrays.asList(sourceCP.getRoots())));
+    }
+
+    public void testTestPropertiesAndRoot() throws Exception {
+        File workDir = getWorkDir();
+
+        FileUtil.createFolder(new File(workDir, "src/share/classes"));
+        FileObject testRoot = createData("test/TEST.ROOT", "external.lib.roots=extlib1 extlib2");
+        FileObject testUse = createData("test/dir/use/org/Use.java", "package org; /*@test\n@library /lib2 /lib3\n*/");
+        FileObject testLib = FileUtil.createData(new File(workDir, "test/dir/lib/org/Lib.java"));
+        FileObject testLib2 = FileUtil.createData(new File(workDir, "test/extlib1/lib2/Lib2.java"));
+        FileObject testLib3 = FileUtil.createData(new File(workDir, "test/extlib2/lib3/Lib3.java"));
+        FileObject testProperties = createData("test/dir/use/TEST.properties", "lib.dirs=../lib");
+        ClassPath sourceCP = new ClassPathProviderImpl().findClassPath(testUse, ClassPath.SOURCE);
+
+        Assert.assertEquals(new HashSet<>(Arrays.asList(testUse.getParent().getParent(),
+                                                        testLib.getParent().getParent(),
+                                                        testLib2.getParent(),
+                                                        testLib3.getParent())),
+                            new HashSet<>(Arrays.asList(sourceCP.getRoots())));
+    }
+
+    public void testMultipleTestProperties() throws Exception {
+        File workDir = getWorkDir();
+
+        FileUtil.createFolder(new File(workDir, "src/share/classes"));
+        FileObject testRoot = createData("test/TEST.ROOT", "");
+        FileObject testUse = createData("test/dir/use/org/Use.java", "package org;\n");
+        FileObject testLib1 = FileUtil.createData(new File(workDir, "test/lib1/Lib1.java"));
+        FileObject testLib2 = FileUtil.createData(new File(workDir, "test/lib2/Lib2.java"));
+        FileObject testLib3 = FileUtil.createData(new File(workDir, "test/lib3/Lib3.java"));
+        FileObject testLib4 = FileUtil.createData(new File(workDir, "test/lib4/Lib4.java"));
+        FileObject testProperties1 = createData("test/dir/use/TEST.properties", "lib.dirs=/lib1 /lib2");
+        FileObject testProperties2 = createData("test/dir/TEST.properties", "lib.dirs=/lib3 /lib4");
+        ClassPath sourceCP = new ClassPathProviderImpl().findClassPath(testUse, ClassPath.SOURCE);
+
+        Assert.assertEquals(new HashSet<>(Arrays.asList(testUse.getParent().getParent(),
+                                                        testLib1.getParent(),
+                                                        testLib2.getParent(),
+                                                        testLib3.getParent(),
+                                                        testLib4.getParent())),
+                            new HashSet<>(Arrays.asList(sourceCP.getRoots())));
+    }
+
+    public void testTestPropertiesNoLibDirs() throws Exception {
+        File workDir = getWorkDir();
+
+        FileUtil.createFolder(new File(workDir, "src/share/classes"));
+        FileObject testRoot = createData("test/TEST.ROOT", "");
+        FileObject testUse = createData("test/dir/use/org/Use.java", "package org;");
+        FileObject testProperties = createData("test/dir/use/TEST.properties", "");
+        ClassPath sourceCP = new ClassPathProviderImpl().findClassPath(testUse, ClassPath.SOURCE);
+
+        Assert.assertEquals(new HashSet<>(Arrays.asList(testUse.getParent().getParent())),
                             new HashSet<>(Arrays.asList(sourceCP.getRoots())));
     }
 

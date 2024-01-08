@@ -23,8 +23,11 @@ import java.awt.EventQueue;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import javax.swing.Action;
 import javax.swing.JEditorPane;
 import javax.swing.SwingUtilities;
@@ -32,6 +35,7 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import org.netbeans.api.gototest.TestOppositesLocator;
+import org.netbeans.api.gototest.TestOppositesLocator.Location;
 import org.netbeans.api.gototest.TestOppositesLocator.LocatorResult;
 import org.netbeans.modules.gsf.testrunner.ui.api.TestCreatorPanelDisplayer;
 import org.netbeans.modules.gsf.testrunner.ui.api.UICommonUtils;
@@ -120,26 +124,38 @@ public class GotoOppositeAction extends CallableSystemAction {
 
                 @Override
                 public void run() {
-                    LocatorResult opposites = TestOppositesLocator.getDefault().findOpposites(fo, caretOffset);
+                    LocatorResult opposites;
 
-                    if (opposites.errorMessage != null) {
-                        StatusDisplayer.getDefault().setStatusText(opposites.errorMessage);
+                    try {
+                        opposites = TestOppositesLocator.getDefault().findOpposites(fo, caretOffset).get();
+                    } catch (InterruptedException | ExecutionException ex) {
+                        Exceptions.printStackTrace(ex);
+                        return ;
+                    }
+
+                    if (opposites.getErrorMessage() != null) {
+                        StatusDisplayer.getDefault().setStatusText(opposites.getErrorMessage());
                         SwingUtilities.invokeLater(new Runnable() {
                             @Override
                             public void run() {
                                 TestCreatorPanelDisplayer.getDefault().displayPanel(UICommonUtils.getFileObjectsFromNodes(TopComponent.getRegistry().getActivatedNodes()), null, null);
                             }
                         });
-                    }
-                    else {
+                    } else {
+                        opposites.getProviderErrors()
+                                 .stream()
+                                 .forEach(msg -> {
+                                     DialogDisplayer.getDefault().notify(
+                                             new NotifyDescriptor.Message(msg, NotifyDescriptor.INFORMATION_MESSAGE));
+                                     });
+                        Collection<? extends Location> locations = opposites.getLocations();
                         SwingUtilities.invokeLater(new Runnable() {
-
                             @Override
                             public void run() {
-                                if (opposites.locations.size() == 1) {
-                                    handleResult(opposites.locations.iterator().next().location);
-                                } else if (opposites.locations.size() > 1) {
-                                    showPopup(fo, opposites);
+                                if (locations.size() == 1) {
+                                    handleResult(locations.iterator().next());
+                                } else if (locations.size() > 1) {
+                                    showPopup(fo, locations);
                                 }
                             }
                         });
@@ -150,7 +166,7 @@ public class GotoOppositeAction extends CallableSystemAction {
     }
 
     @NbBundle.Messages("LBL_PickExpression=Go to Test")
-    private void showPopup(FileObject fo, LocatorResult opposites) {
+    private void showPopup(FileObject fo, Collection<? extends Location> locations) {
         JTextComponent pane;
         Point l = new Point(-1, -1);
 
@@ -163,22 +179,17 @@ public class GotoOppositeAction extends CallableSystemAction {
                 SwingUtilities.convertPointToScreen(l, pane);
 
                 String label = Bundle.LBL_PickExpression();
-                PopupUtil.showPopup(new OppositeCandidateChooser(this, label, opposites.locations), label, l.x, l.y, true, -1);
+                PopupUtil.showPopup(new OppositeCandidateChooser(this, label, locations), label, l.x, l.y, true, -1);
             }
         } catch (BadLocationException ex) {
             Logger.getLogger(GotoOppositeAction.class.getName()).log(Level.WARNING, null, ex);
         }
     }
 
-    public void handleResult(LocationResult opposite) {
+    public void handleResult(Location opposite) {
         FileObject fileObject = opposite.getFileObject();
         if (fileObject != null) {
             NbDocument.openDocument(fileObject, opposite.getOffset(), Line.ShowOpenType.OPEN, Line.ShowVisibilityType.FOCUS);
-        } else if (opposite.getErrorMessage() != null) {
-            String msg = opposite.getErrorMessage();
-            NotifyDescriptor descr = new NotifyDescriptor.Message(msg, 
-                    NotifyDescriptor.INFORMATION_MESSAGE);
-            DialogDisplayer.getDefault().notify(descr);
         }
     }
     

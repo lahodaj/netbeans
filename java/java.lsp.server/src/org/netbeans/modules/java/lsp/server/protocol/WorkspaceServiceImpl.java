@@ -776,25 +776,6 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                     }
                     return (CompletableFuture<Object>)(CompletableFuture)((TextDocumentServiceImpl)server.getTextDocumentService()).computeDiagnostics(source, s);
             }
-            case Server.NBLS_GO_TO_TEST: {
-                LocatorResult fileLocator = null;
-                List<FileObject> result = new ArrayList<>();
-                try {
-                    List<Object> arguments = params.getArguments();
-                    String source = ((JsonPrimitive) arguments.get(0)).getAsString();
-                    FileObject file;
-                    file = Utils.fromUri(source);
-                    fileLocator = TestOppositesLocator.getDefault().findOpposites(file, -1);
-                    fileLocator.locations.forEach(fileLocation -> {
-                        FileObject fo = fileLocation.location.getFileObject();
-                        result.add(fo);
-                    });
-                } catch (MalformedURLException ex) {
-                    Exceptions.printStackTrace(ex);
-                    return CompletableFuture.completedFuture(Collections.emptyList());
-                }
-                return CompletableFuture.completedFuture(result);
-            }
             case Server.NBLS_GET_SERVER_DIRECTORIES: {
                 JsonObject o = new JsonObject();
                 o.addProperty("userdir", Places.getUserDirectory().toString());

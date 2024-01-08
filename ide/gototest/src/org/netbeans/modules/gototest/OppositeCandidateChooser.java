@@ -30,7 +30,7 @@ import javax.swing.DefaultListModel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.ListModel;
-import org.netbeans.api.gototest.TestOppositesLocator.NamedLocation;
+import org.netbeans.api.gototest.TestOppositesLocator.Location;
 import org.netbeans.spi.gototest.TestLocator.LocationResult;
 
 /**
@@ -40,10 +40,10 @@ import org.netbeans.spi.gototest.TestLocator.LocationResult;
 public class OppositeCandidateChooser extends JPanel implements FocusListener {
 
     private final String caption;
-    private static Collection<NamedLocation> toShow;
+    private static Collection<? extends Location> toShow;
     private static GotoOppositeAction action;
     
-    public OppositeCandidateChooser(GotoOppositeAction action, String caption, Collection<NamedLocation> toShow) {
+    public OppositeCandidateChooser(GotoOppositeAction action, String caption, Collection<? extends Location> toShow) {
         this.caption = caption;
         OppositeCandidateChooser.action = action;
         OppositeCandidateChooser.toShow = toShow;
@@ -123,15 +123,15 @@ public class OppositeCandidateChooser extends JPanel implements FocusListener {
     // End of variables declaration//GEN-END:variables
     
     private void openSelected() {
-        LocationResult locator = (LocationResult) jList1.getSelectedValue();
+        Location locator = (Location) jList1.getSelectedValue();
         action.handleResult(locator);        
         PopupUtil.hidePopup();
     }
     
     private ListModel createListModel() {
         DefaultListModel dlm = new DefaultListModel();
-        for (NamedLocation cand: toShow) {
-            dlm.addElement(cand.location);
+        for (Location cand: toShow) {
+            dlm.addElement(cand);
         }
         
         return dlm;
@@ -147,9 +147,9 @@ public class OppositeCandidateChooser extends JPanel implements FocusListener {
                 boolean cellHasFocus) {
             Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
             
-            if (value instanceof NamedLocation) {
-                NamedLocation locator = (NamedLocation) value;
-                setText(locator.displayName);
+            if (value instanceof Location) {
+                Location location = (Location) value;
+                setText(location.getDisplayName());
             }
             
             return c;

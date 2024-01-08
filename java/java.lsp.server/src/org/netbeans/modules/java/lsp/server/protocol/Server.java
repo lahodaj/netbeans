@@ -829,8 +829,7 @@ public final class Server {
                         JAVA_ENABLE_PREVIEW,
                         NBLS_DOCUMENT_SYMBOLS,
                         NBLS_GET_DIAGNOSTICS,
-                        NBLS_GET_SERVER_DIRECTORIES,
-                        NBLS_GO_TO_TEST
+                        NBLS_GET_SERVER_DIRECTORIES
                 ));
                 for (CodeActionsProvider codeActionsProvider : Lookup.getDefault().lookupAll(CodeActionsProvider.class)) {
                     commands.addAll(codeActionsProvider.getCommands());
@@ -1061,7 +1060,6 @@ public final class Server {
     public static final String NBLS_GRAALVM_PAUSE_SCRIPT = "nbls.graalvm.pause.script";
     public static final String NBLS_RUN_PROJECT_ACTION = "nbls.project.run.action";
     public static final String NBLS_GET_ARCHIVE_FILE_CONTENT = "nbls.get.archive.file.content";
-    public static final String NBLS_GO_TO_TEST = "nbls.go.to.test";
 
     /**
      * Enumerates project configurations.

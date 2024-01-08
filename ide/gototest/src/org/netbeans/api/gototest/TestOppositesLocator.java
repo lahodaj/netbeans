@@ -18,23 +18,21 @@
  */
 package org.netbeans.api.gototest;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import org.netbeans.api.annotations.common.NonNull;
+import org.netbeans.api.annotations.common.CheckForNull;
 import org.netbeans.spi.gototest.TestLocator;
 import org.netbeans.spi.gototest.TestLocator.LocationListener;
 import org.netbeans.spi.gototest.TestLocator.LocationResult;
-import org.openide.DialogDisplayer;
-import org.openide.NotifyDescriptor;
 import org.openide.filesystems.FileObject;
-import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
 import org.openide.util.NbBundle;
+import org.openide.util.NbBundle.Messages;
+import org.openide.util.RequestProcessor;
 
 /**
  * Find one or multiple test files for a source file,
@@ -42,11 +40,20 @@ import org.openide.util.NbBundle;
  *
  * @since 1.57
  */
-public class TestOppositesLocator {
+public final class TestOppositesLocator {
 
+    private static final RequestProcessor WORKER = new RequestProcessor(TestOppositesLocator.class.getName(), 1, false, false);
+
+    /**
+     * The default instance of TestOppositesLocator.
+     *
+     * @return the default instance of TestOppositesLocator
+     */
     public static TestOppositesLocator getDefault() {
         return new TestOppositesLocator();
     }
+
+    private TestOppositesLocator() {}
 
     /**
      * Given the file and position in the file, if the:
@@ -62,80 +69,75 @@ public class TestOppositesLocator {
      *         and one always non-{@code null}.
      */
     @NbBundle.Messages("No_Test_Or_Tested_Class_Found=No Test or Tested class found")
-    public LocatorResult findOpposites(FileObject fo, int caretOffset) {
-        TestLocator.FileType currentFileType = getCurrentFileType(fo);
-        if(currentFileType == TestLocator.FileType.NEITHER) {
-            return new LocatorResult(Bundle.No_Test_Or_Tested_Class_Found(), null);
+    public CompletableFuture<LocatorResult> findOpposites(FileObject fo, int caretOffset) {
+        if (!isSupportedFileType(fo)) {
+            CompletableFuture<LocatorResult> result = new CompletableFuture<>();
+
+            result.complete(new LocatorResult(Bundle.No_Test_Or_Tested_Class_Found(), null, null));
+            return result;
         }
         else {
-            return new LocatorResult(null, Collections.unmodifiableList(populateLocationResults(fo, caretOffset)));
+            return populateLocationResults(fo, caretOffset)
+                    .thenApply(locations -> new LocatorResult(null,
+                                                              locations.stream()
+                                                                       .filter(l -> l.getErrorMessage() != null)
+                                                                       .map(l -> l.getErrorMessage())
+                                                                       .collect(Collectors.toList()),
+                                                              locations.stream()
+                                                                       .filter(l -> l.getFileObject()!= null)
+                                                                       .map(l -> new Location(l.getFileObject(), l.getOffset()))
+                                                                       .collect(Collectors.toList())));
         }
     }
 
-    private List<NamedLocation> populateLocationResults(FileObject fo, int caretOffset) {
-        Map<LocationResult, String> locationResults = new HashMap<LocationResult, String>();
-
+    private CompletableFuture<? extends List<LocationResult>> populateLocationResults(FileObject fo, int caretOffset) {
         Collection<? extends TestLocator> locators = Lookup.getDefault()
                                                            .lookupAll(TestLocator.class)
                                                            .stream()
                                                            .filter(tl -> tl.appliesTo(fo))
                                                            .collect(Collectors.toList());
+        CompletableFuture<ArrayList<LocationResult>> result = new CompletableFuture<>();
 
-        CountDownLatch allDone = new CountDownLatch(locators.size());
+        result.complete(new ArrayList<>());
 
         for (TestLocator locator : locators) {
             if (locator.appliesTo(fo)) {
+                CompletableFuture<List<LocationResult>> currentFuture = new CompletableFuture<>();
+
                 if (locator.asynchronous()) {
                     locator.findOpposite(fo, caretOffset, new LocationListener() {
                         @Override
-                        public void foundLocation(FileObject fo, TestLocator.LocationResult location) {
-                            if (location != null) {
-                                FileObject fileObject = location.getFileObject();
-                                if(fileObject == null) {
-                                    String msg = location.getErrorMessage();
-                                    if (msg != null) {
-                                        DialogDisplayer.getDefault().notify(
-                                                new NotifyDescriptor.Message(msg, NotifyDescriptor.INFORMATION_MESSAGE));
-                                    }
-                                } else {
-                                    locationResults.put(location, fileObject.getName());
-                                }
-                            }
-                            allDone.countDown();
+                        public void foundLocation(FileObject fo, LocationResult location) {
+                            List<LocationResult> resultList =
+                                location != null ? Collections.singletonList(location)
+                                                 : Collections.emptyList();
+
+                            currentFuture.complete(resultList);
                         }
                     });
                 } else {
-                    TestLocator.LocationResult opposite = locator.findOpposite(fo, caretOffset);
+                    WORKER.post(() -> {
+                        try {
+                            LocationResult opposite = locator.findOpposite(fo, caretOffset);
+                            List<LocationResult> resultList =
+                                opposite != null ? Collections.singletonList(opposite)
+                                                 : Collections.emptyList();
 
-                    if (opposite != null) {
-                        FileObject fileObject = opposite.getFileObject();
-                        if (fileObject == null) {
-                            String msg = opposite.getErrorMessage();
-                            if (msg != null) {
-                                DialogDisplayer.getDefault().notify(
-                                        new NotifyDescriptor.Message(msg, NotifyDescriptor.INFORMATION_MESSAGE));
-                            }
-                        } else {
-                            locationResults.put(opposite, fileObject.getName());
+                            currentFuture.complete(resultList);
+                        } catch (Throwable t) {
+                            currentFuture.completeExceptionally(t);
                         }
-                    }
-
-                    allDone.countDown();
+                    });
                 }
+
+                result = result.thenCombine(currentFuture, (accumulator, currentList) -> {
+                    accumulator.addAll(currentList);
+                    return accumulator;
+                });
             }
         }
 
-        try {
-            allDone.await();
-        } catch (InterruptedException ex) {
-            Exceptions.printStackTrace(ex);
-        }
-
-        return locationResults.entrySet()
-                              .stream()
-                              .map(e -> new NamedLocation(e.getKey(),
-                                                          e.getValue()))
-                              .collect(Collectors.toList());
+        return result;
     }
 
     private TestLocator getLocatorFor(FileObject fo) {
@@ -149,17 +151,13 @@ public class TestOppositesLocator {
         return null;
     }
 
-    private TestLocator.FileType getFileType(FileObject fo) {
-        TestLocator locator = getLocatorFor(fo);
+    private boolean isSupportedFileType(FileObject fo) {
+        TestLocator locator = fo != null ? getLocatorFor(fo) : null;
         if (locator != null) {
-            return locator.getFileType(fo);
+            return locator.getFileType(fo) != TestLocator.FileType.NEITHER;
         }
 
-        return TestLocator.FileType.NEITHER;
-    }
-
-    private TestLocator.FileType getCurrentFileType(FileObject fo) {
-        return (fo != null) ? getFileType(fo) : TestLocator.FileType.NEITHER;
+        return false;
     }
 
     /**
@@ -167,28 +165,102 @@ public class TestOppositesLocator {
      * {@code locations} will be non-null;
      */
     public static final class LocatorResult {
-        public final String errorMessage;
-        public final Collection<NamedLocation> locations;
+        private final String errorMessage;
+        private final Collection<? extends String> providerErrors;
+        private final Collection<? extends Location> locations;
 
-        private LocatorResult(String errorMessage, Collection<NamedLocation> locations) {
+        private LocatorResult(String errorMessage,
+                              List<? extends String> providerErrors,
+                              List<? extends Location> locations) {
             if (errorMessage == null && locations == null) {
                 throw new IllegalArgumentException("Both errorMessage and locations is null!");
             }
+            if (errorMessage != null && locations != null) {
+                throw new IllegalArgumentException("Both errorMessage and locations is non-null!");
+            }
+            if (providerErrors == null ^ locations == null) {
+                throw new IllegalArgumentException("Both providerErrors and locations must either be null or non-null");
+            }
             this.errorMessage = errorMessage;
-            this.locations = locations;
+            this.providerErrors = providerErrors != null ? Collections.unmodifiableList(providerErrors) : null;
+            this.locations = locations != null ? Collections.unmodifiableList(locations) : null;
         }
+
+        /**
+         * Get the error message if present.
+         *
+         * @return error message
+         */
+        public @CheckForNull String getErrorMessage() {
+            return errorMessage;
+        }
+
+        /**
+         * Get error messages provided by the providers.
+         *
+         * @return the errors from the providers.
+         */
+        public Collection<? extends String> getProviderErrors() {
+            return providerErrors;
+        }
+
+        /**
+         * Get the locations if present.
+         *
+         * @return the found locations.
+         */
+        public @CheckForNull Collection<? extends Location> getLocations() {
+            return locations;
+        }
+
     }
 
     /**
-     * A location and a name of the location.
+     * A description of a target location.
      */
-    public static final class NamedLocation {
-        public @NonNull final LocationResult location;
-        public @NonNull final String displayName;
+    public static class Location {
+        private final FileObject file;
+        private final int offset;
 
-        private NamedLocation(LocationResult location, String displayName) {
-            this.location = location;
-            this.displayName = displayName;
+        /**
+         * Construct a Location from a given file and offset.
+         * @param file The FileObject of the opposite file.
+         * @param offset The offset in the file, or -1 if the offset
+         *   is unknown.
+         */
+        public Location(FileObject file, int offset) {
+            this.file = file;
+            this.offset = offset;
+        }
+
+        /**
+         * Get the FileObject associated with this location
+         * @return The FileObject for this location, or null if
+         *   this is an invalid location. In that case, consult
+         *   {@link #getErrorMessage} for more information.
+         */
+        public FileObject getFileObject() {
+            return file;
+        }
+
+        /**
+         * Get the offset associated with this location, if any.
+         * @return The offset for this location, or -1 if the offset
+         *   is not known.
+         */
+        public int getOffset() {
+            return offset;
+        }
+
+        /**
+         * Get the proper display name for this location.
+         *
+         * @return the display name for this location
+         */
+        @Messages("DN_Error=Error")
+        public String getDisplayName() {
+            return file != null ? file.getName() : Bundle.DN_Error();
         }
     }
+
 }

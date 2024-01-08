@@ -20,7 +20,7 @@ package org.netbeans.modules.java.file.launcher.indexer;
 
 import org.netbeans.modules.java.file.launcher.SharedRootData;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
-import org.netbeans.api.project.FileOwnerQuery;
+import org.netbeans.modules.java.file.launcher.SingleSourceFileUtil;
 import org.netbeans.modules.parsing.spi.indexing.Context;
 import org.netbeans.modules.parsing.spi.indexing.CustomIndexer;
 import org.netbeans.modules.parsing.spi.indexing.CustomIndexerFactory;
@@ -35,7 +35,7 @@ public class CompilerOptionsIndexer extends CustomIndexer {
 
     @Override
     protected void index(Iterable<? extends Indexable> files, Context context) {
-        if (FileOwnerQuery.getOwner(context.getRoot()) != null) {
+        if (!SingleSourceFileUtil.isSupportedFile(context.getRoot())) {
             return ; //ignore roots under projects
         }
         SharedRootData.ensureRootRegistered(context.getRoot());

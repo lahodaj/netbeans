@@ -59,6 +59,7 @@ import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.filesystems.URLMapper;
 import org.openide.util.Exceptions;
+import org.openide.util.NbBundle.Messages;
 import org.openide.util.lookup.ServiceProvider;
 import org.openide.util.lookup.ServiceProviders;
 
@@ -95,8 +96,7 @@ public class MultiSourceRootProvider implements ClassPathProvider {
     }
 
     private ClassPath getSourcePath(FileObject file) {
-        if (DISABLE_MULTI_SOURCE_ROOT) return null;
-        if (FileOwnerQuery.getOwner(file) != null) return null;
+        if (!SingleSourceFileUtil.isSupportedFile(file)) return null;
         synchronized (this) {
             //XXX: what happens if there's a Java file in user's home???
             if (file.isValid() && file.isData() && "text/x-java".equals(file.getMIMEType())) {
@@ -124,7 +124,9 @@ public class MultiSourceRootProvider implements ClassPathProvider {
 
                         return root2SourceCP.computeIfAbsent(root, r -> {
                             ClassPath srcCP = ClassPathSupport.createClassPath(Arrays.asList(new RootPathResourceImplementation(r)));
-                            GlobalPathRegistry.getDefault().register(ClassPath.SOURCE, new ClassPath[] {srcCP});
+                            if (registerRoot(r)) {
+                                GlobalPathRegistry.getDefault().register(ClassPath.SOURCE, new ClassPath[] {srcCP});
+                            }
                             return srcCP;
                         });
                     } catch (IOException ex) {
@@ -239,6 +241,17 @@ public class MultiSourceRootProvider implements ClassPathProvider {
             return ClassPathFactory.createClassPath(cpi);
         });
         }
+    }
+
+    @Messages({
+        "SETTING_AutoRegisterAsRoot=false"
+    })
+    private static boolean registerRoot(FileObject root) {
+        Object registerValue = root.getAttribute(SingleSourceFileUtil.REGISTER_AS_JAVA_ROOT);
+        if (registerValue instanceof Boolean && ((Boolean) registerValue)) {
+            return true;
+        }
+        return "true".equals(Bundle.SETTING_AutoRegisterAsRoot());
     }
 
     private static final class AttributeBasedClassPathImplementation implements ChangeListener, ClassPathImplementation {

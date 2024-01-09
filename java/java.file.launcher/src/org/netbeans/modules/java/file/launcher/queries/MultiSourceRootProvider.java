@@ -247,10 +247,6 @@ public class MultiSourceRootProvider implements ClassPathProvider {
         "SETTING_AutoRegisterAsRoot=false"
     })
     private static boolean registerRoot(FileObject root) {
-        Object registerValue = root.getAttribute(SingleSourceFileUtil.REGISTER_AS_JAVA_ROOT);
-        if (registerValue instanceof Boolean && ((Boolean) registerValue)) {
-            return true;
-        }
         return "true".equals(Bundle.SETTING_AutoRegisterAsRoot());
     }
 

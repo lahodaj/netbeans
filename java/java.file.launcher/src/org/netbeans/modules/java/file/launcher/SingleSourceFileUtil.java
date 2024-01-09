@@ -58,7 +58,6 @@ public final class SingleSourceFileUtil {
 
     public static final String FILE_ARGUMENTS = "single_file_run_arguments"; //NOI18N
     public static final String FILE_VM_OPTIONS = "single_file_vm_options"; //NOI18N
-    public static final String REGISTER_AS_JAVA_ROOT = "single_file_register_root"; //NOI18N
 
     public static FileObject getJavaFileWithoutProjectFromLookup(Lookup lookup) {
         for (DataObject dObj : lookup.lookupAll(DataObject.class)) {

@@ -490,32 +490,37 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
         let c: LanguageClient = await client;
         const commands = await vscode.commands.getCommands();
         if (commands.includes(COMMAND_PREFIX + '.go.to.test')) {
-            const res: Array<string> = await vscode.commands.executeCommand(COMMAND_PREFIX + '.go.to.test', contextUri(ctx)?.toString());
-            if (res?.length) {
-                if (res.length === 1) {
-                    let file = vscode.Uri.parse(res[0]);
-                    await vscode.window.showTextDocument(file, { preview: false });
-                } else {
-                    const namePathMapping: { [key: string]: string } = {}
-                    res.forEach(fp => {
-                        const fileName = path.basename(fp);
-                        namePathMapping[fileName] = fp
-                    });
-                    const selected = await window.showQuickPick(Object.keys(namePathMapping), {
-                        title: 'Select files to open',
-                        placeHolder: 'Test files or source files associated to each other',
-                        canPickMany: true
-                    });
-                    if (selected) {
-                        for await (const filePath of selected) {
-                            let file = vscode.Uri.parse(filePath);
-                            await vscode.window.showTextDocument(file, { preview: false });
-                        }
+            try {
+                const res: Array<string> = await vscode.commands.executeCommand(COMMAND_PREFIX + '.go.to.test', contextUri(ctx)?.toString());
+                if (res?.length) {
+                    if (res.length === 1) {
+                        let file = vscode.Uri.parse(res[0]);
+                        await vscode.window.showTextDocument(file, { preview: false });
                     } else {
-                        vscode.window.showInformationMessage("No file selected");
+                        const namePathMapping: { [key: string]: string } = {}
+                        res.forEach(fp => {
+                            const fileName = path.basename(fp);
+                            namePathMapping[fileName] = fp
+                        });
+                        const selected = await window.showQuickPick(Object.keys(namePathMapping), {
+                            title: 'Select files to open',
+                            placeHolder: 'Test files or source files associated to each other',
+                            canPickMany: true
+                        });
+                        if (selected) {
+                            for await (const filePath of selected) {
+                                let file = vscode.Uri.parse(filePath);
+                                await vscode.window.showTextDocument(file, { preview: false });
+                            }
+                        } else {
+                            vscode.window.showInformationMessage("No file selected");
+                        }
                     }
                 }
-            } else {
+                else {
+                    throw new Error("No corresponding file found");
+                }
+            } catch (err) {
                 vscode.window.showInformationMessage("Source file does not have corresponding test file or vice versa");
             }
         } else {

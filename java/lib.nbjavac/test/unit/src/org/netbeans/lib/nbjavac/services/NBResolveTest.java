@@ -47,7 +47,7 @@ public class NBResolveTest extends NbTestCase {
         super(testName);
     }
 
-    public void testNETBEANS_228() throws Exception {
+    public void testStringTemplateProcessMissing() throws Exception {
         String code = "package test; public class Test { String t() { return STR.\"\"; } }";
 
         compile(code, "21");

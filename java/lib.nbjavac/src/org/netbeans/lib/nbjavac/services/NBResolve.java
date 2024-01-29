@@ -53,7 +53,7 @@ public class NBResolve extends Resolve {
     }
 
     private final Symtab syms;
-    boolean inAttr;
+    boolean inStringTemplate;
 
     protected NBResolve(Context ctx) {
         super(ctx);
@@ -91,7 +91,7 @@ public class NBResolve extends Resolve {
         try {
             return super.resolveInternalMethod(pos, env, site, name, argtypes, typeargtypes);
         } catch (FatalError ex) {
-            if (inAttr) {
+            if (inStringTemplate) {
                 return new Symbol.MethodSymbol(0, name, new MethodType(argtypes, syms.errType, List.nil(), syms.methodClass), syms.noSymbol);
             }
             throw ex;

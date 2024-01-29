@@ -84,8 +84,7 @@ public class NBResolveTest extends NbTestCase {
         std.setLocation(StandardLocation.CLASS_OUTPUT, Collections.singleton(workingDir));
 
         Context context = new Context();
-//        NBLog.preRegister(context, DEV_NULL);
-//        NBAttr.preRegister(context);
+        NBAttr.preRegister(context);
         NBJavaCompiler.preRegister(context);
         NBResolve.preRegister(context);
         final JavacTaskImpl ct = (JavacTaskImpl) ((JavacTool)tool).getTask(null, std, null, Arrays.asList("--release", release, "-XDshould-stop.at=FLOW"), null, Arrays.asList(new MyFileObject(code)), context);

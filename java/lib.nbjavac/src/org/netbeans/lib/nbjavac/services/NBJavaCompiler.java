@@ -47,13 +47,11 @@ public class NBJavaCompiler extends JavaCompiler {
     }
 
     private final CancelService cancelService;
-    private final NBResolve rs;
     private Consumer<Env<AttrContext>> desugarCallback;
 
     public NBJavaCompiler(Context context) {
         super(context);
         cancelService = CancelService.instance(context);
-        rs = NBResolve.instance(context);
     }
 
     @Override
@@ -79,17 +77,6 @@ public class NBJavaCompiler extends JavaCompiler {
     }
 
     private boolean desugaring;
-
-    @Override
-    public Env<AttrContext> attribute(Env<AttrContext> env) {
-        boolean prevInAttr = rs.inAttr;
-        try {
-            rs.inAttr = true;
-            return super.attribute(env);
-        } finally {
-            rs.inAttr = prevInAttr;
-        }
-    }
 
     @Override
     protected void desugar(Env<AttrContext> env, Queue<Pair<Env<AttrContext>, JCTree.JCClassDecl>> results) {

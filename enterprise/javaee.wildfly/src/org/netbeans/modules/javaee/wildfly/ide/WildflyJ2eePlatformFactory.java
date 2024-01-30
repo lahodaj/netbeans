@@ -72,7 +72,7 @@ public class WildflyJ2eePlatformFactory extends J2eePlatformFactory {
 
     static final String KODO_JPA_PROVIDER = "kodo.persistence.PersistenceProviderImpl";
 
-    private static final WeakHashMap<InstanceProperties, J2eePlatformImplImpl> instanceCache = new WeakHashMap<InstanceProperties, J2eePlatformImplImpl>();
+    private static final WeakHashMap<InstanceProperties, J2eePlatformImplImpl> instanceCache = new WeakHashMap<>();
 
     @Override
     public synchronized J2eePlatformImpl getJ2eePlatformImpl(DeploymentManager dm) {
@@ -91,7 +91,7 @@ public class WildflyJ2eePlatformFactory extends J2eePlatformFactory {
 
     public static class J2eePlatformImplImpl extends J2eePlatformImpl2 {
 
-        private static final Set<Type> MODULE_TYPES = new HashSet<Type>();
+        private static final Set<Type> MODULE_TYPES = new HashSet<>(8);
 
         static {
             MODULE_TYPES.add(Type.EAR);
@@ -101,7 +101,7 @@ public class WildflyJ2eePlatformFactory extends J2eePlatformFactory {
             MODULE_TYPES.add(Type.CAR);
         }
 
-        private static final Set<Profile> WILDFLY_PROFILES = new HashSet<Profile>();
+        private static final Set<Profile> WILDFLY_PROFILES = new HashSet<>(16);
 
         static {
             WILDFLY_PROFILES.add(Profile.JAVA_EE_6_WEB);
@@ -112,21 +112,21 @@ public class WildflyJ2eePlatformFactory extends J2eePlatformFactory {
             WILDFLY_PROFILES.add(Profile.JAVA_EE_8_FULL);
             WILDFLY_PROFILES.add(Profile.JAKARTA_EE_8_FULL);
         }
-        private static final Set<Profile> JAKARTAEE_FULL_PROFILES = new HashSet<Profile>();
+        private static final Set<Profile> JAKARTAEE_FULL_PROFILES = new HashSet<>(8);
 
         static {
             JAKARTAEE_FULL_PROFILES.add(Profile.JAKARTA_EE_9_FULL);
             JAKARTAEE_FULL_PROFILES.add(Profile.JAKARTA_EE_9_1_FULL);
             JAKARTAEE_FULL_PROFILES.add(Profile.JAKARTA_EE_10_FULL);
         }
-        private static final Set<Profile> EAP6_PROFILES = new HashSet<Profile>();
+        private static final Set<Profile> EAP6_PROFILES = new HashSet<>(4);
 
         static {
             EAP6_PROFILES.add(Profile.JAVA_EE_6_WEB);
             EAP6_PROFILES.add(Profile.JAVA_EE_6_FULL);
         }
 
-        private static final Set<Profile> WILDFLY_WEB_PROFILES = new HashSet<Profile>();
+        private static final Set<Profile> WILDFLY_WEB_PROFILES = new HashSet<>(16);
 
         static {
             WILDFLY_WEB_PROFILES.add(Profile.JAVA_EE_6_WEB);
@@ -138,7 +138,7 @@ public class WildflyJ2eePlatformFactory extends J2eePlatformFactory {
             WILDFLY_WEB_PROFILES.add(Profile.JAKARTA_EE_10_WEB);
         }
 
-        private static final Set<Profile> JAKARTAEE_WEB_PROFILES = new HashSet<Profile>();
+        private static final Set<Profile> JAKARTAEE_WEB_PROFILES = new HashSet<>(8);
 
         static {
             JAKARTAEE_WEB_PROFILES.add(Profile.JAKARTA_EE_9_WEB);
@@ -188,8 +188,8 @@ public class WildflyJ2eePlatformFactory extends J2eePlatformFactory {
         }
 
         @Override
-        public Set/*<String>*/ getSupportedJavaPlatformVersions() {
-            Set versions = new HashSet();
+        public Set<String> getSupportedJavaPlatformVersions() {
+            Set<String> versions = new HashSet<>();
             versions.add("1.7"); // NOI18N
             versions.add("1.8"); // NOI18N
             versions.add("1.8"); // NOI18N
@@ -197,6 +197,9 @@ public class WildflyJ2eePlatformFactory extends J2eePlatformFactory {
             versions.add("11"); // NOI18N
             if (this.properties.getServerVersion().compareToIgnoreUpdate(WildflyPluginUtils.EAP_7_0) >= 0) {
                 versions.add("17"); // NOI18N
+            }
+            if (this.properties.getServerVersion().compareToIgnoreUpdate(WildflyPluginUtils.WILDFLY_30_0_0) >= 0) {
+                versions.add("21"); // NOI18N
             }
             return versions;
         }
@@ -331,21 +334,13 @@ public class WildflyJ2eePlatformFactory extends J2eePlatformFactory {
         }
 
         private boolean containsJaxWsLibraries() {
-            File[] jaxWsAPILib = new File(properties.getModulePath("org/jboss/ws/api/main")).listFiles(new FilenameFilter() {
-                @Override
-                public boolean accept(File dir, String name) {
-                    return name.startsWith("jbossws-api") && name.endsWith("jar");
-                }
-            }); // NOI18N
+            File[] jaxWsAPILib = new File(properties.getModulePath("org/jboss/ws/api/main"))                       // NOI18N
+                    .listFiles((File dir, String name) -> name.startsWith("jbossws-api") && name.endsWith("jar")); // NOI18N
             if (jaxWsAPILib != null && jaxWsAPILib.length == 1 && jaxWsAPILib[0].exists()) {
                 return true;
             }
-            jaxWsAPILib = new File(properties.getModulePath("javax/xml/ws/api/main")).listFiles(new FilenameFilter() {
-                @Override
-                public boolean accept(File dir, String name) {
-                    return name.startsWith("jboss-jaxws-api") && name.endsWith("jar");
-                }
-            }); // NOI18N
+            jaxWsAPILib = new File(properties.getModulePath("javax/xml/ws/api/main"))                                  // NOI18N
+                    .listFiles((File dir, String name) -> name.startsWith("jboss-jaxws-api") && name.endsWith("jar")); // NOI18N
             if (jaxWsAPILib != null && jaxWsAPILib.length == 1 && jaxWsAPILib[0].exists()) {
                 return true;
             }
@@ -382,22 +377,18 @@ public class WildflyJ2eePlatformFactory extends J2eePlatformFactory {
             return false;
         }
 
+        @SuppressWarnings("NestedAssignment")
         private static boolean containsService(FileObject serviceFO, String serviceName, String serviceImplName) {
-            try {
-                BufferedReader br = new BufferedReader(new InputStreamReader(serviceFO.getInputStream()));
-                try {
-                    String line;
-                    while ((line = br.readLine()) != null) {
-                        int ci = line.indexOf('#');
-                        if (ci >= 0) {
-                            line = line.substring(0, ci);
-                        }
-                        if (line.trim().equals(serviceImplName)) {
-                            return true;
-                        }
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(serviceFO.getInputStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    int ci = line.indexOf('#');
+                    if (ci >= 0) {
+                        line = line.substring(0, ci);
                     }
-                } finally {
-                    br.close();
+                    if (line.trim().equals(serviceImplName)) {
+                        return true;
+                    }
                 }
             } catch (Exception ex) {
                 Exceptions.attachLocalizedMessage(ex, serviceFO.toURL().toString());
@@ -524,7 +515,7 @@ public class WildflyJ2eePlatformFactory extends J2eePlatformFactory {
         private class JaxRsStackSupportImpl implements JaxRsStackSupportImplementation {
 
             private static final String JAX_RS_APPLICATION_CLASS = "javax.ws.rs.core.Application"; //NOI18N
-            private J2eePlatformImplImpl j2eePlatform;
+            private final J2eePlatformImplImpl j2eePlatform;
 
             JaxRsStackSupportImpl(J2eePlatformImplImpl j2eePlatform) {
                 this.j2eePlatform = j2eePlatform;

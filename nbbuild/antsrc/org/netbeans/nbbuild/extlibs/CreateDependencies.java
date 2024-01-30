@@ -41,6 +41,7 @@ import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.Task;
 import org.apache.tools.ant.types.DirSet;
 import org.apache.tools.ant.types.Resource;
+import org.netbeans.nbbuild.extlibs.CreateLicenseSummary.BinaryDescription;
 
 /**
  * Creates a list of external binaries and their licenses.
@@ -158,16 +159,17 @@ public class CreateDependencies extends Task {
     private void processModule(String module, Map<String, Map<String, String>> file2LicenseHeaders) throws IOException {
         File d = new File(new File(getProject().getProperty("nb_all"), module), "external");
         Set<String> hgFiles = VerifyLibsAndLicenses.findHgControlledFiles(d);
-        Map<String,Map<String,String>> binary2License = CreateLicenseSummary.findBinary2LicenseHeaderMapping(hgFiles, d);
+        Map<String, CreateLicenseSummary.BinaryDescription> binary2License = CreateLicenseSummary.findBinary2LicenseHeaderMapping(hgFiles, d);
         for (String n : hgFiles) {
             if (!n.endsWith(".jar") && !n.endsWith(".zip") && !n.endsWith(".xml") &&
                     !n.endsWith(".js") && !n.endsWith(".dylib")) {
                 continue;
             }
-            Map<String,String> headers = binary2License.get(n);
-            if (headers == null) {
+            final BinaryDescription binaryDesc = binary2License.get(n);
+            if (binaryDesc == null) {
                 continue;
             }
+            Map<String,String> headers = binaryDesc.licenseFilesHeaders;
             file2LicenseHeaders.put(n, headers); //TODO: check unique!
         }
     }

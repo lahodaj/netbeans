@@ -746,9 +746,9 @@ public class CreateLicenseSummary extends Task {
 
     public static final class BinaryDescription {
 
-        private final String cluster;
-        private final String moduleName;
-        private final Map<String, String> licenseFilesHeaders;
+        public final String cluster;
+        public final String moduleName;
+        public final Map<String, String> licenseFilesHeaders;
 
         public BinaryDescription(String cluster, String moduleName, Map<String, String> licenseFilesHeaders) {
             this.cluster = cluster;

@@ -1,7 +1,7 @@
 Name: Javac Compiler Implementation
 Description: Javac Compiler Implementation
-Version: jdk-22+31
-Files: nb-javac-jdk-22+31-api.jar nb-javac-jdk-22+31.jar
+Version: jdk-22+33
+Files: nb-javac-jdk-22+33-api.jar nb-javac-jdk-22+33.jar
 License: GPL-2-CP
 Origin: OpenJDK (https://github.com/openjdk/jdk22)
 Source: https://github.com/openjdk/jdk22

@@ -237,6 +237,7 @@ import org.netbeans.modules.refactoring.spi.RefactoringElementImplementation;
 import org.netbeans.modules.refactoring.spi.Transaction;
 import org.netbeans.api.lsp.StructureElement;
 import org.netbeans.modules.editor.indent.api.Reformat;
+import org.netbeans.modules.java.lsp.server.JavaPlatformProviderOverride;
 import org.netbeans.modules.java.lsp.server.URITranslator;
 import org.netbeans.modules.parsing.impl.SourceAccessor;
 import org.netbeans.spi.editor.hints.ErrorDescription;
@@ -2103,6 +2104,10 @@ public class TextDocumentServiceImpl implements TextDocumentService, LanguageCli
         reRunDiagnostics();
     }
     
+    void updateProjectJDKHome(JsonPrimitive configuration) {
+        JavaPlatformProviderOverride.setDefaultPlatformOverride(configuration != null ? configuration.getAsString() : null);
+    }
+
     private String key(ErrorProvider.Kind errorKind) {
         return errorKind.name().toLowerCase(Locale.ROOT);
     }

@@ -42,6 +42,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -445,11 +446,11 @@ public class CreateLicenseSummary extends Task {
                                                                  .put(entry.getKey(), entry.getValue());
         }
 
-        dependencyWriter.println("NetBeans");
+        dependencyWriter.println("Apache NetBeans");
         for (Entry<String, Map<String, Map<String, Map<String, Map<String, BinaryDescription>>>>> clusterEntry : cluster2Module2BinaryHeader2Nested2Binary2Description.entrySet()) {
             dependencyWriter.println(INDENT + "+ " + clusterEntry.getKey() + " (NetBeans cluster)");
             for (Entry<String, Map<String, Map<String, Map<String, BinaryDescription>>>> moduleEntry : clusterEntry.getValue().entrySet()) {
-                dependencyWriter.println(INDENT + INDENT + "+ " + moduleEntry.getKey() + " (NetBeans module or entry, simple name)");
+                dependencyWriter.println(INDENT + INDENT + "+ " + moduleEntry.getKey());
                 for (Entry<String, Map<String, Map<String, BinaryDescription>>> binaryHeaderEntry : moduleEntry.getValue().entrySet()) {
                     dependencyWriter.println(INDENT + INDENT + INDENT + "+ " + binaryHeaderEntry.getKey());
                     for (Entry<String, Map<String, BinaryDescription>> nestedEntry : binaryHeaderEntry.getValue().entrySet()) {
@@ -657,7 +658,7 @@ public class CreateLicenseSummary extends Task {
     static Map<String, BinaryDescription> findBinary2LicenseHeaderMapping(Set<String> cvsFiles, File d) throws IOException {
         Map<String, BinaryDescription> binary2LicenseHeaders = new HashMap<>();
         String cluster = d.getParentFile().getParentFile().getName();
-        String moduleName = d.getParentFile().getName(); //XXX - better name
+        String moduleName = moduleName(d.getParentFile());
         for (String n : cvsFiles) {
             if (!n.endsWith("-license.txt")) {
                 continue;
@@ -699,6 +700,46 @@ public class CreateLicenseSummary extends Task {
             }
         }
         return binary2LicenseHeaders;
+    }
+
+    private static String moduleName(File moduleDirectory) throws IOException {
+        File manifestFile = new File(moduleDirectory, "manifest.mf");
+
+        if (manifestFile.canRead()) {
+            Manifest mf;
+
+            try (InputStream in = new FileInputStream(manifestFile)) {
+                mf = new Manifest(in);
+            }
+
+            String bundle = mf.getMainAttributes().getValue("OpenIDE-Module-Localizing-Bundle");
+
+            if (bundle != null) {
+                File bundleFile = new File(new File(moduleDirectory, "src"), bundle);
+
+                if (bundleFile.canRead()) {
+                    try (InputStream in = new FileInputStream(bundleFile)) {
+                        Properties props = new Properties();
+
+                        props.load(in);
+
+                        String name = props.getProperty("OpenIDE-Module-Name");
+
+                        if (name != null) {
+                            return name + " (" + moduleDirectory.getName() + ")";
+                        }
+                    }
+                }
+            }
+
+            String name = mf.getMainAttributes().getValue("OpenIDE-Module-Name");
+
+            if (name != null) {
+                return name + " (" + moduleDirectory.getName() + ")";
+            }
+        }
+
+        return moduleDirectory.getName(); //fallback
     }
 
     private void findBinaries(File d, Map<String, BinaryDescription> binaries2LicenseHeaders, Map<Long, BinaryDescription> crc2LicenseHeaders,

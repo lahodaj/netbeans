@@ -51,6 +51,7 @@ import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -343,6 +344,15 @@ public class CreateLicenseSummary extends Task {
 
                     if (fs.getLicenseRef() != null) {
                         licenseNames.add(fs.getLicenseRef());
+                    }
+                }
+
+                if (combineLicenseAndNotice) {
+                    String notice = normalizeNotice(fs.getNotice());
+
+                    if (!notice.isEmpty()) {
+                        licenseWriter.println("NOTICEs for: " + fs.getFiles().stream().map(f -> nball.toPath().relativize(f.toPath()).toString()).collect(Collectors.joining(" ")));
+                        licenseWriter.println(notice);
                     }
                 }
 

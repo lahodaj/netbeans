@@ -292,6 +292,7 @@ public class CreateLicenseSummary extends Task {
 
     private void evaluateLicenseInfo(final PrintWriter licenseWriter, final PrintWriter noticeWriter, Set<String> notices, Set<String> licenseNames) throws IOException {
         List<String> footnotes = new ArrayList<>();
+        List<Licenseinfo> licenseInfos = new ArrayList<>();
         boolean headerPrinted = false;
 
         for(String module : modules) {
@@ -302,6 +303,8 @@ public class CreateLicenseSummary extends Task {
             }
 
             Licenseinfo licenseInfo = Licenseinfo.parse(licenseInfoFile);
+
+            licenseInfos.add(licenseInfo);
 
             for(Fileset fs: licenseInfo.getFilesets()) {
                 if(binary && fs.isSourceOnly()) {
@@ -357,6 +360,23 @@ public class CreateLicenseSummary extends Task {
                 }
 
                 addNotice(noticeWriter, fs.getNotice(), notices);
+            }
+        }
+
+        if (combineLicenseAndNotice) {
+            for (Licenseinfo licenseInfo : licenseInfos) {
+                for(Fileset fs: licenseInfo.getFilesets()) {
+                    if(binary && fs.isSourceOnly()) {
+                        continue;
+                    }
+
+                    String notice = normalizeNotice(fs.getNotice());
+
+                    if (!notice.isEmpty()) {
+                        licenseWriter.println("NOTICEs for: " + fs.getFiles().stream().map(f -> nball.toPath().relativize(f.toPath()).toString()).collect(Collectors.joining(" ")));
+                        licenseWriter.println(notice);
+                    }
+                }
             }
         }
 

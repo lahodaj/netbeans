@@ -197,6 +197,7 @@
                               binary="true"
                               excludes="${nb-extra-files}"
                               includeAllFiles="true"
+                              combineLicenseAndNotice="true"
         />
         <concat destfile="${build.dir}/nblic/summary/NOTICE-ext">
             <header>Content of the NOTICE file:

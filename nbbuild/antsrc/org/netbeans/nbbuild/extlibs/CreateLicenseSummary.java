@@ -34,6 +34,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -116,6 +117,12 @@ public class CreateLicenseSummary extends Task {
 
     public void setDependencies(File dependencies) {
         this.dependencies = dependencies;
+    }
+
+    private boolean combineLicenseAndNotice;
+
+    public void setCombineLicenseAndNotice(boolean combineLicenseAndNotice) {
+        this.combineLicenseAndNotice = combineLicenseAndNotice;
     }
 
     private File noticeStub;
@@ -205,14 +212,18 @@ public class CreateLicenseSummary extends Task {
                 int read;
                 while ((read = r.read()) != (-1)) {
                     noticeWriter.write(read);
+                    if (combineLicenseAndNotice) {
+                        licenseWriter.write(read);
+                    }
                 }
             }
 
             Set<String> notices = new HashSet<>();
             Set<String> licenseNames = new TreeSet<>();
+            Map<String, Set<String>> licenseName2Notices = new HashMap<>();
 
             if(binary) {
-                evaluateBinaries(licenseWriter, noticeWriter, notices, licenseNames);
+                evaluateBinaries(licenseWriter, noticeWriter, notices, licenseNames, licenseName2Notices);
                 if (dependencyWriter != null) {
                     printDependencyTree(dependencyWriter);
                 }
@@ -245,6 +256,15 @@ public class CreateLicenseSummary extends Task {
                     licenseWriter.println("======");
                     licenseWriter.println("========================= " + licenseName + " =========================");
                     licenseWriter.println();
+                    if (combineLicenseAndNotice && !licenseName2Notices.getOrDefault(licenseName, Collections.emptySet()).isEmpty()) {
+                        licenseWriter.println("====== The following are the NOTICEs pertaining to components using this license. For the full license text, please see the license text below the NOTICEs");
+
+                        for (String notice : licenseName2Notices.get(licenseName)) {
+                            addNotice(licenseWriter, notice, new HashSet<>());
+                        }
+
+                        licenseWriter.println("====== license text follows");
+                    }
                     try (InputStream is = new FileInputStream(license)) {
                         BufferedReader r = new BufferedReader(new InputStreamReader(is, "UTF-8"));
                         String line;
@@ -341,7 +361,7 @@ public class CreateLicenseSummary extends Task {
         }
     }
 
-    private void evaluateBinaries(final PrintWriter licenseWriter, final PrintWriter noticeWriter, Set<String> notices, Set<String> licenseNames) throws IOException {
+    private void evaluateBinaries(final PrintWriter licenseWriter, final PrintWriter noticeWriter, Set<String> notices, Set<String> licenseNames, Map<String, Set<String>> licenseNames2Notices) throws IOException {
         Map<Long, BinaryDescription> crc2License = findCrc2LicenseHeaderMapping();
         Map<String, BinaryDescription> binaries2LicenseHeaders = new TreeMap<>();
         StringBuilder testBinariesAreUnique = new StringBuilder();
@@ -388,7 +408,15 @@ public class CreateLicenseSummary extends Task {
                 System.err.println("No license for: " + binary);
             }
 
-            addNotice(noticeWriter, headers.get("notice"), notices);
+            String notice = headers.get("notice");
+
+            notice = normalizeNotice(notice);
+
+            if (!notice.isEmpty()) {
+                licenseNames2Notices.computeIfAbsent(license, l -> new HashSet<>()).add(notice);
+            }
+
+            addNotice(noticeWriter, notice, notices);
         }
 //                String[] otherHeaders = {"Name", "Version", "Description", "Origin"};
 //                Map<Map<String,String>,Set<String>> licenseHeaders2Binaries = new LinkedHashMap<Map<String,String>,Set<String>>();

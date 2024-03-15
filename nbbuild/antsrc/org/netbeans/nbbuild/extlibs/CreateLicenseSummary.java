@@ -350,15 +350,6 @@ public class CreateLicenseSummary extends Task {
                     }
                 }
 
-                if (combineLicenseAndNotice) {
-                    String notice = normalizeNotice(fs.getNotice());
-
-                    if (!notice.isEmpty()) {
-                        licenseWriter.println("NOTICEs for: " + fs.getFiles().stream().map(f -> nball.toPath().relativize(f.toPath()).toString()).collect(Collectors.joining(" ")));
-                        licenseWriter.println(notice);
-                    }
-                }
-
                 addNotice(noticeWriter, fs.getNotice(), notices);
             }
         }

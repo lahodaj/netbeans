@@ -50,7 +50,7 @@ public class SetupLimitModulesProbe {
         List<String> options;
 
         if ("last".equals(release)) {
-            options = null;
+            options = List.of("--add-modules", "ALL-SYSTEM");
         } else {
             options = List.of("--release", release);
         }

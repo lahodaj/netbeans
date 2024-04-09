@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.netbeans.nbbuild.extlibs;
+package org.netbeans.modules.apisupport.project;
 
 import com.sun.source.util.JavacTask;
 import java.io.IOException;
@@ -35,7 +35,7 @@ import javax.tools.SimpleJavaFileObject;
 import javax.tools.ToolProvider;
 
 /**
- * There's a copy of this class in apisupport/apisupport.ant/src/org/netbeans/modules/apisupport/project/SetupLimitModulesProbe.java.
+ * There's a copy of this class in nbbuild/antsrc/org/netbeans/nbbuild/extlibs/SetupLimitModulesProbe.java.
  * Please make sure this are kept in sync.
  */
 public class SetupLimitModulesProbe {

@@ -40,7 +40,6 @@ import org.netbeans.modules.maven.api.execute.RunUtils;
 import org.netbeans.modules.maven.execute.BeanRunConfig;
 import org.netbeans.modules.maven.execute.MavenProxySupport;
 import org.netbeans.modules.maven.execute.MavenProxySupport.ProxyResult;
-import org.netbeans.modules.maven.modelcache.MavenProjectCache;
 import org.netbeans.modules.maven.options.MavenSettings;
 import static org.netbeans.modules.maven.problems.Bundle.*;
 import org.netbeans.spi.project.ProjectServiceProvider;
@@ -173,7 +172,10 @@ public class SanityBuildAction implements ProjectProblemResolver {
                     if (et != null) {
                         et.waitFinished();
                         ProjectProblemsProvider.Result r;
-                        if (result.get() == 0) {
+                        if (result.get() == 0 ||
+                            // if the build failed, the problem may be in user's sources, rather than in
+                            // missing artifacts. Check if sanity build is still needed:
+                            !nbproject.getLookup().lookup(SanityBuildNeededChecker.class).isSanityBuildNeeded()) {
                             r = ProjectProblemsProvider.Result.create(ProjectProblemsProvider.Status.RESOLVED, ACT_PrimingComplete());
                         } else {
                             r = ProjectProblemsProvider.Result.create(ProjectProblemsProvider.Status.UNRESOLVED, ACT_PrimingFailed());
@@ -238,4 +240,7 @@ public class SanityBuildAction implements ProjectProblemResolver {
         }
     }
 
+    public interface SanityBuildNeededChecker {
+        public boolean isSanityBuildNeeded();
+    }
 }

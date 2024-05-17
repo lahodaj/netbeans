@@ -307,10 +307,10 @@ public class MultiSourceRootProvider implements ClassPathProvider {
                 toRemoveFSListeners.addAll(directoriesWithListener);
             }
 
-            for (int i = 0; i < parsed.size(); i++) {
+            for (int i = 0; i < parsed.size() - 1; i++) {
                 String currentOption = parsed.get(i);
 
-                if (optionKeys.contains(currentOption) && i + 1 < parsed.size()) {
+                if (optionKeys.contains(currentOption)) {
                     for (String piece : parsed.get(i + 1).split(File.pathSeparator)) {
                         File pieceFile = new File(piece);
 

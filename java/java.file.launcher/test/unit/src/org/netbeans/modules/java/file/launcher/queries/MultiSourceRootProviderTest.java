@@ -43,6 +43,8 @@ import org.openide.util.lookup.ProxyLookup;
  */
 public class MultiSourceRootProviderTest extends NbTestCase {
 
+    private final TestResultImpl testResult = new TestResultImpl();
+
     public MultiSourceRootProviderTest(String name) {
         super(name);
     }
@@ -53,8 +55,6 @@ public class MultiSourceRootProviderTest extends NbTestCase {
     }
 
     public void testSourcePathFiltering() throws Exception {
-        clearWorkDir();
-
         FileObject wd = FileUtil.toFileObject(getWorkDir());
         FileObject validTest = FileUtil.createData(wd, "valid/pack/Test1.java");
         FileObject invalidTest1 = FileUtil.createData(wd, "valid/pack/Test2.java");
@@ -76,234 +76,238 @@ public class MultiSourceRootProviderTest extends NbTestCase {
     }
 
     public void testRelativePaths() throws Exception {
+        FileObject wd = FileUtil.toFileObject(getWorkDir());
+        FileObject test = FileUtil.createData(wd, "src/pack/Test1.java");
+        FileObject libJar = FileUtil.createData(wd, "libs/lib.jar");
+        FileObject other = FileUtil.createFolder(wd, "other");
+        FileObject otherLibJar = FileUtil.createData(other, "libs/lib.jar");
+        FileObject otherLib2Jar = FileUtil.createData(other, "libs/lib2.jar");
+
+        TestUtilities.copyStringToFile(test, "package pack;");
+
+        testResult.setOptions("--class-path libs/lib.jar");
+        testResult.setWorkDirectory(wd.toURI());
+
+        MultiSourceRootProvider provider = new MultiSourceRootProvider();
+        ClassPath compileCP = provider.findClassPath(test, ClassPath.COMPILE);
+        AtomicInteger changeCount = new AtomicInteger();
+
+        compileCP.addPropertyChangeListener(evt -> {
+            if (ClassPath.PROP_ENTRIES.equals(evt.getPropertyName())) {
+                changeCount.incrementAndGet();
+            }
+        });
+        assertEquals(FileUtil.toFile(libJar).getAbsolutePath(), compileCP.toString());
+
+        testResult.setWorkDirectory(other.toURI());
+
+        assertEquals(1, changeCount.get());
+
+        assertEquals(FileUtil.toFile(otherLibJar).getAbsolutePath(), compileCP.toString());
+
+        testResult.setOptions("--class-path libs/lib2.jar");
+
+        assertEquals(2, changeCount.get());
+
+        assertEquals(FileUtil.toFile(otherLib2Jar).getAbsolutePath(), compileCP.toString());
+    }
+
+    public void testExpandModularDir() throws Exception {
+        FileObject wd = FileUtil.toFileObject(getWorkDir());
+        FileObject test = FileUtil.createData(wd, "src/pack/Test1.java");
+        FileObject libsDir = FileUtil.createFolder(wd, "libs");
+        FileObject lib1Jar = FileUtil.createData(libsDir, "lib1.jar");
+        FileObject lib2Jar = FileUtil.createData(libsDir, "lib2.jar");
+        FileObject lib3Dir = FileUtil.createFolder(libsDir, "lib3");
+
+        FileUtil.createData(lib3Dir, "module-info.class");
+
+        TestUtilities.copyStringToFile(test, "package pack;");
+
+        testResult.setOptions("--module-path " + FileUtil.toFile(libsDir).getAbsolutePath());
+        testResult.setWorkDirectory(FileUtil.toFileObject(getWorkDir()).toURI());
+
+        MultiSourceRootProvider provider = new MultiSourceRootProvider();
+        ClassPath moduleCP = provider.findClassPath(test, JavaClassPathConstants.MODULE_COMPILE_PATH);
+        ClassPath compileCP = provider.findClassPath(test, ClassPath.COMPILE);
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar),
+                                                 lib3Dir)),
+                     new HashSet<>(Arrays.asList(moduleCP.getRoots())));
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar),
+                                                 lib3Dir)),
+                     new HashSet<>(Arrays.asList(compileCP.getRoots())));
+
+        FileObject lib4Jar = FileUtil.createData(libsDir, "lib4.jar");
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar),
+                                                 lib3Dir,
+                                                 FileUtil.getArchiveRoot(lib4Jar))),
+                     new HashSet<>(Arrays.asList(moduleCP.getRoots())));
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar),
+                                                 lib3Dir,
+                                                 FileUtil.getArchiveRoot(lib4Jar))),
+                     new HashSet<>(Arrays.asList(compileCP.getRoots())));
+
+        testResult.setOptions("--module-path " + FileUtil.toFile(lib1Jar).getAbsolutePath());
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar))),
+                     new HashSet<>(Arrays.asList(moduleCP.getRoots())));
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar))),
+                     new HashSet<>(Arrays.asList(compileCP.getRoots())));
+
+        testResult.setOptions("--module-path " + FileUtil.toFile(lib3Dir).getAbsolutePath());
+
+        assertEquals(new HashSet<>(Arrays.asList(lib3Dir)),
+                     new HashSet<>(Arrays.asList(moduleCP.getRoots())));
+        assertEquals(new HashSet<>(Arrays.asList(lib3Dir)),
+                     new HashSet<>(Arrays.asList(compileCP.getRoots())));
+
+        testResult.setOptions("--module-path " + FileUtil.toFile(libsDir).getAbsolutePath());
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar),
+                                                 lib3Dir,
+                                                 FileUtil.getArchiveRoot(lib4Jar))),
+                     new HashSet<>(Arrays.asList(moduleCP.getRoots())));
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar),
+                                                 lib3Dir,
+                                                 FileUtil.getArchiveRoot(lib4Jar))),
+                     new HashSet<>(Arrays.asList(compileCP.getRoots())));
+
+        FileObject lib5Dir = FileUtil.createFolder(libsDir, "lib5Dir");
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar),
+                                                 lib3Dir,
+                                                 FileUtil.getArchiveRoot(lib4Jar),
+                                                 lib5Dir)),
+                     new HashSet<>(Arrays.asList(moduleCP.getRoots())));
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar),
+                                                 lib3Dir,
+                                                 FileUtil.getArchiveRoot(lib4Jar),
+                                                 lib5Dir)),
+                     new HashSet<>(Arrays.asList(compileCP.getRoots())));
+
+        lib5Dir.delete();
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar),
+                                                 lib3Dir,
+                                                 FileUtil.getArchiveRoot(lib4Jar))),
+                     new HashSet<>(Arrays.asList(moduleCP.getRoots())));
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar),
+                                                 lib3Dir,
+                                                 FileUtil.getArchiveRoot(lib4Jar))),
+                     new HashSet<>(Arrays.asList(compileCP.getRoots())));
+
+        lib4Jar.delete();
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar),
+                                                 lib3Dir)),
+                     new HashSet<>(Arrays.asList(moduleCP.getRoots())));
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar),
+                                                 lib3Dir)),
+                     new HashSet<>(Arrays.asList(compileCP.getRoots())));
+
+        FileUtil.createData(libsDir, "module-info.class");
+
+        assertEquals(new HashSet<>(Arrays.asList(libsDir)),
+                     new HashSet<>(Arrays.asList(moduleCP.getRoots())));
+        assertEquals(new HashSet<>(Arrays.asList(libsDir)),
+                     new HashSet<>(Arrays.asList(compileCP.getRoots())));
+    }
+
+    public void testBrokenOptions() throws Exception {
+        FileObject wd = FileUtil.toFileObject(getWorkDir());
+        FileObject test = FileUtil.createData(wd, "src/pack/Test1.java");
+
+        testResult.setOptions("--module-path");
+        testResult.setWorkDirectory(FileUtil.toFileObject(getWorkDir()).toURI());
+
+        MultiSourceRootProvider provider = new MultiSourceRootProvider();
+
+        provider.findClassPath(test, JavaClassPathConstants.MODULE_COMPILE_PATH);
+    }
+
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
         clearWorkDir();
+    }
 
-        AtomicReference<String> options = new AtomicReference<>();
-        AtomicReference<URI> workdir = new AtomicReference<>();
-        ChangeSupport cs = new ChangeSupport(this);
-
-        Result result = new Result() {
-            @Override
-            public String getOptions() {
-                return options.get();
-            }
-            @Override
-            public URI getWorkDirectory() {
-                return workdir.get();
-            }
-            @Override
-            public void addChangeListener(ChangeListener l) {
-                cs.addChangeListener(l);
-            }
-            @Override
-            public void removeChangeListener(ChangeListener l) {
-                cs.removeChangeListener(l);
-            }
-        };
-
-        SingleFileOptionsQueryImplementation queryImpl = file -> result;
-
-        Lookups.executeWith(new ProxyLookup(Lookups.fixed(queryImpl), Lookups.exclude(Lookup.getDefault(), SingleFileOptionsQueryImplementation.class)), () -> {
+    @Override
+    protected void runTest() throws Throwable {
+        SingleFileOptionsQueryImplementation queryImpl = file -> testResult;
+        ProxyLookup newQueryLookup = new ProxyLookup(Lookups.fixed(queryImpl),
+                                                     Lookups.exclude(Lookup.getDefault(),
+                                                                     SingleFileOptionsQueryImplementation.class));
+        Lookups.executeWith(newQueryLookup, () -> {
             try {
-                FileObject wd = FileUtil.toFileObject(getWorkDir());
-                FileObject test = FileUtil.createData(wd, "src/pack/Test1.java");
-                FileObject libJar = FileUtil.createData(wd, "libs/lib.jar");
-                FileObject other = FileUtil.createFolder(wd, "other");
-                FileObject otherLibJar = FileUtil.createData(other, "libs/lib.jar");
-                FileObject otherLib2Jar = FileUtil.createData(other, "libs/lib2.jar");
-
-                TestUtilities.copyStringToFile(test, "package pack;");
-
-                options.set("--class-path libs/lib.jar");
-                workdir.set(wd.toURI());
-
-                MultiSourceRootProvider provider = new MultiSourceRootProvider();
-                ClassPath compileCP = provider.findClassPath(test, ClassPath.COMPILE);
-                AtomicInteger changeCount = new AtomicInteger();
-
-                compileCP.addPropertyChangeListener(evt -> {
-                    if (ClassPath.PROP_ENTRIES.equals(evt.getPropertyName())) {
-                        changeCount.incrementAndGet();
-                    }
-                });
-                assertEquals(FileUtil.toFile(libJar).getAbsolutePath(), compileCP.toString());
-
-                workdir.set(other.toURI());
-                cs.fireChange();
-
-                assertEquals(1, changeCount.get());
-
-                assertEquals(FileUtil.toFile(otherLibJar).getAbsolutePath(), compileCP.toString());
-
-                options.set("--class-path libs/lib2.jar");
-                cs.fireChange();
-
-                assertEquals(2, changeCount.get());
-
-                assertEquals(FileUtil.toFile(otherLib2Jar).getAbsolutePath(), compileCP.toString());
-            } catch (Exception ex) {
-                throw new AssertionError(ex);
+                super.runTest();
+            } catch (Error err) {
+                throw err;
+            } catch (RuntimeException ex) {
+                throw ex;
+            } catch (Throwable ex) {
+                throw new IllegalStateException(ex);
             }
         });
     }
 
-    public void testExpandModularDir() throws Exception {
-        clearWorkDir();
+    private static class TestResultImpl implements Result {
 
-        AtomicReference<String> options = new AtomicReference<>();
-        URI workDir = FileUtil.toFileObject(getWorkDir()).toURI();
-        ChangeSupport cs = new ChangeSupport(this);
+        private final ChangeSupport cs = new ChangeSupport(this);
+        private final AtomicReference<String> options = new AtomicReference<>();
+        private final AtomicReference<URI> workdir = new AtomicReference<>();
 
-        Result result = new Result() {
-            @Override
-            public String getOptions() {
-                return options.get();
-            }
-            @Override
-            public URI getWorkDirectory() {
-                return workDir;
-            }
-            @Override
-            public void addChangeListener(ChangeListener l) {
-                cs.addChangeListener(l);
-            }
-            @Override
-            public void removeChangeListener(ChangeListener l) {
-                cs.removeChangeListener(l);
-            }
-        };
+        public TestResultImpl() {
+        }
 
-        SingleFileOptionsQueryImplementation queryImpl = file -> result;
+        @Override
+        public String getOptions() {
+            return options.get();
+        }
 
-        Lookups.executeWith(new ProxyLookup(Lookups.fixed(queryImpl), Lookups.exclude(Lookup.getDefault(), SingleFileOptionsQueryImplementation.class)), () -> {
-            try {
-                FileObject wd = FileUtil.toFileObject(getWorkDir());
-                FileObject test = FileUtil.createData(wd, "src/pack/Test1.java");
-                FileObject libsDir = FileUtil.createFolder(wd, "libs");
-                FileObject lib1Jar = FileUtil.createData(libsDir, "lib1.jar");
-                FileObject lib2Jar = FileUtil.createData(libsDir, "lib2.jar");
-                FileObject lib3Dir = FileUtil.createFolder(libsDir, "lib3");
+        public void setOptions(String options) {
+            this.options.set(options);
+            cs.fireChange();
+        }
 
-                FileUtil.createData(lib3Dir, "module-info.class");
+        @Override
+        public URI getWorkDirectory() {
+            return workdir.get();
+        }
 
-                TestUtilities.copyStringToFile(test, "package pack;");
+        public void setWorkDirectory(URI workdir) {
+            this.workdir.set(workdir);
+            cs.fireChange();
+        }
 
-                options.set("--module-path " + FileUtil.toFile(libsDir).getAbsolutePath());
+        @Override
+        public void addChangeListener(ChangeListener l) {
+            cs.addChangeListener(l);
+        }
 
-                MultiSourceRootProvider provider = new MultiSourceRootProvider();
-                ClassPath moduleCP = provider.findClassPath(test, JavaClassPathConstants.MODULE_COMPILE_PATH);
-                ClassPath compileCP = provider.findClassPath(test, ClassPath.COMPILE);
-
-                assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
-                                                         FileUtil.getArchiveRoot(lib2Jar),
-                                                         lib3Dir)),
-                             new HashSet<>(Arrays.asList(moduleCP.getRoots())));
-
-                assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
-                                                         FileUtil.getArchiveRoot(lib2Jar),
-                                                         lib3Dir)),
-                             new HashSet<>(Arrays.asList(compileCP.getRoots())));
-
-                FileObject lib4Jar = FileUtil.createData(libsDir, "lib4.jar");
-
-                assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
-                                                         FileUtil.getArchiveRoot(lib2Jar),
-                                                         lib3Dir,
-                                                         FileUtil.getArchiveRoot(lib4Jar))),
-                             new HashSet<>(Arrays.asList(moduleCP.getRoots())));
-
-                assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
-                                                         FileUtil.getArchiveRoot(lib2Jar),
-                                                         lib3Dir,
-                                                         FileUtil.getArchiveRoot(lib4Jar))),
-                             new HashSet<>(Arrays.asList(compileCP.getRoots())));
-
-                options.set("--module-path " + FileUtil.toFile(lib1Jar).getAbsolutePath());
-
-                cs.fireChange();
-
-                assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar))),
-                             new HashSet<>(Arrays.asList(moduleCP.getRoots())));
-                assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar))),
-                             new HashSet<>(Arrays.asList(compileCP.getRoots())));
-
-                options.set("--module-path " + FileUtil.toFile(lib3Dir).getAbsolutePath());
-
-                cs.fireChange();
-
-                assertEquals(new HashSet<>(Arrays.asList(lib3Dir)),
-                             new HashSet<>(Arrays.asList(moduleCP.getRoots())));
-                assertEquals(new HashSet<>(Arrays.asList(lib3Dir)),
-                             new HashSet<>(Arrays.asList(compileCP.getRoots())));
-
-                options.set("--module-path " + FileUtil.toFile(libsDir).getAbsolutePath());
-
-                cs.fireChange();
-
-                assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
-                                                         FileUtil.getArchiveRoot(lib2Jar),
-                                                         lib3Dir,
-                                                         FileUtil.getArchiveRoot(lib4Jar))),
-                             new HashSet<>(Arrays.asList(moduleCP.getRoots())));
-
-                assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
-                                                         FileUtil.getArchiveRoot(lib2Jar),
-                                                         lib3Dir,
-                                                         FileUtil.getArchiveRoot(lib4Jar))),
-                             new HashSet<>(Arrays.asList(compileCP.getRoots())));
-
-                FileObject lib5Dir = FileUtil.createFolder(libsDir, "lib5Dir");
-
-                assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
-                                                         FileUtil.getArchiveRoot(lib2Jar),
-                                                         lib3Dir,
-                                                         FileUtil.getArchiveRoot(lib4Jar),
-                                                         lib5Dir)),
-                             new HashSet<>(Arrays.asList(moduleCP.getRoots())));
-
-                assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
-                                                         FileUtil.getArchiveRoot(lib2Jar),
-                                                         lib3Dir,
-                                                         FileUtil.getArchiveRoot(lib4Jar),
-                                                         lib5Dir)),
-                             new HashSet<>(Arrays.asList(compileCP.getRoots())));
-
-                lib5Dir.delete();
-
-                assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
-                                                         FileUtil.getArchiveRoot(lib2Jar),
-                                                         lib3Dir,
-                                                         FileUtil.getArchiveRoot(lib4Jar))),
-                             new HashSet<>(Arrays.asList(moduleCP.getRoots())));
-
-                assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
-                                                         FileUtil.getArchiveRoot(lib2Jar),
-                                                         lib3Dir,
-                                                         FileUtil.getArchiveRoot(lib4Jar))),
-                             new HashSet<>(Arrays.asList(compileCP.getRoots())));
-
-                lib4Jar.delete();
-
-                assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
-                                                         FileUtil.getArchiveRoot(lib2Jar),
-                                                         lib3Dir)),
-                             new HashSet<>(Arrays.asList(moduleCP.getRoots())));
-
-                assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
-                                                         FileUtil.getArchiveRoot(lib2Jar),
-                                                         lib3Dir)),
-                             new HashSet<>(Arrays.asList(compileCP.getRoots())));
-
-                FileUtil.createData(libsDir, "module-info.class");
-
-                assertEquals(new HashSet<>(Arrays.asList(libsDir)),
-                             new HashSet<>(Arrays.asList(moduleCP.getRoots())));
-                assertEquals(new HashSet<>(Arrays.asList(libsDir)),
-                             new HashSet<>(Arrays.asList(compileCP.getRoots())));
-            } catch (Exception ex) {
-                throw new AssertionError(ex);
-            }
-        });
+        @Override
+        public void removeChangeListener(ChangeListener l) {
+            cs.removeChangeListener(l);
+        }
     }
 
     static {

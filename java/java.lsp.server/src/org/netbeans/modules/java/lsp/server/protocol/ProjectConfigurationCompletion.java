@@ -46,7 +46,7 @@ import org.openide.util.lookup.ServiceProvider;
  */
 public class ProjectConfigurationCompletion implements LaunchConfigurationCompletion {
 
-    private static final String CONFIG_TYPE = "java+";     // NOI18N
+    private static final String CONFIG_TYPE = "jdk";     // NOI18N
 
     @Override
     public CompletableFuture<List<CompletionItem>> configurations(Supplier<CompletableFuture<Project>> projectSupplier) {

@@ -92,6 +92,8 @@ import org.netbeans.api.annotations.common.NullAllowed;
 import org.netbeans.api.debugger.ActionsManager;
 import org.netbeans.api.debugger.DebuggerManager;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
+import org.netbeans.api.gototest.TestOppositesLocator;
+import org.netbeans.api.gototest.TestOppositesLocator.LocatorResult;
 import org.netbeans.api.java.classpath.ClassPath;
 import org.netbeans.api.java.project.JavaProjectConstants;
 import org.netbeans.api.java.queries.SourceForBinaryQuery;
@@ -165,6 +167,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
 
     private static final RequestProcessor WORKER = new RequestProcessor(WorkspaceServiceImpl.class.getName(), 1, false, false);
     private static final RequestProcessor PROJECT_WORKER = new RequestProcessor(WorkspaceServiceImpl.class.getName(), 5, false, false);
+    private static final String NETBEANS_JAVA_HINTS = "hints";
 
     private final Gson gson = new Gson();
     private final LspServerState server;
@@ -175,7 +178,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
      * and then updated by didChangeWorkspaceFolder notifications.
      */
     private volatile List<FileObject> clientWorkspaceFolders = Collections.emptyList();
-
+    
     WorkspaceServiceImpl(LspServerState server) {
         this.server = server;
     }
@@ -1331,6 +1334,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
         String fullConfigPrefix = client.getNbCodeCapabilities().getConfigurationPrefix();
         String configPrefix = fullConfigPrefix.substring(0, fullConfigPrefix.length() - 1);
         server.openedProjects().thenAccept(projects -> {
+            ((TextDocumentServiceImpl)server.getTextDocumentService()).updateJavaHintPreferences(((JsonObject) params.getSettings()).getAsJsonObject(configPrefix).getAsJsonObject(NETBEANS_JAVA_HINTS));
             if (projects != null && projects.length > 0) {
                 updateJavaFormatPreferences(projects[0].getProjectDirectory(), ((JsonObject) params.getSettings()).getAsJsonObject(configPrefix).getAsJsonObject("format"));
                 updateJavaImportPreferences(projects[0].getProjectDirectory(), ((JsonObject) params.getSettings()).getAsJsonObject(configPrefix).getAsJsonObject("java").getAsJsonObject("imports"));

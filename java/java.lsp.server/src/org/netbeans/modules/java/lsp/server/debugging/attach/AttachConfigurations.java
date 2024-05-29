@@ -55,7 +55,7 @@ import org.openide.util.RequestProcessor;
  */
 public final class AttachConfigurations {
 
-    static final String CONFIG_TYPE = "java+";     // NOI18N
+    static final String CONFIG_TYPE = "jdk";     // NOI18N
     static final String CONFIG_REQUEST = "attach";  // NOI18N
 
     static final RequestProcessor RP = new RequestProcessor(AttachConfigurations.class);

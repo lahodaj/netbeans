@@ -117,6 +117,7 @@ import org.openide.util.lookup.ServiceProvider;
 public class MicronautEndpointTestGenerator implements CodeActionProvider, CommandProvider {
 
     private static final String SOURCE = "source";
+    private static final Set<String> SUPPORTED_CODE_ACTION_KINDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(SOURCE)));
     private static final String GENERATE_MICRONAUT_ENDPOINT_TEST = "nbls.micronaut.generate.endpoint.test";
     private static final String CONTROLLER_ANNOTATION_NAME = "io.micronaut.http.annotation.Controller";
     private static final String MICRONAUT_TEST_ANNOTATION_NAME = "io.micronaut.test.extensions.junit5.annotation.MicronautTest";
@@ -147,6 +148,11 @@ public class MicronautEndpointTestGenerator implements CodeActionProvider, Comma
         String description = json.getAsJsonObject().get("description").getAsString();
         return new NotifyDescriptor.QuickPick.Item(label, description);
     }).create();
+
+    @Override
+    public Set<String> getSupportedCodeActionKinds() {
+        return SUPPORTED_CODE_ACTION_KINDS;
+    }
 
     @Override
     @NbBundle.Messages({
@@ -312,29 +318,25 @@ public class MicronautEndpointTestGenerator implements CodeActionProvider, Comma
                                 Set<Element> toImport = new HashSet<>();
                                 for (ExecutableElement ee : ElementFilter.methodsIn(te.getEnclosedElements())) {
                                     MicronautSymbolFinder.MthIterator it = new MicronautSymbolFinder.MthIterator(ee, copy.getElements(), copy.getTypes());
-                                    while(it.hasNext()) {
+                                    while (it.hasNext()) {
                                         ExecutableElement mth = it.next();
                                         for (AnnotationMirror ann : mth.getAnnotationMirrors()) {
                                             String method = getEndpointMethod((TypeElement) ann.getAnnotationType().asElement());
                                             if (method != null) {
                                                 List<String> ids = new ArrayList<>();
-                                                Map<? extends ExecutableElement, ? extends AnnotationValue> values = ann.getElementValues();
-                                                if (values.isEmpty()) {
-                                                    ids.add("/");
-                                                } else {
-                                                    for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry : values.entrySet()) {
-                                                        if ("value".contentEquals(entry.getKey().getSimpleName()) || "uri".contentEquals(entry.getKey().getSimpleName())) {
-                                                            ids.add((String) entry.getValue().getValue());
-                                                        } else if ("uris".contentEquals(entry.getKey().getSimpleName())) {
-                                                            for (AnnotationValue av : (List<AnnotationValue>) entry.getValue().getValue()) {
-                                                                ids.add((String) av.getValue());
-                                                            }
+                                                for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry : ann.getElementValues().entrySet()) {
+                                                    if ("value".contentEquals(entry.getKey().getSimpleName()) || "uri".contentEquals(entry.getKey().getSimpleName())) {
+                                                        ids.add((String) entry.getValue().getValue());
+                                                    } else if ("uris".contentEquals(entry.getKey().getSimpleName())) {
+                                                        for (AnnotationValue av : (List<AnnotationValue>) entry.getValue().getValue()) {
+                                                            ids.add((String) av.getValue());
                                                         }
                                                     }
                                                 }
-                                                if (!ids.isEmpty()) {
-                                                    members.add(createTestMethodFor(copy, ee, method, path, ids, toImport));
+                                                if (ids.isEmpty()) {
+                                                    ids.add("/");
                                                 }
+                                                members.add(createTestMethodFor(copy, ee, method, path, ids, toImport));
                                             }
                                         }
                                     }
@@ -401,6 +403,7 @@ public class MicronautEndpointTestGenerator implements CodeActionProvider, Comma
                     } else {
                         if (sb.isEmpty()) {
                             sb.append(",Map.of(");
+                            toImport.add(copy.getElements().getTypeElement(MAP_TYPE_NAME));
                         } else {
                             sb.append(',');
                         }
@@ -413,8 +416,6 @@ public class MicronautEndpointTestGenerator implements CodeActionProvider, Comma
                 }
                 if (sb.isEmpty()) {
                     sb.append(",null");
-                } else {
-                    toImport.add(copy.getElements().getTypeElement(MAP_TYPE_NAME));
                 }
             }
             if (i == 0) {

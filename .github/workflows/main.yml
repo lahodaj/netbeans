@@ -912,6 +912,10 @@ jobs:
         if: ${{ matrix.java == '17' }}
         run: ant $OPTS -f extide/o.apache.tools.ant.module test
 
+      - name: apisupport.ant
+        if: ${{ matrix.java == '17' }}
+        run: ant $OPTS -f apisupport/apisupport.ant test
+
       - name: Create Test Summary
         uses: test-summary/action@v2
         if: failure()
@@ -1454,9 +1458,6 @@ jobs:
       - name: Extract
         run: tar --zstd -xf build.tar.zst
 
-      - name: apisupport.ant
-        run: ant $OPTS -f apisupport/apisupport.ant test
-
       - name: apisupport.project
         run: ant $OPTS -f apisupport/apisupport.project test
 
@@ -1876,7 +1877,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        java: [ '8' ]
+        java: [ '17' ]
       fail-fast: false
     steps:
 
@@ -1907,12 +1908,6 @@ jobs:
 
       - name: groovy/groovy.support
         run: ant $OPTS -f groovy/groovy.support test
-
-#      - name: groovy/groovy
-#        run: ant $OPTS -f groovy/groovy test
-
-#      - name: groovy/groovy.java
-#        run: ant $OPTS -f groovy/groovy.java test
 
 #      - name: groovy/groovy.kit
 #        run: ant $OPTS -f groovy/groovy.kit test

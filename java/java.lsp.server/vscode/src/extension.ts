@@ -60,6 +60,8 @@ import { initializeRunConfiguration, runConfigurationProvider, runConfigurationN
 import { dBConfigurationProvider, onDidTerminateSession } from './dbConfigurationProvider';
 import { InputStep, MultiStepInput } from './utils';
 import { PropertiesView } from './propertiesView/propertiesView';
+import * as configuration from './jdk/configuration';
+import * as jdk from './jdk/jdk';
 
 const API_VERSION : string = "1.0";
 export const COMMAND_PREFIX : string = "nbls";
@@ -450,12 +452,17 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
 	});
 
     // register commands
-    context.subscriptions.push(commands.registerCommand(COMMAND_PREFIX + '.workspace.new', async (ctx) => {
+    context.subscriptions.push(commands.registerCommand(COMMAND_PREFIX + '.workspace.new', async (ctx, template) => {
         let c : LanguageClient = await client;
         const commands = await vscode.commands.getCommands();
         if (commands.includes(COMMAND_PREFIX + '.new.from.template')) {
-            // first give the context, then the open-file hint in the case the context is not specific enough
-            const res = await vscode.commands.executeCommand(COMMAND_PREFIX + '.new.from.template', contextUri(ctx)?.toString(), vscode.window.activeTextEditor?.document?.uri?.toString());
+            // first give the template (if present), then the context, and then the open-file hint in the case the context is not specific enough
+            const params = [];
+            if (typeof template === 'string') {
+                params.push(template);
+            }
+            params.push(contextUri(ctx)?.toString(), vscode.window.activeTextEditor?.document?.uri?.toString());
+            const res = await vscode.commands.executeCommand(COMMAND_PREFIX + '.new.from.template', ...params);
 
             if (typeof res === 'string') {
                 let newFile = vscode.Uri.parse(res as string);
@@ -663,7 +670,7 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
                 name: "Java Single Debug",
                 request: "launch"
             };
-            if (!methodName) {
+            if (methodName) {
                 debugConfig['methodName'] = methodName;
             }
             if (launchConfiguration == '') {
@@ -775,6 +782,9 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
     context.subscriptions.push(workspace.registerTextDocumentContentProvider('nbjrt', archiveFileProvider));
 
     launchConfigurations.updateLaunchConfig();
+
+    configuration.initialize(context);
+    jdk.initialize(context);
 
     // register completions:
     launchConfigurations.registerCompletion(context);

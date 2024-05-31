@@ -97,7 +97,7 @@ public class AttributeBasedSingleFileOptions implements SingleFileOptionsQueryIm
 
         @Override
         public URI getWorkDirectory() {
-            return root.toURI();
+            return root != null ? root.toURI() : source.getParent().toURI();
         }
 
         @Override

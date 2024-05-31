@@ -48,7 +48,7 @@ import org.netbeans.api.lexer.TokenSequence;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.queries.FileEncodingQuery;
 import org.netbeans.modules.java.file.launcher.SingleSourceFileUtil;
-import org.netbeans.modules.java.file.launcher.spi.SingleFileOptionsQueryImplementation;
+import org.netbeans.modules.java.file.launcher.SingleSourceFileUtil.ParsedFileOptions;
 import org.netbeans.spi.java.classpath.ClassPathFactory;
 import org.netbeans.spi.java.classpath.ClassPathImplementation;
 
@@ -247,7 +247,7 @@ public class MultiSourceRootProvider implements ClassPathProvider {
 
         synchronized (this) {
         return file2ClassPath.computeIfAbsent(file, f -> {
-            SingleFileOptionsQueryImplementation.Result delegate = SingleSourceFileUtil.getOptionsFor(f);
+            ParsedFileOptions delegate = SingleSourceFileUtil.getOptionsFor(f);
 
             if (delegate == null) {
                 return null;
@@ -270,12 +270,12 @@ public class MultiSourceRootProvider implements ClassPathProvider {
         private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
         private final Task updateDelegatesTask = WORKER.create(this::doUpdateDelegates);
         private final Set<String> directoriesWithListener = new HashSet<>();
-        private final SingleFileOptionsQueryImplementation.Result delegate;
+        private final ParsedFileOptions delegate;
         private final Set<String> optionKeys;
         private Set<URL> currentURLs;
         private List<? extends PathResourceImplementation> delegates = Collections.emptyList();
 
-        public AttributeBasedClassPathImplementation(SingleFileOptionsQueryImplementation.Result delegate, String... optionKeys) {
+        public AttributeBasedClassPathImplementation(ParsedFileOptions delegate, String... optionKeys) {
             this.delegate = delegate;
             this.optionKeys = new HashSet<>(Arrays.asList(optionKeys));
             delegate.addChangeListener(this);
@@ -298,7 +298,7 @@ public class MultiSourceRootProvider implements ClassPathProvider {
         private void doUpdateDelegates() {
             Set<URL> newURLs = new HashSet<>();
             List<PathResourceImplementation> newDelegates = new ArrayList<>();
-            List<String> parsed = SingleSourceFileUtil.parseLine(delegate.getOptions());
+            List<? extends String> parsed = delegate.getArguments();
             File workDirectory = Utilities.toFile(delegate.getWorkDirectory());
             Set<String> toRemoveFSListeners = new HashSet<>();
             Set<String> addedFSListeners = new HashSet<>();

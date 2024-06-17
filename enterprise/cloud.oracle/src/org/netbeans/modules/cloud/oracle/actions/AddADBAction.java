@@ -100,6 +100,10 @@ public class AddADBAction implements ActionListener {
     })
     @Override
     public void actionPerformed(ActionEvent e) {
+        addADB();
+    }
+    
+    public DatabaseItem addADB() {
         Map<String, Object> result = new HashMap<> ();
         
         NotifyDescriptor.ComposedInput ci = new NotifyDescriptor.ComposedInput(Bundle.AddADB(), NUMBER_OF_INPUTS, new Callback() {
@@ -208,12 +212,15 @@ public class AddADBAction implements ActionListener {
                         AbstractPasswordPanel.generatePassword(),
                         (String) result.get(USERNAME),
                         ((String) result.get(PASSWORD)).toCharArray(),
-                        selectedDatabase.getKey().getValue());
+                        selectedDatabase.getKey().getValue(),
+                        selectedDatabase.getCompartmentId());
                 action.addConnection(info);
+                return selectedDatabase;
             } catch (IOException ex) {
                 Exceptions.printStackTrace(ex);
             }
         }
+        return null;
     }
     
     private <T extends OCIItem> NotifyDescriptor.QuickPick createQuickPick(Map<String, T> ociItems, String title) {
@@ -269,9 +276,9 @@ public class AddADBAction implements ActionListener {
         private String flatName;
 
         private FlatCompartmentItem(Compartment ociComp) {
-            super(OCID.of(ociComp.getId(), "Compartment"), ociComp.getName());      // NOI18N
+            super(OCID.of(ociComp.getId(), "Compartment"), ociComp.getCompartmentId(), ociComp.getName()); // NOI18N
             setDescription(ociComp.getDescription());
-            parentId = OCID.of(ociComp.getCompartmentId(), "Compartment");          // NOI18N
+            parentId = OCID.of(ociComp.getCompartmentId(), "Compartment"); // NOI18N
         }
 
         public String getName() {

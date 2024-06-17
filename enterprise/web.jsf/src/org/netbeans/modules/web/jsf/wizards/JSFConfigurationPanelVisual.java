@@ -1808,7 +1808,9 @@ private void serverLibrariesActionPerformed(java.awt.event.ActionEvent evt) {//G
                     setServerLibraryModel(serverJsfLibraries);
                     if (serverJsfLibraries.isEmpty()) {
                         Library preferredLibrary;
-                        if (getProfile() != null && getProfile().isAtLeast(Profile.JAKARTA_EE_10_WEB)) {
+                        if (getProfile() != null && getProfile().isAtLeast(Profile.JAKARTA_EE_11_WEB)) {
+                            preferredLibrary = LibraryManager.getDefault().getLibrary(JSFUtils.DEFAULT_JSF_4_1_NAME);
+                        } else if (getProfile() != null && getProfile().isAtLeast(Profile.JAKARTA_EE_10_WEB)) {
                             preferredLibrary = LibraryManager.getDefault().getLibrary(JSFUtils.DEFAULT_JSF_4_0_NAME);
                         } else if (getProfile() != null && getProfile().isAtLeast(Profile.JAKARTA_EE_9_WEB)) {
                             preferredLibrary = LibraryManager.getDefault().getLibrary(JSFUtils.DEFAULT_JSF_3_0_NAME);
@@ -1862,7 +1864,7 @@ private void serverLibrariesActionPerformed(java.awt.event.ActionEvent evt) {//G
                     JsfVersion jsfVersion = JsfVersionUtils.forClasspath(content);
                     LibraryItem item = jsfVersion != null ? new LibraryItem(library, jsfVersion) : new LibraryItem(library, JsfVersion.JSF_1_1);
                     jsfLibraries.add(item);
-                    Collections.sort(jsfLibraries, new Comparator<LibraryItem>() {
+                    jsfLibraries.sort(new Comparator<LibraryItem>() {
                         @Override
                         public int compare(LibraryItem li1, LibraryItem li2) {
                             return li1.getLibrary().getDisplayName().compareTo(li2.getLibrary().getDisplayName());
@@ -1883,7 +1885,7 @@ private void serverLibrariesActionPerformed(java.awt.event.ActionEvent evt) {//G
                         for (LibraryItem libraryItem : jsfLibraries) {
                             registeredItems.add(libraryItem.getLibrary().getDisplayName());
                         }
-                        setRegisteredLibraryModel(registeredItems.toArray(new String[registeredItems.size()]));
+                        setRegisteredLibraryModel(registeredItems.toArray(new String[0]));
                         updatePreferredLanguages();
                         updateJsfComponents();
                     }

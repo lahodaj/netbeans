@@ -169,6 +169,12 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
 
     private final Gson gson = new Gson();
     private final LspServerState server;
+    private final Workspace workspace = new Workspace() {
+        @Override
+        public List<FileObject> getClientWorkspaceFolders() {
+            return WorkspaceServiceImpl.this.getClientWorkspaceFolders();
+        }
+    };
     private NbCodeLanguageClient client;
 
     /**
@@ -284,7 +290,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                             }
                         }
                         // TBD: possibly include project configuration ?
-                        final Lookup ctx = Lookups.fixed(ctxObjects.toArray(new Object[ctxObjects.size()]));
+                        final Lookup ctx = Lookups.fixed(ctxObjects.toArray(new Object[0]));
                         ActionProvider ap = prj.getLookup().lookup(ActionProvider.class);
                         if (ap != null && ap.isActionEnabled(actionName, ctx)) {
                             ap.invokeAction(actionName, ctx);
@@ -868,7 +874,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                         // should not happen
                     }
                 }
-                info.subprojects = subprojectDirs.toArray(new URI[subprojectDirs.size()]);
+                info.subprojects = subprojectDirs.toArray(new URI[0]);
                 Project root = ProjectUtils.rootOf(p);
                 if (root != null) {
                     try {
@@ -912,7 +918,7 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                 }
             }
             list.addAll(infos.values());
-            LspProjectInfo[] toArray = list.toArray(new LspProjectInfo[list.size()]);
+            LspProjectInfo[] toArray = list.toArray(new LspProjectInfo[0]);
             return CompletableFuture.completedFuture(toArray);
         }
     }
@@ -1343,15 +1349,18 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
         String altConfigPrefix = fullAltConfigPrefix.substring(0, fullAltConfigPrefix.length() - 1);
         boolean modified = false;
         String newVMOptions = "";
+        String newWorkingDirectory = null;
         JsonObject javaPlus = ((JsonObject) params.getSettings()).getAsJsonObject(altConfigPrefix);
         if (javaPlus != null) {
             JsonObject runConfig = javaPlus.getAsJsonObject("runConfig");
             if (runConfig != null) {
                 newVMOptions = runConfig.getAsJsonPrimitive("vmOptions").getAsString();
+                JsonPrimitive cwd = runConfig.getAsJsonPrimitive("cwd");
+                newWorkingDirectory = cwd != null ? cwd.getAsString() : null;
             }
         }
         for (SingleFileOptionsQueryImpl query : Lookup.getDefault().lookupAll(SingleFileOptionsQueryImpl.class)) {
-            modified |= query.setConfiguration(client, newVMOptions);
+            modified |= query.setConfiguration(workspace, newVMOptions, newWorkingDirectory);
         }
         if (modified) {
             ((TextDocumentServiceImpl)server.getTextDocumentService()).reRunDiagnostics();
@@ -1483,6 +1492,10 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
     @Override
     public void connect(LanguageClient client) {
         this.client = (NbCodeLanguageClient)client;
+    }
+
+    public Workspace getWorkspace() {
+        return workspace;
     }
 
     private static final class CommandProgress extends ActionProgress {

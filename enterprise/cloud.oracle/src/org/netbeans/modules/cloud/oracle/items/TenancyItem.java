@@ -25,7 +25,7 @@ package org.netbeans.modules.cloud.oracle.items;
 public class TenancyItem extends OCIItem {
 
     public TenancyItem(OCID id, String name) {
-        super(id, name);
+        super(id, null, name);
     }
 
     public TenancyItem() {

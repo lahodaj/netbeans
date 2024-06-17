@@ -1,5 +1,5 @@
 #Signature file v4.1
-#Version 2.160.0
+#Version 2.163.0
 
 CLSS public abstract java.awt.Component
 cons protected init()
@@ -1157,6 +1157,9 @@ meth public org.apache.maven.project.MavenProject loadAlternateMavenProject(org.
  anno 0 org.netbeans.api.annotations.common.NonNull()
 meth public static boolean isErrorPlaceholder(org.apache.maven.project.MavenProject)
  anno 1 org.netbeans.api.annotations.common.NonNull()
+meth public static boolean isIncomplete(org.apache.maven.project.MavenProject)
+ anno 1 org.netbeans.api.annotations.common.NonNull()
+meth public static org.apache.maven.project.MavenProject getPartialProject(org.apache.maven.project.MavenProject)
 meth public static void addPropertyChangeListener(org.netbeans.api.project.Project,java.beans.PropertyChangeListener)
 meth public static void fireMavenProjectReload(org.netbeans.api.project.Project)
 meth public static void removePropertyChangeListener(org.netbeans.api.project.Project,java.beans.PropertyChangeListener)
@@ -2021,7 +2024,7 @@ innr public final static !enum Status
 innr public final static ProxyResult
 meth public java.util.concurrent.CompletableFuture<org.netbeans.modules.maven.execute.MavenProxySupport$ProxyResult> checkProxySettings()
 supr java.lang.Object
-hfds FILENAME_BASE_SETTINGS,FILENAME_SETTINGS,FILENAME_SETTINGS_EXT,FILENAME_SUFFIX_OLD,ICON_MAVEN_PROJECT,LOG,PORT_DEFAULT_HTTP,PORT_DEFAULT_HTTPS,PROBE_URI_STRING,SUFFIX_NEW_PROXY,SUFFIX_NONE_PROXY,TAG_ACTIVE_END,TAG_ACTIVE_START,TAG_NAME_ACTIVE,TAG_PROXIES,TAG_PROXY,TAG_SETTINGS,acknowledgedResults
+hfds FILENAME_BASE_SETTINGS,FILENAME_SETTINGS,FILENAME_SETTINGS_EXT,FILENAME_SUFFIX_OLD,ICON_MAVEN_PROJECT,LOG,PORT_DEFAULT_HTTP,PORT_DEFAULT_HTTPS,PROBE_URI_STRING,PROXY_PROBE_TIMEOUT,SUFFIX_NEW_PROXY,SUFFIX_NONE_PROXY,TAG_ACTIVE_END,TAG_ACTIVE_START,TAG_NAME_ACTIVE,TAG_PROXIES,TAG_PROXY,TAG_SETTINGS,acknowledgedResults
 hcls LineAndColumn,Processor,ProxyInfo,TagInfo,TextInfo,XppDelegate
 
 CLSS public final static org.netbeans.modules.maven.execute.MavenProxySupport$ProxyResult
@@ -2315,10 +2318,13 @@ meth public boolean isShowLoggingLevel()
 meth public boolean isSkipTests()
 meth public boolean isUpdateSnapshots()
 meth public boolean isUseBestMaven()
+ anno 0 java.lang.Deprecated()
 meth public boolean isUseBestMavenAltLocation()
+ anno 0 java.lang.Deprecated()
 meth public boolean isVMOptionsWrap()
 meth public java.lang.Boolean isOffline()
 meth public java.lang.String getBestMavenAltLocation()
+ anno 0 java.lang.Deprecated()
 meth public java.lang.String getDefaultJdk()
 meth public java.lang.String getDefaultOptions()
 meth public java.lang.String getLastArchetypeGroupId()
@@ -2340,6 +2346,7 @@ meth public static org.netbeans.modules.maven.options.MavenSettings getDefault()
 meth public void addWeakPropertyChangeListener(java.beans.PropertyChangeListener)
 meth public void setAlwaysShowOutput(boolean)
 meth public void setBestMavenAltLocation(java.lang.String)
+ anno 0 java.lang.Deprecated()
 meth public void setBinaryDownloadStrategy(org.netbeans.modules.maven.options.MavenSettings$DownloadStrategy)
 meth public void setCollapseSuccessFolds(boolean)
 meth public void setDefaultJdk(java.lang.String)
@@ -2358,10 +2365,12 @@ meth public void setShowLoggingLevel(boolean)
 meth public void setSkipTests(boolean)
 meth public void setSourceDownloadStrategy(org.netbeans.modules.maven.options.MavenSettings$DownloadStrategy)
 meth public void setUseBestMaven(boolean)
+ anno 0 java.lang.Deprecated()
 meth public void setUseBestMavenAltLocation(boolean)
+ anno 0 java.lang.Deprecated()
 meth public void setVMOptionsWrap(boolean)
 supr java.lang.Object
-hfds DEFAULT_PROXY_BEHAVIOUR,INSTANCE,MAVEN_CORE_JAR_PATTERN,PROP_ALWAYS_OUTPUT,PROP_BINARY_DOWNLOAD,PROP_CHECKSUM_POLICY,PROP_COLLAPSE_FOLDS,PROP_DEBUG,PROP_DEFAULT_JDK,PROP_DEFAULT_OPTIONS,PROP_ERRORS,PROP_EXPERIMENTAL_ALTERNATE_LOCATION,PROP_EXPERIMENTAL_USE_ALTERNATE_LOCATION,PROP_EXPERIMENTAL_USE_BEST_MAVEN,PROP_FAILURE_BEHAVIOUR,PROP_JAVADOC_DOWNLOAD,PROP_LAST_ARCHETYPE_GROUPID,PROP_LAST_ARCHETYPE_VERSION,PROP_MAVEN_RUNTIMES,PROP_OUTPUT_TAB_CONFIG,PROP_OUTPUT_TAB_NAME,PROP_PLUGIN_POLICY,PROP_PREFER_WRAPPER,PROP_REUSE_OUTPUT,PROP_SHOW_LOGGING_LEVEL,PROP_SKIP_TESTS,PROP_SOURCE_DOWNLOAD,PROP_USE_REGISTRY,PROP_VM_OPTIONS_WRAP,SYSPROP_DEFAULT_PROXY_BEHAVIOUR,listeners
+hfds DEFAULT_PROXY_BEHAVIOUR,INSTANCE,MAVEN_CORE_JAR_PATTERN,PROP_ALWAYS_OUTPUT,PROP_BINARY_DOWNLOAD,PROP_CHECKSUM_POLICY,PROP_COLLAPSE_FOLDS,PROP_DEBUG,PROP_DEFAULT_JDK,PROP_DEFAULT_OPTIONS,PROP_ERRORS,PROP_FAILURE_BEHAVIOUR,PROP_JAVADOC_DOWNLOAD,PROP_LAST_ARCHETYPE_GROUPID,PROP_LAST_ARCHETYPE_VERSION,PROP_MAVEN_RUNTIMES,PROP_OUTPUT_TAB_CONFIG,PROP_OUTPUT_TAB_NAME,PROP_PLUGIN_POLICY,PROP_PREFER_WRAPPER,PROP_REUSE_OUTPUT,PROP_SHOW_LOGGING_LEVEL,PROP_SKIP_TESTS,PROP_SOURCE_DOWNLOAD,PROP_USE_REGISTRY,PROP_VM_OPTIONS_WRAP,SYSPROP_DEFAULT_PROXY_BEHAVIOUR,listeners
 
 CLSS public final static !enum org.netbeans.modules.maven.options.MavenSettings$DownloadStrategy
  outer org.netbeans.modules.maven.options.MavenSettings
@@ -2382,9 +2391,12 @@ supr java.lang.Enum<org.netbeans.modules.maven.options.MavenSettings$OutputTabNa
 
 CLSS public final org.netbeans.modules.maven.options.MavenVersionSettings
 fld public final static java.lang.String VERSION_COMPILER = "maven-compiler-plugin"
+ anno 0 java.lang.Deprecated()
 fld public final static java.lang.String VERSION_RESOURCES = "maven-resources-plugin"
+ anno 0 java.lang.Deprecated()
 meth public java.lang.String getNBVersion()
 meth public java.lang.String getVersion(java.lang.String)
+ anno 0 java.lang.Deprecated()
 meth public java.lang.String getVersion(java.lang.String,java.lang.String)
 meth public static org.netbeans.modules.maven.options.MavenVersionSettings getDefault()
 supr java.lang.Object
@@ -2409,7 +2421,7 @@ fld public final static java.lang.String BUNDLED_RUNTIME_VERSION
 meth public void applyValues()
 meth public void setValues()
 supr javax.swing.JPanel
-hfds AVAILABLE_OPTIONS,RP,SEPARATOR,bgIndexFilter,btnDirectory,btnGoals,btnIndex,btnOptions,buttonGroup1,cbAlternateLocation,cbAlwaysShow,cbCollapseSuccessFolds,cbEnableIndexDownload,cbEnableIndexing,cbEnableMultiThreading,cbNetworkProxy,cbOutputTabShowConfig,cbPreferWrapper,cbProjectNodeNameMode,cbReuse,cbShowInfoLevel,cbSkipTests,cbUseBestMaven,changed,comBinaries,comIndex,comJavadoc,comJdkHome,comManageJdks,comMavenHome,comSource,completer,controller,jLabel3,jLabel4,jScrollPane1,jdkHomeDataModel,lastSelected,lbNetworkSettings,lblBinaries,lblCategory,lblCommandLine,lblDirectory,lblExternalVersion,lblHint,lblIndex,lblIndexFilter,lblJavadoc,lblJdkHome,lblOptions,lblOutputTab,lblSource,listItemChangedListener,listener,lstCategory,mavenHomeDataModel,mavenRuntimeHome,permissionsTable,plnExperimental,pnlAppearance,pnlCards,pnlDependencies,pnlExecution,pnlIndex,predefinedRuntimes,rb2Years,rb5Years,rbFullIndex,rbOutputTabId,rbOutputTabName,txtDirectory,txtOptions,txtProjectNodeNameCustomPattern,userDefinedMavenRuntimes,userDefinedMavenRuntimesStored,valid
+hfds AVAILABLE_OPTIONS,RP,SEPARATOR,bgIndexFilter,btnGoals,btnIndex,btnOptions,buttonGroup1,cbAlwaysShow,cbCollapseSuccessFolds,cbEnableIndexDownload,cbEnableIndexing,cbEnableMultiThreading,cbNetworkProxy,cbOutputTabShowConfig,cbPreferWrapper,cbProjectNodeNameMode,cbReuse,cbShowInfoLevel,cbSkipTests,changed,comBinaries,comIndex,comJavadoc,comJdkHome,comManageJdks,comMavenHome,comSource,completer,controller,jLabel3,jLabel4,jScrollPane1,jdkHomeDataModel,lastSelected,lbNetworkSettings,lblBinaries,lblCategory,lblCommandLine,lblExternalVersion,lblIndex,lblIndexFilter,lblJavadoc,lblJdkHome,lblOptions,lblOutputTab,lblSource,listItemChangedListener,listener,lstCategory,mavenHomeDataModel,mavenRuntimeHome,permissionsTable,pnlAppearance,pnlCards,pnlDependencies,pnlExecution,pnlIndex,predefinedRuntimes,rb2Years,rb5Years,rbFullIndex,rbOutputTabId,rbOutputTabName,txtOptions,txtProjectNodeNameCustomPattern,userDefinedMavenRuntimes,userDefinedMavenRuntimesStored,valid
 hcls ActionListenerImpl,ComboBoxRenderer,DocumentListenerImpl,IndexDownloadPermissionTableModel
 
 CLSS public org.netbeans.modules.maven.options.UnsetProxyChecker

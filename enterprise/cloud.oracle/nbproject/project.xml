@@ -126,6 +126,14 @@
                     </run-dependency>
                 </dependency>
                 <dependency>
+                    <code-name-base>org.netbeans.modules.refactoring.api</code-name-base>
+                    <build-prerequisite/>
+                    <compile-dependency/>
+                    <run-dependency>
+                        <specification-version>1.72</specification-version>
+                    </run-dependency>
+                </dependency>
+                <dependency>
                     <code-name-base>org.netbeans.modules.server</code-name-base>
                     <build-prerequisite/>
                     <compile-dependency/>
@@ -278,6 +286,26 @@
             <class-path-extension>
                 <runtime-relative-path>ext/oci-java-sdk-addons-apache-configurator-jersey-3.25.3.jar</runtime-relative-path>
                 <binary-origin>external/oci-java-sdk-addons-apache-configurator-jersey-3.25.3.jar</binary-origin>
+            </class-path-extension>
+            <class-path-extension>
+                <runtime-relative-path>ext/oci-java-sdk-objectstorage-3.25.3.jar</runtime-relative-path>
+                <binary-origin>external/oci-java-sdk-objectstorage-3.25.3.jar</binary-origin>
+            </class-path-extension>
+            <class-path-extension>
+                <runtime-relative-path>ext/oci-java-sdk-objectstorage-generated-3.25.3.jar</runtime-relative-path>
+                <binary-origin>external/oci-java-sdk-objectstorage-generated-3.25.3.jar</binary-origin>
+            </class-path-extension>
+            <class-path-extension>
+                <runtime-relative-path>ext/oci-java-sdk-objectstorage-extensions-3.25.3.jar</runtime-relative-path>
+                <binary-origin>external/oci-java-sdk-objectstorage-extensions-3.25.3.jar</binary-origin>
+            </class-path-extension>
+            <class-path-extension>
+                <runtime-relative-path>ext/oci-java-sdk-core-3.25.3.jar</runtime-relative-path>
+                <binary-origin>external/oci-java-sdk-core-3.25.3.jar</binary-origin>
+            </class-path-extension>
+            <class-path-extension>
+                <runtime-relative-path>ext/oci-java-sdk-containerengine-3.25.3.jar</runtime-relative-path>
+                <binary-origin>external/oci-java-sdk-containerengine-3.25.3.jar</binary-origin>
             </class-path-extension>
             <class-path-extension>
                 <runtime-relative-path>ext/httpclient-4.5.13.jar</runtime-relative-path>

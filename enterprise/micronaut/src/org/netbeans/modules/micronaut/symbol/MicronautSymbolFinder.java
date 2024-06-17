@@ -20,6 +20,7 @@ package org.netbeans.modules.micronaut.symbol;
 
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.MethodTree;
+import com.sun.source.tree.Tree;
 import com.sun.source.util.SourcePositions;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.TreePathScanner;
@@ -93,7 +94,7 @@ public final class MicronautSymbolFinder extends EmbeddingIndexer implements Pro
         if (initialize(cc)) {
             try {
                 if (cc.toPhase(JavaSource.Phase.ELEMENTS_RESOLVED).compareTo(JavaSource.Phase.ELEMENTS_RESOLVED) >= 0) {
-                    store(context.getIndexFolder(), indexable.getURL(), indexable.getRelativePath(), scan(cc));
+                    store(context.getIndexFolder(), indexable.getURL(), indexable.getRelativePath(), scan(cc, false));
                 }
             } catch (IOException ex) {
                 Exceptions.printStackTrace(ex);
@@ -123,7 +124,7 @@ public final class MicronautSymbolFinder extends EmbeddingIndexer implements Pro
         return ret;
     }
 
-    public static List<SymbolLocation> scan(CompilationController cc) {
+    public static List<SymbolLocation> scan(CompilationController cc, boolean selectEndpointAnnotation) {
         final List<SymbolLocation> ret = new ArrayList<>();
         SourcePositions sp = cc.getTrees().getSourcePositions();
         TreePathScanner<Void, String> scanner = new TreePathScanner<Void, String>() {
@@ -159,27 +160,32 @@ public final class MicronautSymbolFinder extends EmbeddingIndexer implements Pro
                     TreePath treePath = this.getCurrentPath();
                     MthIterator it = new MthIterator(cc.getTrees().getElement(treePath), cc.getElements(), cc.getTypes());
                     while (it.hasNext()) {
-                        for (AnnotationMirror ann : it.next().getAnnotationMirrors()) {
+                        ExecutableElement ee = it.next();
+                        for (AnnotationMirror ann : ee.getAnnotationMirrors()) {
                             String method = getEndpointMethod((TypeElement) ann.getAnnotationType().asElement());
                             if (method != null) {
                                 List<String> ids = new ArrayList<>();
-                                Map<? extends ExecutableElement, ? extends AnnotationValue> values = ann.getElementValues();
-                                if (values.isEmpty()) {
-                                    ids.add("/");
-                                } else {
-                                    for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry : values.entrySet()) {
-                                        if ("value".contentEquals(entry.getKey().getSimpleName()) || "uri".contentEquals(entry.getKey().getSimpleName())) {
-                                            ids.add((String) entry.getValue().getValue());
-                                        } else if ("uris".contentEquals(entry.getKey().getSimpleName())) {
-                                            for (AnnotationValue av : (List<AnnotationValue>) entry.getValue().getValue()) {
-                                                ids.add((String) av.getValue());
-                                            }
+                                for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry : ann.getElementValues().entrySet()) {
+                                    if ("value".contentEquals(entry.getKey().getSimpleName()) || "uri".contentEquals(entry.getKey().getSimpleName())) {
+                                        ids.add((String) entry.getValue().getValue());
+                                    } else if ("uris".contentEquals(entry.getKey().getSimpleName())) {
+                                        for (AnnotationValue av : (List<AnnotationValue>) entry.getValue().getValue()) {
+                                            ids.add((String) av.getValue());
                                         }
                                     }
+                                }
+                                if (ids.isEmpty()) {
+                                    ids.add("/");
                                 }
                                 for (Object id : ids) {
                                     String name = '@' + path + id + " -- " + method;
                                     int[] span = cc.getTreeUtilities().findNameSpan(node);
+                                    if (selectEndpointAnnotation) {
+                                        Tree tree = cc.getTrees().getTree(ee, ann);
+                                        if (tree != null) {
+                                            span = new int[] {(int) sp.getStartPosition(treePath.getCompilationUnit(), tree), (int) sp.getEndPosition(treePath.getCompilationUnit(), tree)};
+                                        }
+                                    }
                                     ret.add(new SymbolLocation(name, (int) sp.getStartPosition(treePath.getCompilationUnit(), node), (int) sp.getEndPosition(treePath.getCompilationUnit(), node), span[0], span[1]));
                                 }
                                 return null;
@@ -248,7 +254,7 @@ public final class MicronautSymbolFinder extends EmbeddingIndexer implements Pro
         return null;
     }
 
-    private static String getEndpointMethod(TypeElement te) {
+    public static String getEndpointMethod(TypeElement te) {
         for (AnnotationMirror ann : te.getAnnotationMirrors()) {
             Element el = ann.getAnnotationType().asElement();
             if ("io.micronaut.http.annotation.HttpMethodMapping".contentEquals(((TypeElement) el).getQualifiedName())) {
@@ -337,7 +343,7 @@ public final class MicronautSymbolFinder extends EmbeddingIndexer implements Pro
         }
     }
 
-    private static class MthIterator implements Iterator<ExecutableElement> {
+    public static class MthIterator implements Iterator<ExecutableElement> {
 
         private final ExecutableElement ee;
         private final Elements elements;
@@ -345,7 +351,7 @@ public final class MicronautSymbolFinder extends EmbeddingIndexer implements Pro
         private boolean createIt = false;
         private Iterator<ExecutableElement> it = null;
 
-        private MthIterator(Element e, Elements elements, Types types) {
+        public MthIterator(Element e, Elements elements, Types types) {
             this.ee = e != null && e.getKind() == ElementKind.METHOD ? (ExecutableElement) e : null;
             this.elements = elements;
             this.types = types;

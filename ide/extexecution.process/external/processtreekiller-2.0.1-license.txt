@@ -1,6 +1,6 @@
 Name: NetBeans processtreekiller
 Version: 2.0.1
-License: MIT
+License: MIT-processtreekiller
 Origin: https://github.com/matthiasblaesing/netbeans-processtreekiller
 Source: https://github.com/matthiasblaesing/netbeans-processtreekiller
 Description: Library allowing to kill external process trees.

@@ -23,9 +23,12 @@ import com.sun.source.tree.MethodTree;
 import com.sun.source.util.TreePath;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
@@ -65,6 +68,46 @@ public class MicronautDataCompletionCollector implements CompletionCollector {
     public boolean collectCompletions(Document doc, int offset, Completion.Context context, Consumer<Completion> consumer) {
         new MicronautDataCompletionTask().query(doc, offset, new MicronautDataCompletionTask.ItemFactory<Completion>() {
             @Override
+            public Completion createControllerMethodItem(CompilationInfo info, String annName, String controllerId, int offset) {
+                String methodName = Utils.getControllerEndpointMethodName(annName);
+                if (methodName != null) {
+                    StringBuilder labelDetail = new StringBuilder();
+                    StringBuilder sortParams = new StringBuilder();
+                    labelDetail.append('(');
+                    sortParams.append('(');
+                    int cnt = 0;
+                    if ("io.micronaut.http.annotation.Put".equals(annName) || "io.micronaut.http.annotation.Post".equals(annName)) {
+                        labelDetail.append("String value");
+                        sortParams.append("String");
+                        cnt++;
+                    }
+                    sortParams.append(')');
+                    labelDetail.append(')');
+                    TypeMirror returnType = Utils.getControllerEndpointReturnType(info, annName);
+                    FileObject fo = info.getFileObject();
+                    return CompletionCollector.newBuilder(methodName)
+                            .kind(Completion.Kind.Method)
+                            .labelDetail(String.format("%s - generate", labelDetail.toString()))
+                            .labelDescription(Utils.getTypeName(info, returnType, false, false).toString())
+                            .sortText(String.format("%04d%s#%02d%s", 1500, methodName, cnt, sortParams.toString()))
+                            .insertTextFormat(Completion.TextFormat.PlainText)
+                            .textEdit(new TextEdit(offset, offset, ""))
+                            .additionalTextEdits(() -> modify2TextEdits(JavaSource.forFileObject(fo), wc -> {
+                                wc.toPhase(JavaSource.Phase.ELEMENTS_RESOLVED);
+                                TreePath tp = wc.getTreeUtilities().pathFor(offset);
+                                TypeElement te = TreeUtilities.CLASS_TREE_KINDS.contains(tp.getLeaf().getKind()) ? (TypeElement) wc.getTrees().getElement(tp) : null;
+                                if (te != null) {
+                                    ClassTree clazz = (ClassTree) tp.getLeaf();
+                                    Set<Element> toImport = new HashSet<>();
+                                    MethodTree mt = Utils.createControllerEndpointMethod(wc, methodName, controllerId, toImport);
+                                    wc.rewrite(clazz, GeneratorUtilities.get(wc).insertClassMember(clazz, mt, offset));
+                                    wc.rewrite(wc.getCompilationUnit(), GeneratorUtilities.get(wc).addImports(wc.getCompilationUnit(), toImport));
+                                }
+                            })).build();
+                }
+                return null;
+            }
+            @Override
             public Completion createControllerMethodItem(CompilationInfo info, VariableElement delegateRepository, ExecutableElement delegateMethod, String controllerId, String id, int offset) {
                 String delegateMethodName = delegateMethod.getSimpleName().toString();
                 String methodName = Utils.getControllerDataEndpointMethodName(delegateMethodName, id);
@@ -75,10 +118,10 @@ public class MicronautDataCompletionCollector implements CompletionCollector {
                     Iterator<? extends TypeMirror> tIt = type.getParameterTypes().iterator();
                     StringBuilder labelDetail = new StringBuilder();
                     StringBuilder sortParams = new StringBuilder();
-                    labelDetail.append("(");
+                    labelDetail.append('(');
                     sortParams.append('(');
                     int cnt = 0;
-                    while(it.hasNext() && tIt.hasNext()) {
+                    while (it.hasNext() && tIt.hasNext()) {
                         TypeMirror tm = tIt.next();
                         if (tm == null) {
                             break;
@@ -117,8 +160,10 @@ public class MicronautDataCompletionCollector implements CompletionCollector {
                                     if (repository != null && method != null) {
                                         TypeMirror repositoryType = repository.asType();
                                         if (repositoryType.getKind() == TypeKind.DECLARED) {
-                                            MethodTree mt = Utils.createControllerDataEndpointMethod(wc, (DeclaredType) repositoryType, repository.getSimpleName().toString(), method, controllerId, id);
+                                            Set<Element> toImport = new HashSet<>();
+                                            MethodTree mt = Utils.createControllerDataEndpointMethod(wc, (DeclaredType) repositoryType, repository.getSimpleName().toString(), method, controllerId, id, toImport);
                                             wc.rewrite(clazz, GeneratorUtilities.get(wc).insertClassMember(clazz, mt, offset));
+                                            wc.rewrite(wc.getCompilationUnit(), GeneratorUtilities.get(wc).addImports(wc.getCompilationUnit(), toImport));
                                         }
                                     }
                                 }
@@ -126,19 +171,89 @@ public class MicronautDataCompletionCollector implements CompletionCollector {
                 }
                 return null;
             }
-
             @Override
             public Completion createFinderMethodItem(String name, String returnType, int offset) {
                 Builder builder = CompletionCollector.newBuilder(name).kind(Completion.Kind.Method).sortText(String.format("%04d%s", 10, name));
                 if (returnType != null) {
-                    builder.insertText(new StringBuilder("${1:").append(returnType).append("} ").append(name).append("$0()").toString());
-                    builder.insertTextFormat(Completion.TextFormat.Snippet);
+                    builder.labelDetail("(...)")
+                            .labelDescription(returnType)
+                            .insertText(new StringBuilder("${1:").append(returnType).append("} ").append(name).append("$2($0);").toString())
+                            .insertTextFormat(Completion.TextFormat.Snippet);
                 }
                 return builder.build();
             }
             @Override
             public Completion createFinderMethodNameItem(String prefix, String name, int offset) {
                 return CompletionCollector.newBuilder(prefix + name).kind(Completion.Kind.Method).sortText(String.format("%04d%s", 10, name)).build();
+            }
+            @Override
+            public Completion createFinderMethodParam(CompilationInfo info, VariableElement variableElement, int offset) {
+                String name = variableElement.getSimpleName().toString();
+                TypeMirror type = variableElement.asType();
+                String typeName = Utils.getTypeName(info, type, false, false).toString();
+                Set<ElementHandle<TypeElement>> handles = new HashSet<>();
+                StringBuilder sb = new StringBuilder();
+                for (TypeElement ann : Utils.getRelevantAnnotations(variableElement)) {
+                    sb.append('@').append(ann.getSimpleName()).append(' ');
+                    handles.add(ElementHandle.create(ann));
+                }
+                if (type.getKind() == TypeKind.DECLARED) {
+                    handles.add(ElementHandle.create((TypeElement) ((DeclaredType) type).asElement()));
+                }
+                sb.append(typeName).append(' ').append(name);
+                Builder builder = CompletionCollector.newBuilder(name).kind(Completion.Kind.Property).sortText(String.format("%04d%s", 10, name))
+                        .insertText(sb.toString()).labelDescription(typeName);
+                if (!handles.isEmpty()) {
+                    builder.additionalTextEdits(() -> modify2TextEdits(JavaSource.forFileObject(info.getFileObject()), copy -> {
+                        copy.toPhase(JavaSource.Phase.ELEMENTS_RESOLVED);
+                        Set<TypeElement> toImport = handles.stream().map(handle -> handle.resolve(copy)).filter(te -> te != null).collect(Collectors.toSet());
+                        copy.rewrite(copy.getCompilationUnit(), GeneratorUtilities.get(copy).addImports(copy.getCompilationUnit(), toImport));
+                    }));
+                }
+                return builder.build();
+            }
+            @Override
+            public Completion createFinderMethodParams(CompilationInfo info, List<VariableElement> variableElements, int offset) {
+                StringBuilder label = new StringBuilder();
+                StringBuilder insertText = new StringBuilder();
+                StringBuilder sortParams = new StringBuilder();
+                Set<ElementHandle<TypeElement>> handles = new HashSet<>();
+                label.append('(');
+                int cnt = 0;
+                Iterator<VariableElement> it = variableElements.iterator();
+                while (it.hasNext()) {
+                    cnt++;
+                    VariableElement variableElement = it.next();
+                    String name = variableElement.getSimpleName().toString();
+                    TypeMirror type = variableElement.asType();
+                    String typeName = Utils.getTypeName(info, type, false, false).toString();
+                    for (TypeElement ann : Utils.getRelevantAnnotations(variableElement)) {
+                        insertText.append('@').append(ann.getSimpleName()).append(' ');
+                        handles.add(ElementHandle.create(ann));
+                    }
+                    if (type.getKind() == TypeKind.DECLARED) {
+                        handles.add(ElementHandle.create((TypeElement) ((DeclaredType) type).asElement()));
+                    }
+                    label.append(typeName).append(' ').append(name);
+                    insertText.append(typeName).append(' ').append("${").append(cnt).append(":").append(name).append("}");
+                    sortParams.append(typeName);
+                    if (it.hasNext()) {
+                        label.append(", ");
+                        insertText.append(", ");
+                        sortParams.append(",");
+                    }
+                }
+                label.append(')');
+                Builder builder = CompletionCollector.newBuilder(label.toString()).kind(Completion.Kind.Property).sortText(String.format("%04d#%02d%s", 5, cnt, sortParams.toString()))
+                        .insertText(insertText.toString()).insertTextFormat(Completion.TextFormat.Snippet);
+                if (!handles.isEmpty()) {
+                    builder.additionalTextEdits(() -> modify2TextEdits(JavaSource.forFileObject(info.getFileObject()), copy -> {
+                        copy.toPhase(JavaSource.Phase.ELEMENTS_RESOLVED);
+                        Set<TypeElement> toImport = handles.stream().map(handle -> handle.resolve(copy)).filter(te -> te != null).collect(Collectors.toSet());
+                        copy.rewrite(copy.getCompilationUnit(), GeneratorUtilities.get(copy).addImports(copy.getCompilationUnit(), toImport));
+                    }));
+                }
+                return builder.build();
             }
             @Override
             public Completion createSQLItem(CompletionItem item) {
@@ -180,7 +295,6 @@ public class MicronautDataCompletionCollector implements CompletionCollector {
                         .insertText(name)
                         .build();
             }
-
             @Override
             public Completion createEnvPropertyItem(String name, String documentation, int anchorOffset, int offset) {
                 return CompletionCollector.newBuilder(name)
@@ -237,6 +351,14 @@ public class MicronautDataCompletionCollector implements CompletionCollector {
                 }
                 Builder builder = CompletionCollector.newBuilder(simpleName);
                 switch (element.getKind()) {
+                    case PARAMETER:
+                        builder.kind(Completion.Kind.Variable).sortText(String.format("%04d%s", 90, simpleName))
+                                .labelDescription(Utils.getTypeName(info, element.asType(), false, false).toString());
+                        break;
+                    case RECORD_COMPONENT:
+                        builder.kind(Completion.Kind.Field).sortText(String.format("%04d%s", 90, simpleName))
+                                .labelDescription(Utils.getTypeName(info, element.asType(), false, false).toString());
+                        break;
                     case ENUM:
                         builder.kind(Completion.Kind.Enum).sortText(String.format("%04d%s", 300, simpleName));
                         break;

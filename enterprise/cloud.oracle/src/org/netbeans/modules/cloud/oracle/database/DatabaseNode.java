@@ -39,7 +39,8 @@ import org.openide.util.NbBundle;
 @NbBundle.Messages({
     "LBL_WorkloadType=Workload Type: {0}\n",
     "LBL_DatabaseVersion=Database version: {0}\n",
-    "LBL_Storage=Storage: {0}TB"
+    "LBL_Storage=Storage: {0}TB",
+    "LBL_ADB=Oracle Autonomous Database: {0}"
 })
 public class DatabaseNode extends OCINode {
 
@@ -51,7 +52,7 @@ public class DatabaseNode extends OCINode {
         setName(dbSummary.getName());
         setDisplayName(dbSummary.getName());
         setIconBaseWithExtension(DB_ICON);
-        setShortDescription(dbSummary.getDescription());
+        setShortDescription(Bundle.LBL_ADB(dbSummary.getDescription()));
     }
 
     public static NodeProvider<DatabaseItem> createNode() {
@@ -81,6 +82,7 @@ public class DatabaseNode extends OCINode {
                         List<DatabaseConnectionStringProfile> profiles = d.getConnectionStrings().getProfiles();
                         DatabaseItem item = new DatabaseItem(
                                 OCID.of(d.getId(), "Databases"), //NOI18N
+                                compartmentId.getKey().getValue(),
                                 d.getDbName(),
                                 d.getConnectionUrls().getOrdsUrl()+SERVICE_CONSOLE_SUFFIX,
                                 getConnectionName(profiles));

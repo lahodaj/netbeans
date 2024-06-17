@@ -158,8 +158,8 @@ public final class Startup {
           LookAndFeel lf = UIManager.getLookAndFeel();
           if (uiClass != lf.getClass()) {
               try {
-                lf = (LookAndFeel) uiClass.newInstance();
-              } catch (IllegalAccessException | InstantiationException ex) {
+                lf = (LookAndFeel) uiClass.getDeclaredConstructor().newInstance();
+              } catch (ReflectiveOperationException ex) {
                   return new LFInstanceOrName(uiClass.getName());
               }
           }
@@ -385,7 +385,7 @@ public final class Startup {
         }
         try {
             Class klazz = UIUtils.classForName( uiClassName );
-            Object inst = klazz.newInstance();
+            Object inst = klazz.getDeclaredConstructor().newInstance();
             if( inst instanceof LFCustoms )
                 return ( LFCustoms ) inst;
         } catch( ClassNotFoundException e ) {
@@ -417,7 +417,7 @@ public final class Startup {
                 return new GtkLFCustoms();
             } else {
                 try {
-                    return (LFCustoms) UIUtils.classForName(FORCED_CUSTOMS).newInstance();
+                    return (LFCustoms) UIUtils.classForName(FORCED_CUSTOMS).getDeclaredConstructor().newInstance();
                 } catch (Exception e) {
                     System.err.println("UI customizations class not found: " //NOI18N
                         + FORCED_CUSTOMS); //NOI18N
@@ -520,7 +520,7 @@ public final class Startup {
      *          provide a font with the requested size.  Results are undefined for values less than 0 or greater
      *          than any hard limit the platform imposes on font size.
      * @param themeURL An optional URL for a theme file, or null. Theme file format documentation can be found
-     *        <a href="https://netbeans.apache.org/projects/ui/themes/themes.html">here</a>.
+     *        <a href="https://netbeans.apache.org/projects/ui/themes/themes">here</a>.
      */
     public static void run (Class uiClass, int uiFontSize, URL themeURL) {
         run(uiClass, uiFontSize, themeURL, null);
@@ -536,7 +536,7 @@ public final class Startup {
      *          provide a font with the requested size.  Results are undefined for values less than 0 or greater
      *          than any hard limit the platform imposes on font size.
      * @param themeURL An optional URL for a theme file, or null. Theme file format documentation can be found
-     *        <a href="https://netbeans.apache.org/projects/ui/themes/themes.html">here</a>.
+     *        <a href="https://netbeans.apache.org/projects/ui/themes/themes">here</a>.
      * @param rb resource bundle to use for branding or null. Allows NetBeans to provide enhanced version
      *          of bundle that knows how to deal with branding. The bundle shall have the same keys as
      *          <code>org.netbeans.swing.plaf.Bundle</code> bundle has.

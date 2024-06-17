@@ -1,5 +1,5 @@
 #Signature file v4.1
-#Version 0.187.0
+#Version 0.189.0
 
 CLSS public abstract interface com.sun.source.tree.TreeVisitor<%0 extends java.lang.Object, %1 extends java.lang.Object>
 meth public abstract {com.sun.source.tree.TreeVisitor%0} visitAnnotatedType(com.sun.source.tree.AnnotatedTypeTree,{com.sun.source.tree.TreeVisitor%1})
@@ -1034,7 +1034,7 @@ meth public java.util.List<? extends com.sun.source.tree.MethodTree> createOverr
 meth public static org.netbeans.api.java.source.GeneratorUtilities get(org.netbeans.api.java.source.WorkingCopy)
 meth public void copyComments(com.sun.source.tree.Tree,com.sun.source.tree.Tree,boolean)
 supr java.lang.Object
-hfds CLASS_NAME,DEFAULT_RETURN_TYPE_VALUE,GENERATED_METHOD_BODY,LAMBDA_BODY,LAMBDA_EXPRESSION,METHOD_NAME,METHOD_RETURN_TYPE,OVERRIDDEN_METHOD_BODY,SCRIPT_ENGINE_ATTR,SIMPLE_CLASS_NAME,STRING_OUTPUT_MODE_ATTR,SUPER_METHOD_CALL,copy,manager
+hfds CLASS_KIND,CLASS_NAME,DEFAULT_RETURN_TYPE_VALUE,GENERATED_METHOD_BODY,LAMBDA_BODY,LAMBDA_EXPRESSION,METHOD_NAME,METHOD_RETURN_TYPE,OVERRIDDEN_METHOD_BODY,SCRIPT_ENGINE_ATTR,SIMPLE_CLASS_NAME,STRING_OUTPUT_MODE_ATTR,SUPER_METHOD_CALL,copy,manager
 hcls ClassMemberComparator,FieldRefVisitor,ImportsComparator
 
 CLSS public abstract org.netbeans.api.java.source.JavaParserResultTask<%0 extends org.netbeans.modules.parsing.spi.Parser$Result>
@@ -1511,6 +1511,7 @@ meth public com.sun.source.tree.PrimitiveTypeTree PrimitiveType(javax.lang.model
 meth public com.sun.source.tree.ProvidesTree Provides(com.sun.source.tree.ExpressionTree,java.util.List<? extends com.sun.source.tree.ExpressionTree>)
 meth public com.sun.source.tree.RequiresTree Requires(boolean,boolean,com.sun.source.tree.ExpressionTree)
 meth public com.sun.source.tree.ReturnTree Return(com.sun.source.tree.ExpressionTree)
+meth public com.sun.source.tree.StringTemplateTree StringTemplate(com.sun.source.tree.ExpressionTree,java.util.List<java.lang.String>,java.util.List<? extends com.sun.source.tree.ExpressionTree>)
 meth public com.sun.source.tree.SwitchTree Switch(com.sun.source.tree.ExpressionTree,java.util.List<? extends com.sun.source.tree.CaseTree>)
 meth public com.sun.source.tree.SwitchTree addSwitchCase(com.sun.source.tree.SwitchTree,com.sun.source.tree.CaseTree)
 meth public com.sun.source.tree.SwitchTree insertSwitchCase(com.sun.source.tree.SwitchTree,int,com.sun.source.tree.CaseTree)

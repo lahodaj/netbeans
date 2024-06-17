@@ -206,7 +206,7 @@ public class JavaErrorProvider implements ErrorProvider {
         for (Fix f : fixes) {
             if (f instanceof IncompleteClassPath.ResolveFix) {
                 // We know that this is a project problem and that the problems reported by ProjectProblemsProvider should be resolved
-                CodeAction action = new CodeAction(f.getText(), new Command(f.getText(), "nbls.java.project.resolveProjectProblems"));
+                CodeAction action = new CodeAction(f.getText(), new Command(f.getText(), "nbls.project.resolveProjectProblems"));
                 result.add(action);
             }
             if (f instanceof org.netbeans.modules.java.hints.errors.EnablePreview.ResolveFix) {
@@ -315,7 +315,7 @@ public class JavaErrorProvider implements ErrorProvider {
     private static List<Fix> sortFixes(Collection<Fix> fixes) {
         List<Fix> result = new ArrayList<Fix>(fixes);
 
-        Collections.sort(result, new FixComparator());
+        result.sort(new FixComparator());
 
         return result;
     }

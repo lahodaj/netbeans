@@ -31,7 +31,7 @@
                     <compile-dependency/>
                     <run-dependency>
                         <release-version>2</release-version>
-                        <specification-version>2.28</specification-version>
+                        <specification-version>2.40</specification-version>
                     </run-dependency>
                 </dependency>
                 <dependency>
@@ -389,6 +389,7 @@
                 <package>org.netbeans.modules.gradle.java.api</package>
                 <package>org.netbeans.modules.gradle.java.api.output</package>
                 <package>org.netbeans.modules.gradle.java.spi.debug</package>
+                <package>org.netbeans.modules.gradle.java.spi.support</package>
             </public-packages>
         </data>
     </configuration>

@@ -135,9 +135,6 @@ public class APTUtils implements ChangeListener, PropertyChangeListener {
         this.root = root;
         bootPath = ClassPath.getClassPath(root, ClassPath.BOOT);
         compilePath = ClassPath.getClassPath(root, ClassPath.COMPILE);
-        if (compilePath != null) {
-            compilePath.addPropertyChangeListener(this);
-        }
         processorPath = new AtomicReference<>(ClassPath.getClassPath(root, JavaClassPathConstants.PROCESSOR_PATH));
         processorModulePath = new AtomicReference<>(ClassPath.getClassPath(root, JavaClassPathConstants.MODULE_PROCESSOR_PATH));
         aptOptions = AnnotationProcessingQuery.getAnnotationProcessingOptions(root);
@@ -150,6 +147,9 @@ public class APTUtils implements ChangeListener, PropertyChangeListener {
                     false);
         });
         usedRoots = new UsedRoots(root.toURL());
+        if (compilePath != null) {
+            compilePath.addPropertyChangeListener(this);
+        }
     }
 
     @CheckForNull
@@ -381,7 +381,7 @@ public class APTUtils implements ChangeListener, PropertyChangeListener {
         for (String name : processorNames) {
             try {
                 Class<?> clazz = Class.forName(name, true, cl);
-                Object instance = clazz.newInstance();
+                Object instance = clazz.getDeclaredConstructor().newInstance();
                 if (instance instanceof Processor) {
                     result.add(new ErrorToleratingProcessor((Processor) instance));
                 }

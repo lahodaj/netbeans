@@ -212,6 +212,7 @@ function findJDK(onChange: (path : string | null) => void): void {
                 nowDark = newD;
                 nowJavaEnabled = newJavaEnabled;
                 currentJdk = newJdk;
+                nowProjectJDK = newProjectJDK;
                 onChange(currentJdk);
             }
         }, 0);

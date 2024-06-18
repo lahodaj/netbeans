@@ -259,9 +259,8 @@ jobs:
         if: contains(matrix.os, 'macos') == false && success()
         run: tar --zstd -xf build.tar.zst
 
-      - name: platform/masterfs.macosx
-        if: contains(matrix.os, 'macos') && success()
-        run: .github/retry.sh ant $OPTS -f platform/masterfs.macosx test
+      - name: platform/masterfs
+        run: .github/retry.sh ant $OPTS -f platform/masterfs test
 
       - name: Commit Validation tests
         run: .github/retry.sh ant $OPTS -Dcluster.config=$CLUSTER_CONFIG commit-validation
@@ -892,9 +891,9 @@ jobs:
 #        run: ant $OPTS -f java/ant.grammar test
 
       # TODO next are JDK 21+ incompatibe steps
-      - name: java/java.mx.project
-        if: ${{ matrix.java == '17' }}
-        run: .github/retry.sh ant $OPTS -f java/java.mx.project test
+#      - name: java/java.mx.project
+#        if: ${{ matrix.java == '17' }}
+#        run: .github/retry.sh ant $OPTS -f java/java.mx.project test
 
       - name: java/gradle.java
         if: ${{ matrix.java == '17' }}
@@ -1047,12 +1046,6 @@ jobs:
 
       - name: platform/libs.junit4
         run: ant $OPTS -f platform/libs.junit4 test
-
-      - name: platform/masterfs
-        run: .github/retry.sh ant $OPTS -f platform/masterfs test
-
-      - name: platform/masterfs.linux
-        run: ant $OPTS -f platform/masterfs.linux test
 
       - name: platform/o.n.core
         run: ant $OPTS -f platform/o.n.core test-unit

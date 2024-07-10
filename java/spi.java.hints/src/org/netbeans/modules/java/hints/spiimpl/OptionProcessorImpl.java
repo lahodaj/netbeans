@@ -18,6 +18,7 @@
  */
 package org.netbeans.modules.java.hints.spiimpl;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -43,6 +44,7 @@ import org.netbeans.modules.java.hints.providers.spi.HintMetadata;
 import org.netbeans.modules.java.hints.providers.spi.HintMetadata.Options;
 import org.netbeans.modules.java.hints.spiimpl.batch.BatchSearch;
 import org.netbeans.modules.java.hints.spiimpl.batch.BatchSearch.BatchResult;
+import org.netbeans.modules.java.hints.spiimpl.batch.BatchSearch.Folder;
 import org.netbeans.modules.java.hints.spiimpl.batch.BatchSearch.VerifiedSpansCallBack;
 import org.netbeans.modules.java.hints.spiimpl.batch.BatchUtilities;
 import org.netbeans.modules.java.hints.spiimpl.batch.ProgressHandleWrapper;
@@ -79,6 +81,11 @@ public class OptionProcessorImpl implements ArgsProcessor {
     @Description(shortDescription="#DESC_RunJavaHintsApply")
     @Messages("DESC_RunJavaHintsApply=Run Java Hints - Apply Fixes")
     public String runJavaHintsApply;
+
+    @Arg(longName="java-hints-run-directories", defaultValue = "")
+    @Description(shortDescription="#DESC_RunJavaHintsDirectories")
+    @Messages("DESC_RunJavaHintsDirectories=A comma separated list of directories on which the hints should run; defaults to all open projects if not specified")
+    public String runJavaHintsDirectories;
 
     @Arg(longName="java-hints-shutdown-when-done", defaultValue = "false")
     @Description(shortDescription="#DESC_ShutdownWhenDone")
@@ -157,7 +164,19 @@ public class OptionProcessorImpl implements ArgsProcessor {
                         hints.addAll(entry.getValue());
                     }
                 }
-                BatchSearch.Scope scope = Scopes.allOpenedProjectsScope();
+                BatchSearch.Scope scope;
+                if (runJavaHintsDirectories != null) {
+                    List<Folder> folders = new ArrayList<>();
+                    for (String folder : runJavaHintsDirectories.split(", *")) {
+                        FileObject resolvedFolder = FileUtil.toFileObject(new File(folder));
+                        if (resolvedFolder != null) {
+                            folders.add(new Folder(resolvedFolder));
+                        }
+                    }
+                    scope = Scopes.specifiedFoldersScope(folders.toArray(new Folder[0]));
+                } else {
+                    scope = Scopes.allOpenedProjectsScope();
+                }
                 BatchResult occurrences = BatchSearch.findOccurrences(hints, scope);
                 List<MessageImpl> problems = new ArrayList<MessageImpl>();
                 ProgressHandleWrapper progress = new ProgressHandleWrapper(new int[] {1});

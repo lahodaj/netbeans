@@ -177,7 +177,11 @@ public class ClassPathProviderImpl implements ClassPathProvider {
                             FileObject libFO = resolve(file, libDir, libraryPath);
 
                             if (libFO != null) {
-                                roots.add(libFO);
+                                if (FileUtil.isArchiveFile(libFO)) {
+                                    roots.add(FileUtil.getArchiveRoot(libFO));
+                                } else {
+                                    roots.add(libFO);
+                                }
                             }
                         }
                     }
@@ -189,7 +193,7 @@ public class ClassPathProviderImpl implements ClassPathProvider {
 
         //XXX:
         for (FileObject root : roots) {
-            initializeUsagesQuery(root);
+//            initializeUsagesQuery(root);
         }
 
         return ClassPathSupport.createClassPath(roots.toArray(new FileObject[0]));

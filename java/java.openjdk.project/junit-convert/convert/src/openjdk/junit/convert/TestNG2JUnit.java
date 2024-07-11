@@ -29,7 +29,9 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.Name;
 import javax.lang.model.element.PackageElement;
+import javax.lang.model.element.QualifiedNameable;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.ElementFilter;
 import org.netbeans.api.java.source.CompilationInfo;
@@ -145,7 +147,13 @@ public class TestNG2JUnit {
         if (el == null || !isTestNGElement(ctx.getInfo(), el)) {
             return null;
         }
-        return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), new RemoveImport(ctx.getInfo(), ctx.getPath()).toEditorFix());
+        Fix fix;
+        if (el.getKind() == ElementKind.CLASS && ((QualifiedNameable) el).getQualifiedName().contentEquals("org.testng.Assert") && it.isStatic()) {
+            fix = new ChangeStaticImport(ctx.getInfo(), ctx.getPath(), "org.junit.jupiter.api.Assertions", ((MemberSelectTree) it.getQualifiedIdentifier()).getIdentifier().toString()).toEditorFix();
+        } else {
+            fix = new RemoveImport(ctx.getInfo(), ctx.getPath()).toEditorFix();
+        }
+        return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), fix);
     }
 
     @TriggerPattern("org.testng.annotations.Test")
@@ -366,6 +374,37 @@ public class TestNG2JUnit {
             ImportTree it = (ImportTree) tc.getPath().getLeaf();
             CompilationUnitTree adjustedTopLevel = (CompilationUnitTree) tc.getWorkingCopy().resolveRewriteTarget(topLevelTP.getLeaf());
             tc.getWorkingCopy().rewrite(adjustedTopLevel, tc.getWorkingCopy().getTreeMaker().removeCompUnitImport(adjustedTopLevel, it));
+        }
+        
+    } 
+
+    private static final class ChangeStaticImport extends JavaFix {
+
+        private final String targetClass;
+        private final String member;
+        public ChangeStaticImport(CompilationInfo info, TreePath tp, String targetClass, String member) {
+            super(info, tp);
+            this.targetClass = targetClass;
+            this.member = member;
+        }
+
+        @Override
+        protected String getText() {
+            return "Use JUnit Assertions";
+        }
+
+        @Override
+        protected void performRewrite(TransformationContext tc) throws Exception {
+            CompilationUnitTree adjustedTopLevel = (CompilationUnitTree) tc.getWorkingCopy().resolveRewriteTarget(tc.getPath().getCompilationUnit());
+            TreeMaker make = tc.getWorkingCopy().getTreeMaker();
+            List<ImportTree> imports = new ArrayList<>(adjustedTopLevel.getImports());
+            for (int i = 0; i < imports.size(); i++) {
+                if (imports.get(i) == tc.getPath().getLeaf()) {
+                    imports.set(i, make.Import(make.MemberSelect(make.QualIdent(tc.getWorkingCopy().getElements().getTypeElement(targetClass)), member), true));
+                }
+            }
+            CompilationUnitTree newTopLevel = make.CompilationUnit(adjustedTopLevel.getPackage(), imports, adjustedTopLevel.getTypeDecls(), adjustedTopLevel.getSourceFile());
+            tc.getWorkingCopy().rewrite(tc.getWorkingCopy().getCompilationUnit(), newTopLevel);
         }
         
     } 

@@ -424,9 +424,9 @@ public class JavaFixUtilities {
 
         if (el.getModifiers().contains(Modifier.STATIC)) {
             //XXX:
-            if (!el.getKind().isClass() && !el.getKind().isInterface()) {
-                return false;
-            }
+//            if (!el.getKind().isClass() && !el.getKind().isInterface()) {
+//                return false;
+//            }
 
             return true;
         }

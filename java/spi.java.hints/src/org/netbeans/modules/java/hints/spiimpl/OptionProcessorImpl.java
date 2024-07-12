@@ -163,6 +163,11 @@ public class OptionProcessorImpl implements ArgsProcessor {
             }
             WORKER.post(() -> {
                 OpenProjects.getDefault().open(projects.toArray(new Project[0]), false);
+                try {
+                    OpenProjects.getDefault().openProjects().get();
+                } catch (ExecutionException | InterruptedException ex) {
+                    ex.printStackTrace();
+                }
             });
         }
         String hintsToRun;

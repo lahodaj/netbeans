@@ -18,7 +18,7 @@
 
     <target name="-prepare-all-args" if="conversion.project">
         <property name="temp.directories.arg" value="" />
-        <property name="run.args.extra" value="--java-hints-hack-open-project ${conversion.project} ${temp.directories.arg} --java-hints-run-apply=openjdk.junit.convert.TestNG2JUnit --java-hints-shutdown-when-done --nogui --nosplash -J-Dnetbeans.logger.console=false" />
+        <property name="run.args.extra" value="--java-hints-hack-open-project=${conversion.project} ${temp.directories.arg} --java-hints-run-apply=openjdk.junit.convert.TestNG2JUnit --java-hints-shutdown-when-done --nogui --nosplash -J-Dnetbeans.logger.console=false" />
         <property name="test.user.dir" value="build/conversionuserdir"/>
         <delete dir="${test.user.dir}" />
     </target>

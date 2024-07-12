@@ -37,6 +37,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.netbeans.api.actions.Savable;
 import org.netbeans.api.java.source.CompilationController;
 import org.netbeans.api.java.source.ModificationResult;
+import org.netbeans.api.java.source.SourceUtils;
+import org.netbeans.api.project.Project;
+import org.netbeans.api.project.ProjectManager;
 import org.netbeans.api.project.ui.OpenProjects;
 import org.netbeans.api.sendopts.CommandException;
 import org.netbeans.modules.java.hints.providers.spi.HintDescription;
@@ -92,6 +95,11 @@ public class OptionProcessorImpl implements ArgsProcessor {
     @Messages("DESC_ShutdownWhenDone=Shutdown When Java Hints Run Is Done")
     public boolean shutdownWhenDone;
 
+    @Arg(longName="java-hints-hack-open-project", defaultValue = "") //--open is completely asynchronous, it is not possible to wait for it, and the hints may run too soon.
+    @Description(shortDescription="#DESC_HackOpenProject")
+    @Messages("DESC_HackOpenProject=Projects to Open (hack)")
+    public String projectsToOpen;
+
     @Override
     @Messages("ERR_CannotListAndApplyTogether=Cannot list and apply at the same time")
     public void process(Env env) throws CommandException {
@@ -133,6 +141,29 @@ public class OptionProcessorImpl implements ArgsProcessor {
                     }
                 }
             }
+        }
+        if (projectsToOpen != null) {
+            List<Project> projects = new ArrayList<>();
+
+            for (String path : projectsToOpen.split(", *")) {
+                File file = findFile(env.getCurrentDirectory(), path);
+                FileObject fo = FileUtil.toFileObject(file);
+                if (fo != null) {
+                    try {
+                        Project p = ProjectManager.getDefault().findProject(fo);
+                        if (p != null) {
+                            projects.add(p);
+                        }
+                    } catch (IOException ex) {
+                        Exceptions.printStackTrace(ex);
+                    } catch (IllegalArgumentException ex) {
+                        Exceptions.printStackTrace(ex);
+                    }
+                }
+            }
+            WORKER.post(() -> {
+                OpenProjects.getDefault().open(projects.toArray(new Project[0]), false);
+            });
         }
         String hintsToRun;
         boolean apply;
@@ -294,5 +325,14 @@ public class OptionProcessorImpl implements ArgsProcessor {
         }
 
         return id2DisplayName;
+    }
+
+    //from: ide/utilities/src/org/netbeans/modules/openfile/Handler.java
+    private File findFile (File curDir, String name) {
+        File f = new File(name);
+        if (!f.isAbsolute()) {
+            f = new File(curDir, name);
+        }
+        return f;
     }
 }

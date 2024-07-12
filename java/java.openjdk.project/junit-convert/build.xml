@@ -8,9 +8,9 @@
     <property name="nbplatform.default.harness.dir" location="${nbplatform.default.netbeans.dest.dir}/harness" />
 
     <import file="nbproject/build-impl.xml"/>
-    
+
     <target name="run-conversion" depends="-prepare-args,run" />
-    
+
     <target name="-prepare-args" depends="-prepare-directories-arg,-prepare-all-args,-prepare-args-fail" />
     <target name="-prepare-directories-arg" if="conversion.directories">
         <property name="temp.directories.arg" value="--java-hints-run-directories=${conversion.directories}" />
@@ -18,9 +18,11 @@
 
     <target name="-prepare-all-args" if="conversion.project">
         <property name="temp.directories.arg" value="" />
-        <property name="run.args.extra" value="--open ${conversion.project} ${temp.directories.arg} --java-hints-run-apply=openjdk.junit.convert.TestNG2JUnit --java-hints-shutdown-when-done --nogui --nosplash -J-Dnetbeans.logger.console=false" />
+        <property name="run.args.extra" value="--java-hints-hack-open-project ${conversion.project} ${temp.directories.arg} --java-hints-run-apply=openjdk.junit.convert.TestNG2JUnit --java-hints-shutdown-when-done --nogui --nosplash -J-Dnetbeans.logger.console=false" />
+        <property name="test.user.dir" value="build/conversionuserdir"/>
+        <delete dir="${test.user.dir}" />
     </target>
-    
+
     <target name="-prepare-args-fail" unless="conversion.project">
         <fail>Property "conversion.project" not set. Must set at least "conversion.project" property providing an absolute path to a project to conversion (e.g. &lt;jdk>/src/java.base).
               May also optionally provide "conversion.directories" to open convert selected directories (a comma separated list of absolute paths expected).</fail>

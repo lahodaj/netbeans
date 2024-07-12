@@ -126,6 +126,16 @@ public class TestNG2JUnit {
         return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), JavaFixUtilities.rewriteFix(ctx, "Use JUnit annotation", ctx.getPath(), "org.junit.jupiter.api.BeforeAll"));
     }
 
+    @TriggerPattern("org.testng.annotations.AfterTest") //not fully correct, but might be OK for JDK
+    public static ErrorDescription afterTest(HintContext ctx) {
+        return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), JavaFixUtilities.rewriteFix(ctx, "Use JUnit annotation", ctx.getPath(), "org.junit.jupiter.api.AfterAll"));
+    }
+
+    @TriggerPattern("org.testng.annotations.BeforeTest") //not fully correct, but might be OK for JDK
+    public static ErrorDescription beforeTest(HintContext ctx) {
+        return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), JavaFixUtilities.rewriteFix(ctx, "Use JUnit annotation", ctx.getPath(), "org.junit.jupiter.api.BeforeAll"));
+    }
+
     @TriggerPattern("org.testng.annotations.DataProvider")
     public static ErrorDescription dataProvider(HintContext ctx) {
         if (ctx.getPath().getParentPath().getLeaf().getKind() == Tree.Kind.ANNOTATION) { 

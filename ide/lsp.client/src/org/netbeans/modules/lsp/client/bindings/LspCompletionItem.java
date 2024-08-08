@@ -112,22 +112,26 @@ final class LspCompletionItem extends AbstractCompletionItem<Either<TextEdit, In
         }
         if (resolved.getDocumentation() != null || resolved.getDetail() != null) {
             return () -> {
-                MarkupContent content;
-                if (resolved.getDocumentation().isLeft()) {
-                    content = new MarkupContent();
-                    content.setKind("plaintext");
-                    content.setValue(resolved.getDocumentation().getLeft());
-                } else {
-                    content = resolved.getDocumentation().getRight();
-                }
                 String txt;
-                switch (content.getKind()) {
-                    case "markdown":
-                        txt = HtmlRenderer.builder().build().render(Parser.builder().build().parse(content.getValue()));
-                        break;
-                    default:
-                        txt = "<pre>\n" + content.getValue() + "\n</pre>";
-                        break;
+                if (resolved.getDocumentation() != null) {
+                    MarkupContent content;
+                    if (resolved.getDocumentation().isLeft()) {
+                        content = new MarkupContent();
+                        content.setKind("plaintext");
+                        content.setValue(resolved.getDocumentation().getLeft());
+                    } else {
+                        content = resolved.getDocumentation().getRight();
+                    }
+                    switch (content.getKind()) {
+                        case "markdown":
+                            txt = HtmlRenderer.builder().build().render(Parser.builder().build().parse(content.getValue()));
+                            break;
+                        default:
+                            txt = "<pre>\n" + content.getValue() + "\n</pre>";
+                            break;
+                    }
+                } else {
+                    txt = null;
                 }
                 return new String[] { resolved.getDetail(), txt };
             };

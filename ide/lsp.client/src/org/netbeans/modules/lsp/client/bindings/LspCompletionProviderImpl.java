@@ -52,6 +52,7 @@ public class LspCompletionProviderImpl implements CompletionProvider {
                 FileObject file = NbEditorUtilities.getFileObject(doc);
                 if (file == null) {
                     //TODO: beep
+                    resultSet.finish();
                     return;
                 }
                 final String mime = file.getMIMEType();

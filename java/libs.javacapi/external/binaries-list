@@ -14,5 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-07266A99C001F11616B36F5128EB78D2242F3096 com.dukescript.nbjavac:nb-javac:jdk-22.0.1+8:api
-D8B9FE09D677A6D589BA3C1E5AD636AF7F47AEE2 com.dukescript.nbjavac:nb-javac:jdk-22.0.1+8
+22634F5884CE6835660FB01C2B2D2D27AFB96A50 http://lahoda.info/nb-javac/23%2B35-extra/nb-javac-jdk-23+35-api.jar nb-javac-jdk-23+35-api.jar
+D6E98991F58ABADC2272EFE6FBB7772705832AB0 http://lahoda.info/nb-javac/23%2B35-extra/nb-javac-jdk-23+35-impl.jar nb-javac-jdk-23+35.jar

@@ -210,6 +210,16 @@ public final class TreeUtilities {
                     return true;
                 }
             }
+            if (path.getLeaf().getKind() == Kind.VARIABLE &&
+                path.getParentPath() != null &&
+                path.getParentPath().getLeaf().getKind() == Kind.METHOD &&
+                path.getParentPath().getParentPath() != null &&
+                path.getParentPath().getParentPath().getLeaf().getKind() == Kind.RECORD) {
+                JCMethodDecl m = (JCMethodDecl) path.getParentPath().getLeaf();
+                if ((m.mods.flags & Flags.COMPACT_RECORD_CONSTRUCTOR) != 0 && m.getParameters().contains(path.getLeaf())) {
+                    return true;
+                }
+            }
 
             path = path.getParentPath();
         }

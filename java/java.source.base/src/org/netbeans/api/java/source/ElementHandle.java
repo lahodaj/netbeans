@@ -235,7 +235,7 @@ public final class ElementHandle<T extends Element> {
             }
             case PARAMETER:
             {
-                assert signatures.length == 3;
+                assert signatures.length == 4;
                 final Element type = getTypeElementByBinaryName (module, signatures[0], jt);
                 if (type instanceof TypeElement) {
                     final List<? extends Element> members = type.getEnclosedElements();

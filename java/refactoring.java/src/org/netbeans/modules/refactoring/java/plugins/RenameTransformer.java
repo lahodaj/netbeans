@@ -59,6 +59,7 @@ import org.netbeans.modules.refactoring.java.spi.RefactoringVisitor;
 public class RenameTransformer extends RefactoringVisitor {
 
     private final Set<ElementHandle<ExecutableElement>> allMethods;
+    private final Set<TreePathHandle> recordLinkedDeclarations;
     private final TreePathHandle handle;
     private final DocTreePathHandle docHandle;
     private final String newName;
@@ -68,13 +69,14 @@ public class RenameTransformer extends RefactoringVisitor {
     private Map<ImportTree, ImportTree> imports;
     private List<ImportTree> newImports;
 
-    public RenameTransformer(TreePathHandle handle, DocTreePathHandle docHandle, RenameRefactoring refactoring, Set<ElementHandle<ExecutableElement>> am, boolean renameInComments) {
+    public RenameTransformer(TreePathHandle handle, DocTreePathHandle docHandle, RenameRefactoring refactoring, Set<ElementHandle<ExecutableElement>> am, Set<TreePathHandle> recordLinkedDeclarations, boolean renameInComments) {
         super(true);
         this.handle = handle;
         this.docHandle = docHandle;
         this.refactoring = refactoring;
         this.newName = refactoring.getNewName();
         this.allMethods = am;
+        this.recordLinkedDeclarations = recordLinkedDeclarations;
         this.renameInComments = renameInComments;
     }
 
@@ -197,6 +199,17 @@ public class RenameTransformer extends RefactoringVisitor {
         if (JavaPluginUtils.isSyntheticPath(workingCopy, path) || (handle != null && handle.getKind() == Tree.Kind.LABELED_STATEMENT)) {
             return;
         }
+        doRenameUsageIfMatch(getCurrentPath(), tree, elementToFind);
+        for (TreePathHandle h : recordLinkedDeclarations) {
+            Element linked = h.resolveElement(workingCopy);
+
+            if (linked != null) {
+                doRenameUsageIfMatch(getCurrentPath(), tree, linked);
+            }
+        }
+    }
+
+    private void doRenameUsageIfMatch(final TreePath path, Tree tree, Element elementToFind) {
         TreePath elementPath = path;
         Trees trees = workingCopy.getTrees();
         Element el = workingCopy.getTrees().getElement(elementPath);
@@ -421,6 +434,19 @@ public class RenameTransformer extends RefactoringVisitor {
         if (JavaPluginUtils.isSyntheticPath(workingCopy, path) || (handle != null && handle.getKind() == Tree.Kind.LABELED_STATEMENT)) {
             return;
         }
+
+        doRenameDeclIfMatch(path, tree, elementToFind);
+
+        for (TreePathHandle h : recordLinkedDeclarations) {
+            Element linked = h.resolveElement(workingCopy);
+
+            if (linked != null) {
+                doRenameDeclIfMatch(getCurrentPath(), tree, linked);
+            }
+        }
+    }
+
+    private void doRenameDeclIfMatch(TreePath path, Tree tree, Element elementToFind) {
         Element el = workingCopy.getTrees().getElement(path);
         if (el==null) {
             return;

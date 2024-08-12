@@ -335,29 +335,34 @@ public final class JavaPluginUtils {
     /**
      * Works as TreeUtilities.isSynthetic, but treats implicit annotation parameter (value) as
      * non-synthetic. See defect #270036
+     * https://bz.apache.org/netbeans/show_bug.cgi?id=270036
+     * https://github.com/emilianbold/netbeans-releases/commit/4405362cdd5cdcd1fe6afaab05f812dbc1512b80
      */
     public static boolean isSyntheticPath(CompilationInfo ci, TreePath path) {
         TreeUtilities tu = ci.getTreeUtilities();
-        if (path == null)
-            throw new NullPointerException();
-        
-        while (path != null) {
-            SYNT: if (isSynthetic(ci, path.getCompilationUnit(), path.getLeaf())) {
-                if (path.getLeaf().getKind() == Tree.Kind.ASSIGNMENT &&
-                    path.getParentPath() != null && path.getParentPath().getLeaf().getKind() == Tree.Kind.ANNOTATION) {
-                    AssignmentTree aTree = (AssignmentTree)path.getLeaf();
-                    if (aTree.getVariable().getKind() == Tree.Kind.IDENTIFIER &&
-                        ((IdentifierTree)aTree.getVariable()).getName().contentEquals("value")) { // implicit value is not synthetic
-                        break SYNT;
-                    }
-                }
-                return true;
-            }
-            
-            path = path.getParentPath();
-        }
-        
-        return false;
+//        if (path.getLeaf().getKind() == Kind.VARIABLE) { //XXX
+            return tu.isSynthetic(path);
+//        }
+//        if (path == null)
+//            throw new NullPointerException();
+//        
+//        while (path != null) {
+//            SYNT: if (isSynthetic(ci, path.getCompilationUnit(), path.getLeaf())) {
+//                if (path.getLeaf().getKind() == Tree.Kind.ASSIGNMENT &&
+//                    path.getParentPath() != null && path.getParentPath().getLeaf().getKind() == Tree.Kind.ANNOTATION) {
+//                    AssignmentTree aTree = (AssignmentTree)path.getLeaf();
+//                    if (aTree.getVariable().getKind() == Tree.Kind.IDENTIFIER &&
+//                        ((IdentifierTree)aTree.getVariable()).getName().contentEquals("value")) { // implicit value is not synthetic
+//                        break SYNT;
+//                    }
+//                }
+//                return true;
+//            }
+//            
+//            path = path.getParentPath();
+//        }
+//        
+//        return false;
     }
     
     //<editor-fold defaultstate="collapsed" desc="TODO: Copied from java.source.base TreeUtilities">

@@ -31,6 +31,7 @@ import org.netbeans.spi.editor.hints.HintsController;
 import org.netbeans.spi.editor.hints.Severity;
 import org.netbeans.spi.lsp.ErrorProvider;
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
 
@@ -59,6 +60,13 @@ class ErrorProviderBridge implements Runnable, DocumentListener {
 
     @Override
     public final void run() {
+        final String mime = file.getMIMEType();
+        FileObject marker = FileUtil.getConfigFile("Editors/" + mime + "/register-lsp-services");
+
+        if (marker == null) {
+            return ;
+        }
+
         for (ErrorProvider p : errorProviders) {
             computeHints(ErrorProvider.Kind.ERRORS, p, "lsp:errors");
             computeHints(ErrorProvider.Kind.HINTS, p, "lsp:hints");

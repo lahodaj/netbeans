@@ -38,8 +38,8 @@ import org.netbeans.spi.editor.completion.support.AsyncCompletionQuery;
 import org.netbeans.spi.editor.completion.support.AsyncCompletionTask;
 import org.netbeans.spi.lsp.CompletionCollector;
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 import org.openide.util.ImageUtilities;
-import org.openide.util.Lookup;
 
 @MimeRegistration(mimeType = "", service = CompletionProvider.class)
 public class LspCompletionProviderImpl implements CompletionProvider {
@@ -56,13 +56,10 @@ public class LspCompletionProviderImpl implements CompletionProvider {
                     return;
                 }
                 final String mime = file.getMIMEType();
-                for (Lookup.Item<CompletionProvider> item : MimeLookup.getLookup(mime).lookupResult(CompletionProvider.class).allItems()) {
-                    String id = item.getId();
-                    if (id.startsWith("Editors/"+ mime)) {
-                        // found real CompletionProvider - don't bridge LSP API
-                        resultSet.finish();
-                        return;
-                    }
+                FileObject marker = FileUtil.getConfigFile("Editors/" + mime + "/register-lsp-services");
+                if (marker == null) {
+                    resultSet.finish();
+                    return;
                 }
                 Consumer<org.netbeans.api.lsp.Completion> consumer = (i) -> {
                     String insert = i.getInsertText() != null ? i.getInsertText() : i.getLabel();

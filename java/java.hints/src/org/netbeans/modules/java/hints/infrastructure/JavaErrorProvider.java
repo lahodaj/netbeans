@@ -88,6 +88,7 @@ import org.openide.util.Union2;
  *
  * @author lahvac
  */
+@MimeRegistration(mimeType = "text/x-java", service = ErrorProvider.class)
 public class JavaErrorProvider implements ErrorProvider {
     public static final String HINTS_TOOL_ID = "hints";
     public static Consumer<ErrorProvider.Kind> computeDiagsCallback; //for tests

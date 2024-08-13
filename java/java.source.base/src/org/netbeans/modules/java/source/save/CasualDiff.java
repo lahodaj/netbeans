@@ -193,7 +193,6 @@ public class CasualDiff {
     private final Names names;
     private final TreeMaker make;
     private static final Logger LOG = Logger.getLogger(CasualDiff.class.getName());
-    public static final int GENERATED_MEMBER = 1<<24;
 
     private Map<Integer, String> diffInfo = new HashMap<>();
     private final Map<Tree, ?> tree2Tag;
@@ -1167,7 +1166,7 @@ public class CasualDiff {
 
         for (JCTree t : defs) {
             if (t.getKind() == Kind.VARIABLE &&
-                (((JCVariableDecl) t).mods.flags & GENERATED_MEMBER) != 0) {
+                (((JCVariableDecl) t).mods.flags & RECORD) != 0) {
                 components.add(t);
             } else {
                 filteredDefs.add(t);

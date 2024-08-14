@@ -27,7 +27,7 @@
 <changes>
     <change id="TreeMaker.RecordComponent">
         <api name="javasource_base" />
-        <summary>Adding TreeMaker.StringTemplate</summary>
+        <summary>Adding TreeMaker.RecordComponent</summary>
         <version major="1" minor="2.70.0"/>
         <date day="20" month="8" year="2023"/>
         <author login="jlahoda"/>

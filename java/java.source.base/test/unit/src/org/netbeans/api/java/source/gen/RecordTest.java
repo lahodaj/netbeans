@@ -34,7 +34,7 @@ public class RecordTest extends GeneratorTestMDRCompat {
     public RecordTest(String testName) {
         super(testName);
     }
-    
+
     public static NbTestSuite suite() {
         NbTestSuite suite = new NbTestSuite();
         suite.addTestSuite(RecordTest.class);
@@ -43,7 +43,7 @@ public class RecordTest extends GeneratorTestMDRCompat {
 
     public void testRenameComponent() throws Exception {
         testFile = new File(getWorkDir(), "Test.java");
-        TestUtilities.copyStringToFile(testFile, 
+        TestUtilities.copyStringToFile(testFile,
                 """
                 package hierbas.del.litoral;
                 public record R(String component) {}
@@ -71,7 +71,7 @@ public class RecordTest extends GeneratorTestMDRCompat {
                     }
                 }
             }
-            
+
         };
         src.runModificationTask(task).commit();
         String res = TestUtilities.copyFileToString(testFile);
@@ -81,7 +81,7 @@ public class RecordTest extends GeneratorTestMDRCompat {
 
     public void testAddFirstComponent() throws Exception {
         testFile = new File(getWorkDir(), "Test.java");
-        TestUtilities.copyStringToFile(testFile, 
+        TestUtilities.copyStringToFile(testFile,
                 """
                 package hierbas.del.litoral;
                 public record R() {}
@@ -109,7 +109,7 @@ public class RecordTest extends GeneratorTestMDRCompat {
                 ClassTree newClassTree = make.addClassMember(classTree, newComponent);
                 workingCopy.rewrite(classTree, newClassTree);
             }
-            
+
         };
         src.runModificationTask(task).commit();
         String res = TestUtilities.copyFileToString(testFile);
@@ -119,7 +119,7 @@ public class RecordTest extends GeneratorTestMDRCompat {
 
     public void testAddSecondComponent() throws Exception {
         testFile = new File(getWorkDir(), "Test.java");
-        TestUtilities.copyStringToFile(testFile, 
+        TestUtilities.copyStringToFile(testFile,
                 """
                 package hierbas.del.litoral;
                 public record R(String existing) {}
@@ -147,7 +147,7 @@ public class RecordTest extends GeneratorTestMDRCompat {
                 ClassTree newClassTree = make.addClassMember(classTree, newComponent);
                 workingCopy.rewrite(classTree, newClassTree);
             }
-            
+
         };
         src.runModificationTask(task).commit();
         String res = TestUtilities.copyFileToString(testFile);
@@ -157,7 +157,7 @@ public class RecordTest extends GeneratorTestMDRCompat {
 
     public void testRemoveLastComponent() throws Exception {
         testFile = new File(getWorkDir(), "Test.java");
-        TestUtilities.copyStringToFile(testFile, 
+        TestUtilities.copyStringToFile(testFile,
                 """
                 package hierbas.del.litoral;
                 public record R(String component) {}
@@ -186,7 +186,7 @@ public class RecordTest extends GeneratorTestMDRCompat {
                     }
                 }
             }
-            
+
         };
         src.runModificationTask(task).commit();
         String res = TestUtilities.copyFileToString(testFile);
@@ -196,7 +196,7 @@ public class RecordTest extends GeneratorTestMDRCompat {
 
     public void testRemoveComponent() throws Exception {
         testFile = new File(getWorkDir(), "Test.java");
-        TestUtilities.copyStringToFile(testFile, 
+        TestUtilities.copyStringToFile(testFile,
                 """
                 package hierbas.del.litoral;
                 public record R(String first, String component) {}
@@ -226,7 +226,7 @@ public class RecordTest extends GeneratorTestMDRCompat {
                     }
                 }
             }
-            
+
         };
         src.runModificationTask(task).commit();
         String res = TestUtilities.copyFileToString(testFile);

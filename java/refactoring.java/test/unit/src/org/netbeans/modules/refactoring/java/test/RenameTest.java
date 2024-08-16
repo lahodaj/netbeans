@@ -1628,7 +1628,7 @@ public class RenameTest extends RefactoringTestBase {
                          }
                          """));
     }
-   
+
     private void performRename(FileObject source, final int position, final int position2, final String newname, final JavaRenameProperties props, final boolean searchInComments, Problem... expectedProblems) throws Exception {
         final RenameRefactoring[] r = new RenameRefactoring[1];
         JavaSource.forFileObject(source).runUserActionTask(new Task<CompilationController>() {

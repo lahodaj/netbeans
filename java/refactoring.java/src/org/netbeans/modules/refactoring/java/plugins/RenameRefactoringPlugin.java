@@ -106,7 +106,7 @@ public class RenameRefactoringPlugin extends JavaRefactoringPlugin {
             addUsesOfMethod(e, set, info, idx);
             allMethods.add(handle);
         }
-    
+
         private void addUsesOfMethod(ExecutableElement e, Set<FileObject> set, CompilationInfo info, ClassIndex idx) {
             ElementHandle<TypeElement> encl = ElementHandle.create(info.getElementUtilities().enclosingTypeElement(e));
             set.addAll(idx.getResources(encl, EnumSet.of(ClassIndex.SearchKind.METHOD_REFERENCES),EnumSet.of(ClassIndex.SearchScope.SOURCE)));

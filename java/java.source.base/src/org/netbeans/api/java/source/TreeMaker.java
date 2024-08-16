@@ -1291,7 +1291,7 @@ public final class TreeMaker {
                           Tree type) {
         return delegate.RecordComponent(modifiers, name, type);
     }
-    
+
     /**
      * Creates a new BindingPatternTree.
      * @deprecated

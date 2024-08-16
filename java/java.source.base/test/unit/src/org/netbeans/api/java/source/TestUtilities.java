@@ -312,7 +312,7 @@ public final class TestUtilities {
         }
 
         return new TestInput(input.substring(0, pos) + input.substring(pos + 1), pos);
-    } 
+    }
 
-    public record TestInput(String code, int pos) {} 
+    public record TestInput(String code, int pos) {}
 }

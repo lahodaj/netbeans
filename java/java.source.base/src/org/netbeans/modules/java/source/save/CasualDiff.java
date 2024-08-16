@@ -1011,11 +1011,10 @@ public class CasualDiff {
         if (oldT.getKind() == Kind.RECORD && newT.getKind() == Kind.RECORD) {
             ComponentsAndOtherMembers oldParts = splitOutRecordComponents(filteredOldTDefs);
             ComponentsAndOtherMembers newParts = splitOutRecordComponents(filteredNewTDefs);
-            //TODO: tests!!!
             int posHint;
             if (oldParts.components().isEmpty()) {
                 // compute the position. Find the parameters closing ')', its
-                // start position is important for us. This is used when 
+                // start position is important for us. This is used when
                 // there was not any parameter in original tree.
                 int startOffset = oldT.pos;
 

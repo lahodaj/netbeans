@@ -34,16 +34,12 @@ import org.netbeans.modules.refactoring.java.ui.JavaRenameProperties;
 import org.openide.filesystems.FileObject;
 import org.openide.util.lookup.Lookups;
 
-/**
- *
- * @author Jan Becicka
- */
 public class RenameRecordTest extends RefactoringTestBase {
 
     public RenameRecordTest(String name) {
         super(name);
     }
-    
+
     public void testRenameComponent1() throws Exception {
         String testCode = """
                           package test;
@@ -214,7 +210,7 @@ public class RenameRecordTest extends RefactoringTestBase {
                 }
             }
         }, true);
-        
+
         RefactoringSession rs = RefactoringSession.create("Rename");
         List<Problem> problems = new LinkedList<>();
 

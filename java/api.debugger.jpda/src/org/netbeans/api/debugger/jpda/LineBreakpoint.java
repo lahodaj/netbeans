@@ -66,6 +66,7 @@ public class LineBreakpoint extends JPDABreakpoint {
 
     /** Property name constant */
     public static final String          PROP_LINE_NUMBER = "lineNumber"; // NOI18N
+    public static final String          PROP_LAMBDA_INDEX = "lambdaIndex"; // NOI18N
     /** Property name constant */
     public static final String          PROP_URL = "url"; // NOI18N
     /** Property name constant. */
@@ -94,6 +95,7 @@ public class LineBreakpoint extends JPDABreakpoint {
     private String                      className = null;
     private Map<JPDADebugger,ObjectVariable[]> instanceFilters;
     private Map<JPDADebugger,JPDAThread[]> threadFilters;
+    private int                         lambdaIndex = Integer.MIN_VALUE;
 
     
     private LineBreakpoint (String url) {
@@ -180,6 +182,26 @@ public class LineBreakpoint extends JPDABreakpoint {
             PROP_LINE_NUMBER,
             Integer.valueOf(old),
             Integer.valueOf(ln)
+        );
+    }
+
+    public int getLambdaIndex() {
+        return lambdaIndex;
+    }
+
+    public void setLambdaIndex(int li) {
+        int old;
+        synchronized (this) {
+            if (li == lambdaIndex) {
+                return;
+            }
+            old = lambdaIndex;
+            lambdaIndex = li;
+        }
+        firePropertyChange (
+            PROP_LAMBDA_INDEX,
+            Integer.valueOf(old),
+            Integer.valueOf(li)
         );
     }
     

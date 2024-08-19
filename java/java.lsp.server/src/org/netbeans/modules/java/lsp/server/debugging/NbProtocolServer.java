@@ -18,6 +18,9 @@
  */
 package org.netbeans.modules.java.lsp.server.debugging;
 
+import com.sun.jdi.AbsentInformationException;
+import com.sun.source.tree.LambdaExpressionTree;
+import com.sun.source.util.TreePathScanner;
 import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
@@ -37,6 +40,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.apache.commons.lang3.StringUtils;
+import org.eclipse.lsp4j.Position;
+import org.eclipse.lsp4j.debug.BreakpointLocation;
+import org.eclipse.lsp4j.debug.BreakpointLocationsArguments;
+import org.eclipse.lsp4j.debug.BreakpointLocationsResponse;
 import org.eclipse.lsp4j.debug.Capabilities;
 import org.eclipse.lsp4j.debug.ConfigurationDoneArguments;
 import org.eclipse.lsp4j.debug.ContinueArguments;
@@ -81,9 +88,12 @@ import org.netbeans.api.debugger.jpda.InvalidExpressionException;
 import org.netbeans.api.debugger.jpda.JPDADebugger;
 import org.netbeans.api.debugger.jpda.ObjectVariable;
 import org.netbeans.api.debugger.jpda.Variable;
+import org.netbeans.api.java.source.JavaSource;
+import org.netbeans.modules.debugger.jpda.jdi.ReferenceTypeWrapper;
 import org.netbeans.modules.debugger.jpda.truffle.vars.TruffleVariable;
 import org.netbeans.modules.java.lsp.server.LspSession;
 import org.netbeans.modules.java.lsp.server.URITranslator;
+import org.netbeans.modules.java.lsp.server.Utils;
 import org.netbeans.modules.java.lsp.server.debugging.breakpoints.NbBreakpointsRequestHandler;
 import org.netbeans.modules.java.lsp.server.debugging.attach.NbAttachRequestHandler;
 import org.netbeans.modules.java.lsp.server.debugging.launch.NbDebugSession;
@@ -94,9 +104,13 @@ import org.netbeans.modules.java.lsp.server.debugging.utils.ErrorUtilities;
 import org.netbeans.modules.nativeimage.api.debug.EvaluateException;
 import org.netbeans.modules.nativeimage.api.debug.NIDebugger;
 import org.netbeans.modules.nativeimage.api.debug.NIVariable;
+import org.netbeans.spi.debugger.jpda.EditorContext;
 import org.netbeans.spi.debugger.ui.DebuggingView;
 import org.netbeans.spi.debugger.ui.DebuggingView.DVFrame;
 import org.netbeans.spi.debugger.ui.DebuggingView.DVThread;
+import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
+import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
 import org.openide.util.NbBundle;
 import org.openide.util.RequestProcessor;
@@ -156,6 +170,7 @@ public final class NbProtocolServer implements IDebugProtocolServer, LspSession.
         caps.setSupportsRestartFrame(true);
         caps.setSupportsLogPoints(true);
         caps.setSupportsEvaluateForHovers(true);
+        caps.setSupportsBreakpointLocationsRequest(true);
 
         ExceptionBreakpointsFilter uncaught = new ExceptionBreakpointsFilter();
         uncaught.setFilter(NbBreakpointsRequestHandler.UNCAUGHT_EXCEPTION_FILTER_NAME);
@@ -614,6 +629,37 @@ public final class NbProtocolServer implements IDebugProtocolServer, LspSession.
             future.complete(response);
         }
         return future;
+    }
+
+    @Override
+    public CompletableFuture<BreakpointLocationsResponse> breakpointLocations(BreakpointLocationsArguments args) {
+        FileObject file = FileUtil.toFileObject(new File(args.getSource().getPath()));
+        JavaSource js = JavaSource.forFileObject(file);
+        CompletableFuture<BreakpointLocationsResponse> result = new CompletableFuture<>();
+        List<BreakpointLocation> locations = new ArrayList<>();
+        try {
+            js.runUserActionTask(cc -> {
+                cc.toPhase(JavaSource.Phase.PARSED);
+                //TODO: span only!
+                new TreePathScanner<Void, Void>() {
+                    public Void visitLambdaExpression(LambdaExpressionTree tree, Void v) {
+                        int startPos = (int) cc.getTrees().getSourcePositions().getStartPosition(getCurrentPath().getCompilationUnit(), tree);
+                        Position pos = Utils.createPosition(cc.getCompilationUnit().getLineMap(), startPos);
+                        BreakpointLocation l = new BreakpointLocation();
+                        l.setLine(pos.getLine() + 1); //XXX: +1 may need to be configuration
+                        l.setColumn(pos.getCharacter() + 1); //dtto
+                        locations.add(l);
+                        return super.visitLambdaExpression(tree, v);
+                    }
+                }.scan(cc.getCompilationUnit(), null);
+            }, true);
+            BreakpointLocationsResponse response = new BreakpointLocationsResponse();
+            response.setBreakpoints(locations.toArray(new BreakpointLocation[0]));
+            result.complete(response);
+        } catch (IOException ex) {
+            result.completeExceptionally(ex);
+        }
+        return result;
     }
 
     void setRunningFuture(Future<Void> runningServer) {

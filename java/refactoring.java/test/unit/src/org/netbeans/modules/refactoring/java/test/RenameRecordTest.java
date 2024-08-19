@@ -284,6 +284,49 @@ public class RenameRecordTest extends RefactoringTestBase {
 
     }
 
+    public void testRenameRecord() throws Exception {
+        String testCode = """
+                          package test;
+                          public record Te|st(int component) {
+                              public Test {
+                                  component = "";
+                              }
+                          }
+                          """;
+        TestInput splitCode = TestUtilities.splitCodeAndPos(testCode);
+        writeFilesAndWaitForScan(src,
+                                 new File("Test.java", splitCode.code()),
+                                 new File("Use.java",
+                                          """
+                                          package test;
+                                          public class Use {
+                                              private Test test() {
+                                                  return new Test(0);
+                                              }
+                                          }
+                                          """));
+        JavaRenameProperties props = new JavaRenameProperties();
+        performRename(src.getFileObject("Test.java"), splitCode.pos(), "NewName", props, true);
+        verifyContent(src, new File("Test.java",
+                                    """
+                                    package test;
+                                    public record NewName(int component) {
+                                        public NewName {
+                                            component = "";
+                                        }
+                                    }
+                                    """),
+                           new File("Use.java",
+                                    """
+                                    package test;
+                                    public class Use {
+                                        private NewName test() {
+                                            return new NewName(0);
+                                        }
+                                    }
+                                    """));
+
+    }
     private void performRename(FileObject source, final int absPos, final String newname, final JavaRenameProperties props, final boolean searchInComments, Problem... expectedProblems) throws Exception {
         final RenameRefactoring[] r = new RenameRefactoring[1];
         JavaSource.forFileObject(source).runUserActionTask(new Task<CompilationController>() {

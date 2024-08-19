@@ -404,14 +404,17 @@ public class RenameTransformer extends RefactoringVisitor {
         Element el = workingCopy.getTrees().getElement(currentPath);
         if (el != null && el.getEnclosedElements().contains(p)) {
             Trees trees = workingCopy.getTrees();
-            Scope scope = trees.getScope(trees.getPath(p));
-            shadowed = workingCopy.getElementUtilities().getLocalMembersAndVars(scope, new ElementUtilities.ElementAcceptor() {
+            TreePath pPath = trees.getPath(p);
+            if (pPath != null) { //may be null for synthetic record accessors
+                Scope scope = trees.getScope(pPath);
+                shadowed = workingCopy.getElementUtilities().getLocalMembersAndVars(scope, new ElementUtilities.ElementAcceptor() {
 
-                @Override
-                public boolean accept(Element element, TypeMirror type) {
-                    return !element.equals(p) && element.getKind() == p.getKind() && element.getSimpleName().contentEquals(newName);
-                }
-            });
+                    @Override
+                    public boolean accept(Element element, TypeMirror type) {
+                        return !element.equals(p) && element.getKind() == p.getKind() && element.getSimpleName().contentEquals(newName);
+                    }
+                });
+            }
         }
         Tree value = super.visitClass(tree, p);
         shadowed = null;

@@ -433,51 +433,36 @@ public class RenameRefactoringPlugin extends JavaRefactoringPlugin {
                                 enclosingType = ElementHandle.create(info.getElementUtilities().enclosingTypeElement(el));
                             }
                             set.add(SourceUtils.getFile(el, info.getClasspathInfo()));
-                            if (el.getModifiers().contains(Modifier.PRIVATE)) {
-                                if (kind == ElementKind.METHOD) {
-                                    //add all references of overriding methods
-                                    allMethods.add(ElementHandle.create((ExecutableElement)el));
+                            for (Element linked : info.getElementUtilities().getLinkedRecordElements(el)) {
+                                ElementKind linkedKind = linked.getKind();
+                                if (!el.equals(linked)) {
+                                    recordLinkedDeclarations.add(TreePathHandle.create(linked, info));
                                 }
-                                if (kind == ElementKind.FIELD && el.getEnclosingElement().getKind() == ElementKind.RECORD) {
-                                    for (ExecutableElement m : ElementFilter.methodsIn(el.getEnclosingElement().getEnclosedElements())) {
-                                        if (m.getSimpleName().equals(el.getSimpleName()) && m.getParameters().isEmpty()) {
-                                            //accessor:
-//                                            addMethods(m, set, info, idx);
-                                            recordLinkedDeclarations.add(TreePathHandle.create(m, info));
-                                            addUsesOfMethod(m, set, info, idx);
-                                        }
+                                if (linked.getModifiers().contains(Modifier.PRIVATE)) {
+                                    if (linkedKind == ElementKind.METHOD) {
+                                        //add all references of overriding methods
+                                        allMethods.add(ElementHandle.create((ExecutableElement)linked));
                                     }
-                                    for (ExecutableElement c : ElementFilter.constructorsIn(el.getEnclosingElement().getEnclosedElements())) {
-                                        if (!info.getElements().isCanonicalConstructor(c)) {
-                                            continue;
-                                        }
-                                        for (VariableElement param : c.getParameters()) {
-                                            if (param.getSimpleName().equals(el.getSimpleName())) {
-                                                //the parameter for the canonical constructor:
-                                                recordLinkedDeclarations.add(TreePathHandle.create(param, info));
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                if (kind.isField()) {
-                                    set.addAll(idx.getResources(enclosingType, EnumSet.of(ClassIndex.SearchKind.FIELD_REFERENCES), EnumSet.of(ClassIndex.SearchScope.SOURCE)));
-                                } else if (el instanceof TypeElement) {
-                                    set.addAll(idx.getResources(enclosingType, EnumSet.of(ClassIndex.SearchKind.TYPE_REFERENCES, ClassIndex.SearchKind.IMPLEMENTORS),EnumSet.of(ClassIndex.SearchScope.SOURCE)));
-                                } else if (kind == ElementKind.METHOD) {
-                                    //add all references of overriding methods
-                                    allMethods.add(ElementHandle.create((ExecutableElement)el));
-                                    for (ExecutableElement e:JavaRefactoringUtils.getOverridingMethods((ExecutableElement)el, info, cancelRequested)) {
-                                        addMethods(e, set, info, idx);
-                                    }
-                                    //add all references of overriden methods
-                                    for (ExecutableElement ov: JavaRefactoringUtils.getOverriddenMethods((ExecutableElement)el, info)) {
-                                        addMethods(ov, set, info, idx);
-                                        for (ExecutableElement e:JavaRefactoringUtils.getOverridingMethods( ov,info, cancelRequested)) {
+                                } else {
+                                    if (linkedKind.isField()) {
+                                        set.addAll(idx.getResources(enclosingType, EnumSet.of(ClassIndex.SearchKind.FIELD_REFERENCES), EnumSet.of(ClassIndex.SearchScope.SOURCE)));
+                                    } else if (linked instanceof TypeElement) {
+                                        set.addAll(idx.getResources(enclosingType, EnumSet.of(ClassIndex.SearchKind.TYPE_REFERENCES, ClassIndex.SearchKind.IMPLEMENTORS),EnumSet.of(ClassIndex.SearchScope.SOURCE)));
+                                    } else if (linkedKind == ElementKind.METHOD) {
+                                        //add all references of overriding methods
+                                        allMethods.add(ElementHandle.create((ExecutableElement)linked));
+                                        for (ExecutableElement e:JavaRefactoringUtils.getOverridingMethods((ExecutableElement)linked, info, cancelRequested)) {
                                             addMethods(e, set, info, idx);
                                         }
+                                        //add all references of overriden methods
+                                        for (ExecutableElement ov: JavaRefactoringUtils.getOverriddenMethods((ExecutableElement)linked, info)) {
+                                            addMethods(ov, set, info, idx);
+                                            for (ExecutableElement e:JavaRefactoringUtils.getOverridingMethods( ov,info, cancelRequested)) {
+                                                addMethods(e, set, info, idx);
+                                            }
+                                        }
+                                        set.addAll(idx.getResources(enclosingType, EnumSet.of(ClassIndex.SearchKind.METHOD_REFERENCES),EnumSet.of(ClassIndex.SearchScope.SOURCE))); //?????
                                     }
-                                    set.addAll(idx.getResources(enclosingType, EnumSet.of(ClassIndex.SearchKind.METHOD_REFERENCES),EnumSet.of(ClassIndex.SearchScope.SOURCE))); //?????
                                 }
                             }
                         }

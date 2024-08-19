@@ -450,13 +450,12 @@ public class InstantRenamePerformer implements DocumentListener, KeyListener {
             if(isProperty) {
                 return false;
             }
-            boolean isRecordComponent = e.getEnclosingElement().getKind() == ElementKind.RECORD;
-            if (isRecordComponent) {
-                return false;
-            }
         }
         if (org.netbeans.modules.java.editor.base.semantic.Utilities.isPrivateElement(e)) {
             return true;
+        }
+        if (info.getElementUtilities().getLinkedRecordElements(e).size() > 1) {
+            return false;
         }
         
         if (isInaccessibleOutsideOuterClass(e, eu)) {

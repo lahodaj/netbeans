@@ -451,11 +451,11 @@ public class InstantRenamePerformer implements DocumentListener, KeyListener {
                 return false;
             }
         }
-        if (org.netbeans.modules.java.editor.base.semantic.Utilities.isPrivateElement(e)) {
-            return true;
-        }
         if (info.getElementUtilities().getLinkedRecordElements(e).size() > 1) {
             return false;
+        }
+        if (org.netbeans.modules.java.editor.base.semantic.Utilities.isPrivateElement(e)) {
+            return true;
         }
         
         if (isInaccessibleOutsideOuterClass(e, eu)) {

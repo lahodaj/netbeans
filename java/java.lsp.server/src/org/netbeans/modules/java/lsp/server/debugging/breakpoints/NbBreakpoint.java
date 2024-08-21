@@ -98,6 +98,10 @@ public final class NbBreakpoint {
         return line;
     }
 
+    public Integer getColumn() {
+        return column;
+    }
+
     public int getHitCount() {
         return hitCount;
     }

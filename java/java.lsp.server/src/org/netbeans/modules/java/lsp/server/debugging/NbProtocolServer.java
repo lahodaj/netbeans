@@ -20,6 +20,7 @@ package org.netbeans.modules.java.lsp.server.debugging;
 
 import com.sun.jdi.AbsentInformationException;
 import com.sun.source.tree.LambdaExpressionTree;
+import com.sun.source.tree.Tree;
 import com.sun.source.util.TreePathScanner;
 import java.io.File;
 import java.io.IOException;
@@ -31,9 +32,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.logging.Level;
@@ -642,14 +645,46 @@ public final class NbProtocolServer implements IDebugProtocolServer, LspSession.
                 cc.toPhase(JavaSource.Phase.PARSED);
                 //TODO: span only!
                 new TreePathScanner<Void, Void>() {
+                    private final Set<Integer> seenCodeOnLine = new HashSet<>();
+                    private final Set<Integer> addedLine = new HashSet<>();
+                    private boolean inLambda;
+                    public Void scan(Tree tree, Void v) {
+                        if (tree != null && !inLambda && tree.getKind() != Tree.Kind.COMPILATION_UNIT) {
+                            int startPos = (int) cc.getTrees().getSourcePositions().getStartPosition(getCurrentPath().getCompilationUnit(), tree);
+                            if (startPos != (-1)) {
+                                Position pos = Utils.createPosition(cc.getCompilationUnit().getLineMap(), startPos);
+
+                                seenCodeOnLine.add(pos.getLine());
+                            }
+                        }
+                        return super.scan(tree, v);
+                    }
                     public Void visitLambdaExpression(LambdaExpressionTree tree, Void v) {
                         int startPos = (int) cc.getTrees().getSourcePositions().getStartPosition(getCurrentPath().getCompilationUnit(), tree);
                         Position pos = Utils.createPosition(cc.getCompilationUnit().getLineMap(), startPos);
+                        int line = pos.getLine();
+
+                        if (seenCodeOnLine.contains(line) && !addedLine.contains(line)) {
+                            BreakpointLocation l = new BreakpointLocation();
+
+                            l.setLine(line + 1); //XXX: +1 may need to be configuration
+                            l.setColumn(null);
+                            locations.add(l);
+                            addedLine.add(line);
+                        }
+
                         BreakpointLocation l = new BreakpointLocation();
-                        l.setLine(pos.getLine() + 1); //XXX: +1 may need to be configuration
+                        l.setLine(line + 1); //XXX: +1 may need to be configuration
                         l.setColumn(pos.getCharacter() + 1); //dtto
                         locations.add(l);
-                        return super.visitLambdaExpression(tree, v);
+
+                        boolean wasInLambda = inLambda;
+                        try {
+                            inLambda = true;
+                            return super.visitLambdaExpression(tree, v);
+                        } finally {
+                            inLambda = wasInLambda;
+                        }
                     }
                 }.scan(cc.getCompilationUnit(), null);
             }, true);

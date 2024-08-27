@@ -23,6 +23,7 @@ import java.awt.Font;
 import java.awt.font.TextLayout;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.ImageIcon;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.text.AttributeSet;
@@ -257,7 +258,7 @@ public final class HighlightsViewFactory extends EditorViewFactory implements Hi
     private @NonNull EditorView wrapWithPrependedText(@NonNull EditorView origView, @NullAllowed AttributeSet attrs) {
         boolean inlineHints = documentView().op.isInlineHintsEnable();
 
-        if (attrs != null && inlineHints && attrs.getAttribute(ViewUtils.KEY_VIRTUAL_TEXT_PREPEND) instanceof String) {
+        if (attrs != null && ((inlineHints && attrs.getAttribute(ViewUtils.KEY_VIRTUAL_TEXT_PREPEND) instanceof String) || attrs.getAttribute(ViewUtils.KEY_VIRTUAL_INLINE_ICON) instanceof ImageIcon)) {
             return new PrependedTextView(documentView().op, attrs, origView);
         }
 

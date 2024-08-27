@@ -45,6 +45,7 @@ import org.netbeans.modules.editor.lib2.highlighting.CompoundAttributes;
 public final class ViewUtils {
 
     public static final String KEY_VIRTUAL_TEXT_PREPEND = "virtual-text-prepend"; //NOI18N
+    public static final String KEY_VIRTUAL_INLINE_ICON = "virtual-inline-icon"; //NOI18N
 
     private ViewUtils() { // No instances
     }

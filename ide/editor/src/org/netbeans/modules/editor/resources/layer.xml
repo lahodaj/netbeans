@@ -339,6 +339,7 @@
             <folder name="NetBeans">
                 <file name="DTD_annotation_type_1_0" url="nbres:/org/netbeans/modules/editor/resources/AnnotationTypes/annotation-type-1_0.dtd"/>
                 <file name="DTD_annotation_type_1_1" url="nbres:/org/netbeans/modules/editor/resources/AnnotationTypes/annotation-type-1_1.dtd"/>
+                <file name="DTD_annotation_type_1_2" url="nbres:/org/netbeans/modules/editor/resources/AnnotationTypes/annotation-type-1_2.dtd"/>
             </folder>    
         </folder>
         <folder name="lookups">
@@ -347,6 +348,9 @@
                     <attr name="instanceClass" stringvalue="org.netbeans.modules.editor.options.AnnotationTypeProcessor"/>
                </file>
                <file name="DTD_annotation_type_1_1.instance">
+                    <attr name="instanceClass" stringvalue="org.netbeans.modules.editor.options.AnnotationTypeProcessor"/>
+               </file>
+               <file name="DTD_annotation_type_1_2.instance">
                     <attr name="instanceClass" stringvalue="org.netbeans.modules.editor.options.AnnotationTypeProcessor"/>
                </file>
             </folder>    

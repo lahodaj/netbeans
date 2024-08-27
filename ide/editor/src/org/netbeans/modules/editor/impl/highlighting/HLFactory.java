@@ -61,7 +61,7 @@ public final class HLFactory implements HighlightsLayerFactory {
         layers.add(HighlightsLayer.create(
             AnnotationsHighlighting.LAYER_TYPE_ID,
             ZOrder.DEFAULT_RACK,
-            true,  // fixedSize
+            false,
             new AnnotationsHighlighting(d)
         ));
 

@@ -206,12 +206,17 @@ public class BreakpointAnnotationProvider implements AnnotationProvider {
                                             boolean active) {
         boolean isInvalid = b.getValidity() == VALIDITY.INVALID;
         String annotationType;
-        if (b instanceof LineBreakpoint) {
-            annotationType = b.isEnabled () ?
-            (isConditional ? EditorContext.CONDITIONAL_BREAKPOINT_ANNOTATION_TYPE :
-                             EditorContext.BREAKPOINT_ANNOTATION_TYPE) :
-            (isConditional ? EditorContext.DISABLED_CONDITIONAL_BREAKPOINT_ANNOTATION_TYPE :
-                             EditorContext.DISABLED_BREAKPOINT_ANNOTATION_TYPE);
+        if (b instanceof LineBreakpoint lb) {
+            if (lb.getLambdaIndex() >= 0) {
+                annotationType = b.isEnabled() ? "LambdaBreakpoint"
+                                               : "DisabledLambdaBreakpoint";
+            } else {
+                annotationType = b.isEnabled () ?
+                (isConditional ? EditorContext.CONDITIONAL_BREAKPOINT_ANNOTATION_TYPE :
+                                 EditorContext.BREAKPOINT_ANNOTATION_TYPE) :
+                (isConditional ? EditorContext.DISABLED_CONDITIONAL_BREAKPOINT_ANNOTATION_TYPE :
+                                 EditorContext.DISABLED_BREAKPOINT_ANNOTATION_TYPE);
+            }
         } else if (b instanceof FieldBreakpoint) {
             annotationType = b.isEnabled () ?
                 EditorContext.FIELD_BREAKPOINT_ANNOTATION_TYPE :
@@ -418,7 +423,7 @@ public class BreakpointAnnotationProvider implements AnnotationProvider {
             }
             try {
                 Line line = lc.getLineSet().getCurrent(l - 1);
-                DebuggerBreakpointAnnotation annotation = new DebuggerBreakpointAnnotation (annotationType, line, b);
+                DebuggerBreakpointAnnotation annotation = new DebuggerBreakpointAnnotation (annotationType, line, null, b);
                 annotations.add(annotation);
             } catch (IndexOutOfBoundsException e) {
             } catch (IllegalArgumentException e) {

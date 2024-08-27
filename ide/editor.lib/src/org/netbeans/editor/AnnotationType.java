@@ -96,6 +96,8 @@ public class AnnotationType {
     
     public static final String PROP_PRIORITY = "priority"; // NOI18N
 
+    public static final String PROP_INLINE = "inline"; // NOI18N
+
     /** Property name for Combinations (AnnotationType.CombinationMember[]). 
      * If some annotation type has set this property, it means that editor
      * must check if line contains all types which are defined in this array.
@@ -551,6 +553,14 @@ public class AnnotationType {
 
     public void setBrowseable(boolean browseable) {
         putProp(PROP_BROWSEABLE, Boolean.valueOf(browseable));
+    }
+
+    public boolean isInline() {
+        return ((Boolean)getProp(PROP_INLINE)).booleanValue();
+    }
+
+    public void setInline(boolean inline) {
+        putProp(PROP_INLINE, Boolean.valueOf(inline));
     }
 
     /** Gets property for appropriate string value */

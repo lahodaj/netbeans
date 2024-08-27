@@ -22,10 +22,13 @@ package org.netbeans.modules.editor.lib2.view;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.font.TextLayout;
 import java.awt.geom.Rectangle2D;
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.Position;
 import javax.swing.text.Position.Bias;
@@ -38,28 +41,45 @@ public final class PrependedTextView extends EditorView {
     private final AttributeSet attributes;
     private final EditorView delegate;
     private final TextLayout prependedTextLayout;
+    private final ImageIcon inlineIcon;
     private final double prependedTextWidth;
+    private final double inlineIconWidth;
+    private final double inlineIconHeighOffset;
 
     public PrependedTextView(DocumentViewOp op, AttributeSet attributes, EditorView delegate) {
         super(null);
         this.attributes = attributes;
         this.delegate = delegate;
         Font font = ViewUtils.getFont(attributes, op.getDefaultHintFont());
-        prependedTextLayout = op.createTextLayout((String) attributes.getAttribute(ViewUtils.KEY_VIRTUAL_TEXT_PREPEND), font);
-        // Advance represents the width of the full string, including leading
-        // and trailing spaces
-        float width = prependedTextLayout.getAdvance();
-        // The prependTextWidth is rounded to full char widths, so that layout
-        // is not destroyed too much
-        double em = op.getDefaultCharWidth();
-        prependedTextWidth = Math.ceil(width / em) * em;
+        if (attributes.getAttribute(ViewUtils.KEY_VIRTUAL_TEXT_PREPEND) instanceof String prependText) {
+            prependedTextLayout = op.createTextLayout(prependText, font);
+            // Advance represents the width of the full string, including leading
+            // and trailing spaces
+            float width = prependedTextLayout.getAdvance();
+            // The prependTextWidth is rounded to full char widths, so that layout
+            // is not destroyed too much
+            double em = op.getDefaultCharWidth();
+            prependedTextWidth = Math.ceil(width / em) * em;
+        } else {
+            prependedTextLayout = null;
+            prependedTextWidth = 0;
+        }
+        if (attributes.getAttribute(ViewUtils.KEY_VIRTUAL_INLINE_ICON) instanceof ImageIcon icon) {
+            inlineIcon = icon;
+            inlineIconWidth = inlineIcon.getIconWidth();
+            inlineIconHeighOffset = (op.getDefaultRowHeight() - inlineIcon.getIconHeight()) / 2;
+        } else {
+            inlineIcon = null;
+            inlineIconWidth = 0;
+            inlineIconHeighOffset = 0;
+        }
     }
 
     @Override
     public float getPreferredSpan(int axis) {
         float superSpan = delegate.getPreferredSpan(axis);
         if (axis == View.X_AXIS) {
-            superSpan += prependedTextWidth;
+            superSpan += prependedTextWidth + inlineIconWidth;
         }
         return superSpan;
     }
@@ -73,16 +93,17 @@ public final class PrependedTextView extends EditorView {
     public Shape modelToViewChecked(int offset, Shape alloc, Bias bias) {
         Shape res = delegate.modelToViewChecked(offset, alloc, bias);
         Rectangle2D rect = ViewUtils.shapeAsRect(res);
-        rect.setRect(rect.getX() + prependedTextWidth, rect.getY(), rect.getWidth(), rect.getHeight());
+        rect.setRect(rect.getX() + prependedTextWidth + inlineIconWidth, rect.getY(), rect.getWidth(), rect.getHeight());
         return rect;
     }
 
     @Override
     public void paint(Graphics2D g, Shape hViewAlloc, Rectangle clipBounds) {
         Rectangle2D span = ViewUtils.shapeAsRect(hViewAlloc);
-        span.setRect(span.getX() + prependedTextWidth, span.getY(), span.getWidth() - prependedTextWidth, span.getHeight());
+        span.setRect(span.getX() + prependedTextWidth + inlineIconWidth, span.getY(), span.getWidth() - prependedTextWidth - inlineIconWidth, span.getHeight());
         delegate.paint(g, span, clipBounds);
-        span.setRect(span.getX() - prependedTextWidth, span.getY(), prependedTextWidth, span.getHeight());
+
+        span.setRect(span.getX() - prependedTextWidth - inlineIconWidth, span.getY(), prependedTextWidth + inlineIconWidth, span.getHeight());
 
         HighlightsSequence highlights = getDocumentView().getPaintHighlights(this, 0);
 
@@ -92,9 +113,14 @@ public final class PrependedTextView extends EditorView {
             HighlightsViewUtils.paintBackgroundHighlights(g, span, attrs, getDocumentView()); //TODO: clear some attributes (like boxes)???
         }
 
-        g.setColor(Color.gray);
-        span.setRect(span.getX(), span.getY(), prependedTextWidth, span.getHeight());
-        HighlightsViewUtils.paintTextLayout(g, span, prependedTextLayout, getDocumentView());
+        if (prependedTextLayout != null) {
+            g.setColor(Color.gray);
+            span.setRect(span.getX(), span.getY(), prependedTextWidth, span.getHeight());
+            HighlightsViewUtils.paintTextLayout(g, span, prependedTextLayout, getDocumentView());
+        }
+        if (inlineIcon != null) {
+            g.drawImage(inlineIcon.getImage(), (int) (span.getX() + prependedTextWidth), (int) (span.getY() + inlineIconHeighOffset), inlineIcon.getIconWidth(), inlineIcon.getIconHeight(), null);
+        }
     }
 
     ParagraphView getParagraphView() {

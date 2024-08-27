@@ -238,7 +238,7 @@ public class EditorContextImpl extends EditorContext {
         }
         Annotation annotation;
         if (timeStamp instanceof Breakpoint) {
-            annotation = new DebuggerBreakpointAnnotation(annotationType, l, (Breakpoint) timeStamp);
+            annotation = new DebuggerBreakpointAnnotation(annotationType, l, null, (Breakpoint) timeStamp);
         } else {
             annotation = new DebuggerAnnotation (annotationType, l, thread);
         }

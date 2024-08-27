@@ -95,7 +95,7 @@ public class LineBreakpoint extends JPDABreakpoint {
     private String                      className = null;
     private Map<JPDADebugger,ObjectVariable[]> instanceFilters;
     private Map<JPDADebugger,JPDAThread[]> threadFilters;
-    private int                         lambdaIndex = Integer.MIN_VALUE;
+    private int                         lambdaIndex = -1; //line breakpoint by default
 
     
     private LineBreakpoint (String url) {
@@ -445,7 +445,7 @@ public class LineBreakpoint extends JPDABreakpoint {
         if (fileName == null) {
             fileName = url;
         }
-        return "LineBreakpoint " + fileName + " : " + lineNumber;
+        return "LineBreakpoint " + fileName + " : " + lineNumber + (lambdaIndex >= 0 ? " lambda index: " + lambdaIndex : "");
     }
     
     private static class LineBreakpointImpl extends LineBreakpoint 

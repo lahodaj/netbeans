@@ -25,6 +25,7 @@ import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.ImageIcon;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.Document;
 import javax.swing.text.Element;
@@ -38,6 +39,7 @@ import org.netbeans.editor.AnnotationType;
 import org.netbeans.editor.Annotations;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
+import org.netbeans.modules.editor.lib2.view.ViewUtils;
 import org.netbeans.spi.editor.highlighting.HighlightsChangeEvent;
 import org.netbeans.spi.editor.highlighting.HighlightsChangeListener;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
@@ -234,6 +236,10 @@ public final class AnnotationsHighlighting extends AbstractHighlightsContainer i
                         l.add(Boolean.valueOf(annotationType.isWholeLine()));
                         l.add(HighlightsContainer.ATTR_EXTENDS_EOL);
                         l.add(Boolean.valueOf(annotationType.isWholeLine()));
+                    }
+                    if (annotationType.isInline()) {
+                        l.add(ViewUtils.KEY_VIRTUAL_INLINE_ICON);
+                        l.add(new ImageIcon(annotationType.getGlyphImage()));
                     }
 
                     attrs = AttributesUtilities.createImmutable(l.toArray());

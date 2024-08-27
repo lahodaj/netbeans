@@ -50,6 +50,8 @@ public class AnnotationTypeProcessor implements XMLDataObject.Processor, Instanc
     static final String DTD_SYSTEM_ID = "http://www.netbeans.org/dtds/annotation-type-1_0.dtd"; // NOI18N
     static final String DTD_PUBLIC_ID11 = "-//NetBeans//DTD annotation type 1.1//EN"; // NOI18N
     static final String DTD_SYSTEM_ID11 = "http://www.netbeans.org/dtds/annotation-type-1_1.dtd"; // NOI18N
+    static final String DTD_PUBLIC_ID12 = "-//NetBeans//DTD annotation type 1.2//EN"; // NOI18N
+    static final String DTD_SYSTEM_ID12 = "http://www.netbeans.org/dtds/annotation-type-1_2.dtd"; // NOI18N
     
     static final String TAG_TYPE = "type"; //NOI18N
     static final String ATTR_TYPE_NAME = "name"; // NOI18N
@@ -80,6 +82,7 @@ public class AnnotationTypeProcessor implements XMLDataObject.Processor, Instanc
     static final String ATTR_CUSTOM_SIDEBAR_COLOR = "custom_sidebar_color"; //NOI18N
     static final String ATTR_SEVERITY = "severity"; //NOI18N
     static final String ATTR_BROWSEABLE = "browseable"; //NOI18N
+    static final String ATTR_INLINE = "inline"; //NOI18N
     static final String ATTR_PRIORITY = "priority"; //NOI18N
     
     private static final Logger LOG = Logger.getLogger(AnnotationTypeProcessor.class.getName());
@@ -98,6 +101,7 @@ public class AnnotationTypeProcessor implements XMLDataObject.Processor, Instanc
      * @param xmlDO XMLDataObject
      */
     public void attachTo(XMLDataObject xmlDO) {
+        System.err.println("attach: " + xmlDO);
         xmlDataObject = xmlDO.getPrimaryFile();
     }
 
@@ -266,6 +270,7 @@ public class AnnotationTypeProcessor implements XMLDataObject.Processor, Instanc
                     //extended properties:
                     at.setSeverity(AnnotationType.Severity.valueOf(amap.getValue(ATTR_SEVERITY)));
                     at.setBrowseable(Boolean.valueOf(amap.getValue(ATTR_BROWSEABLE)).booleanValue());
+                    at.setInline(Boolean.valueOf(amap.getValue(ATTR_INLINE)).booleanValue());
                     
                     String priorityString = amap.getValue(ATTR_PRIORITY);
                     int priority = 0;
@@ -333,6 +338,9 @@ public class AnnotationTypeProcessor implements XMLDataObject.Processor, Instanc
             if (DTD_PUBLIC_ID11.equals(pid)) {
                 return new InputSource(new ByteArrayInputStream(new byte[0]));
             }            
+            if (DTD_PUBLIC_ID12.equals(pid)) {
+                return new InputSource(new ByteArrayInputStream(new byte[0]));
+            }
             return new InputSource (sid);            
         }
 

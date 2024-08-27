@@ -19,16 +19,25 @@
 
 package org.netbeans.modules.debugger.jpda.projectsui;
 
+import com.sun.source.tree.LambdaExpressionTree;
+import com.sun.source.tree.LineMap;
+import com.sun.source.util.TreePathScanner;
+import java.io.IOException;
+import java.net.URL;
 import java.util.LinkedList;
 import java.util.List;
 import org.netbeans.api.debugger.Breakpoint;
 import org.netbeans.api.debugger.Breakpoint.HIT_COUNT_FILTERING_STYLE;
-import org.netbeans.api.debugger.jpda.JPDABreakpoint;
+import org.netbeans.api.debugger.jpda.LineBreakpoint;
+import org.netbeans.api.java.source.JavaSource;
 import org.netbeans.spi.debugger.jpda.EditorContext;
 import org.netbeans.spi.debugger.ui.BreakpointAnnotation;
 
 import org.openide.ErrorManager;
+import org.openide.filesystems.FileObject;
+import org.openide.filesystems.URLMapper;
 import org.openide.text.Line;
+import org.openide.text.Line.Part;
 import org.openide.util.NbBundle;
 
 
@@ -45,12 +54,55 @@ public class DebuggerBreakpointAnnotation extends BreakpointAnnotation {
 
 
     DebuggerBreakpointAnnotation (String type, Line line, Breakpoint breakpoint) {
+        this(type, line, null, breakpoint);
+    }
+
+    DebuggerBreakpointAnnotation (String type, Line line, Part part, Breakpoint breakpoint) {
         this.type = type;
         this.line = line;
         this.breakpoint = breakpoint;
-        attach (line);
+        if (breakpoint instanceof LineBreakpoint lb && lb.getLambdaIndex() >= 0) {
+            part = getLambdaSpan(line, lb);
+        }
+        attach (part != null ? part : line);
     }
     
+    private Part getLambdaSpan(Line line, LineBreakpoint lb) {
+        Part[] result = new Part[1];
+        //TODO: performance!!
+        try {
+            FileObject file = URLMapper.findFileObject(new URL(lb.getURL()));
+            JavaSource js = JavaSource.forFileObject(file);
+            js.runUserActionTask(cc -> {
+                cc.toPhase(JavaSource.Phase.PARSED);
+                //TODO: span only!
+                new TreePathScanner<Void, Void>() {
+                    int idx = 0;
+                    public Void visitLambdaExpression(LambdaExpressionTree tree, Void v) {
+                        long startPos = cc.getTrees().getSourcePositions().getStartPosition(getCurrentPath().getCompilationUnit(), tree);
+                        LineMap lm = cc.getCompilationUnit().getLineMap();
+                        int startLine = (int) lm.getLineNumber(startPos) - 1;
+                        if (startLine == line.getLineNumber()) {
+                            if (idx == lb.getLambdaIndex()) {
+                                long endPos = cc.getTrees().getSourcePositions().getEndPosition(getCurrentPath().getCompilationUnit(), tree);
+                                int startColumn = (int) lm.getColumnNumber(startPos) - 1;
+                                int endColumn = (int) lm.getColumnNumber(endPos) - 1;
+                                result[0] = line.createPart(startColumn, endColumn - startColumn);
+                            }
+                            idx++;
+                        }
+                        return super.visitLambdaExpression(tree, v);
+                    }
+                }.scan(cc.getCompilationUnit(), null);
+            }, true);
+            return result[0];
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+
+        return null;
+    }
+
     @Override
     public String getAnnotationType () {
         return type;

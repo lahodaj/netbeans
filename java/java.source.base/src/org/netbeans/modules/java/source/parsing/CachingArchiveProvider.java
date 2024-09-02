@@ -71,7 +71,7 @@ public final class CachingArchiveProvider {
      *
      */
     //@GuardedBy("this")
-    private final Map<URI,Archive> archives;
+    private final Map<String, Archive> archives;
     //@GuardedBy("this")
     private final Map<URI,URI> ctSymToJar;
 
@@ -105,23 +105,24 @@ public final class CachingArchiveProvider {
      */
     @CheckForNull
     public Archive getArchive(@NonNull final URL root, final boolean cacheFile)  {
-        final URI rootURI = toURI(root);
+        String rootKey = rootKey(root);
         Archive archive;
 
         synchronized (this) {
-            archive = archives.get(rootURI);
+            archive = archives.get(rootKey);
         }
         if (archive == null) {
+            final URI rootURI = toURI(root);
             final Pair<Archive,URI> becomesArchive = create(Pair.of(root, rootURI), cacheFile);
             archive = becomesArchive.first();
             URI uriToCtSym = becomesArchive.second();
             if (archive != null) {
                 synchronized (this) {
                     // optimize for no collision
-                    Archive oldArchive = archives.put(rootURI, archive);
+                    Archive oldArchive = archives.put(rootKey, archive);
                     if (oldArchive != null) {
                         archive = oldArchive;
-                        archives.put(rootURI, archive);
+                        archives.put(rootKey, archive);
                     } else if (uriToCtSym != null) {
                         ctSymToJar.put(uriToCtSym, rootURI);
                     }
@@ -137,7 +138,7 @@ public final class CachingArchiveProvider {
      */
     public synchronized void removeArchive (@NonNull final URL root) {
         final URI rootURI = toURI(root);
-        final Archive archive = archives.remove(rootURI);
+        final Archive archive = archives.remove(rootKey(root));
         for (Iterator<Map.Entry<URI,URI>> it = ctSymToJar.entrySet().iterator(); it.hasNext();) {
             final Map.Entry<URI,URI> e = it.next();
             if (e.getValue().equals(rootURI)) {
@@ -156,7 +157,7 @@ public final class CachingArchiveProvider {
      * @see Archive#clear()
      */
     public synchronized void clearArchive (@NonNull final URL root) {
-        Archive archive = archives.get(toURI(root));
+        Archive archive = archives.get(rootKey(root));
         if (archive != null) {
             archive.clear();
         }
@@ -337,6 +338,11 @@ public final class CachingArchiveProvider {
         } catch (URISyntaxException ex) {
             throw new IllegalArgumentException(ex);
         }
+    }
+
+    @NonNull
+    private static String rootKey(@NonNull final URL url) {
+        return url.toString();
     }
 
     @NonNull

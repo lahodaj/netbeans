@@ -22,8 +22,11 @@ import org.netbeans.modules.cloud.oracle.steps.SuggestedStep;
 import org.netbeans.modules.cloud.oracle.steps.CompartmentStep;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 import org.netbeans.modules.cloud.oracle.actions.AddADBAction;
+import org.netbeans.modules.cloud.oracle.actions.OCIItemCreator;
 import org.netbeans.modules.cloud.oracle.steps.DatabaseConnectionStep;
 import org.netbeans.modules.cloud.oracle.steps.TenancyStep;
 import org.netbeans.modules.cloud.oracle.database.DatabaseItem;
@@ -32,7 +35,6 @@ import org.openide.awt.ActionID;
 import org.openide.awt.ActionRegistration;
 import org.openide.util.Lookup;
 import org.openide.util.NbBundle;
-import org.openide.util.RequestProcessor;
 import org.openide.util.lookup.Lookups;
 
 /**
@@ -87,9 +89,20 @@ public class AddSuggestedItemAction implements ActionListener {
         Lookup lookup = Lookups.fixed(nsProvider);
         Steps.getDefault().executeMultistep(new TenancyStep(), lookup)
                 .thenAccept(values -> {
-                    OCIItem item = values.getValueForStep(SuggestedStep.class);
-                    CloudAssets.getDefault().addItem(item);
+                    if (values.getValueForStep(SuggestedStep.class) instanceof CreateNewResourceItem) {
+                        OCIItemCreator creator = OCIItemCreator.getCreator(context.getPath());
+                        if (creator != null) {
+                            CompletableFuture<Map<String, Object>> vals = creator.steps();
+                            vals.thenCompose(params -> {
+                                return creator.create(values, params);
+                            }).thenAccept(i -> {
+                                CloudAssets.getDefault().addItem(i);
+                            });
+                        }
+                    } else {
+                        OCIItem item = values.getValueForStep(SuggestedStep.class);
+                        CloudAssets.getDefault().addItem(item);
+                    }
                 });
     }
-
 }

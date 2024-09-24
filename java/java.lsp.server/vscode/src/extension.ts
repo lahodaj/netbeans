@@ -280,6 +280,10 @@ function wrapCommandWithProgress(lsCommand : string, title : string, log? : vsco
     return window.withProgress({ location: ProgressLocation.Window }, p => {
         return new Promise(async (resolve, reject) => {
             let c : LanguageClient = await client;
+            const docsTosave : Thenable<boolean>[]= vscode.workspace.textDocuments.
+                filter(d => fs.existsSync(d.uri.fsPath)).
+                map(d => d.save());
+            await Promise.all(docsTosave);
             const commands = await vscode.commands.getCommands();
             if (commands.includes(lsCommand)) {
                 p.report({ message: title });
@@ -309,6 +313,7 @@ function wrapCommandWithProgress(lsCommand : string, title : string, log? : vsco
                     if (log) {
                         handleLog(log, `command ${lsCommand} executed with error: ${JSON.stringify(err)}`);
                     }
+                    reject(err && typeof err.message === 'string' ? err.message : "Error");
                 }
             } else {
                 reject(`cannot run ${lsCommand}; client is ${c}`);
@@ -374,6 +379,14 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
     const providerRegistration = vscode.workspace.registerTextDocumentContentProvider(scheme, provider);
 
     context.subscriptions.push(vscode.commands.registerCommand('cloud.assets.policy.create', async function (viewItem) {
+            const POLICIES_PREVIEW = 'Open a preview of the OCI policies';
+            const POLICIES_UPLOAD = 'Upload the OCI Policies to OCI';
+            const selected: any = await window.showQuickPick([POLICIES_PREVIEW, POLICIES_UPLOAD], { placeHolder: 'Select a target for the OCI policies' });
+            if (selected == POLICIES_UPLOAD) {
+                await vscode.commands.executeCommand('nbls.cloud.assets.policy.upload');
+                return;
+            } 
+
             const content = await vscode.commands.executeCommand('nbls.cloud.assets.policy.create.local') as string;
             const document = vscode.Uri.parse(`${scheme}:policies.txt?${encodeURIComponent(content)}`);
             vscode.workspace.openTextDocument(document).then(doc => {
@@ -618,6 +631,9 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
     }));
     context.subscriptions.push(commands.registerCommand(COMMAND_PREFIX + '.project.clean', (args) => {
         wrapProjectActionWithProgress('clean', undefined, 'Cleaning...', log, true, args);
+    }));
+    context.subscriptions.push(commands.registerCommand(COMMAND_PREFIX + '.project.buildPushImage', () => {
+        wrapCommandWithProgress(COMMAND_PREFIX + '.cloud.assets.buildPushImage', 'Building and pushing container image', log, true);
     }));
     context.subscriptions.push(commands.registerCommand(COMMAND_PREFIX + '.open.type', () => {
         wrapCommandWithProgress(COMMAND_PREFIX + '.quick.open', 'Opening type...', log, true).then(() => {
@@ -864,15 +880,19 @@ export function activate(context: ExtensionContext): VSNetBeansAPI {
             const publicIp = getValueAfterPrefix(node.contextValue, 'publicIp:');
             const imageUrl = getValueAfterPrefix(node.contextValue, 'imageUrl:');
             const ocid = getValueAfterPrefix(node.contextValue, 'ocid:');
+            const isRepositoryPrivate = "false" === getValueAfterPrefix(node.parent.contextValue, "repositoryPublic:");
+            const registryUrl = imageUrl.split('/')[0];
 
             if (!shouldHideGuideFor(runImageGuide.viewType, ocid)){
                 runImageGuide.RunImageGuidePanel.createOrShow(context, {
                     publicIp,
-                    ocid
+                    ocid,
+                    isRepositoryPrivate,
+                    registryUrl
                 });
             }
 
-            runDockerSSH("opc", publicIp, imageUrl);
+            runDockerSSH("opc", publicIp, imageUrl, isRepositoryPrivate);
         }
     ));
 
@@ -951,6 +971,23 @@ function activateWithJDK(specifiedJDK: string | null, context: ExtensionContext,
     }
 }
 
+function runCommandInTerminal(command: string, name: string) {
+    const isWindows = process.platform === 'win32';
+
+    const defaultShell = isWindows
+      ? process.env.ComSpec || 'cmd.exe'
+      : process.env.SHELL || '/bin/bash';
+
+    const pauseCommand = 'echo "Press any key to close..."; node -e "process.stdin.setRawMode(true); process.stdin.resume(); process.stdin.on(\'data\', process.exit.bind(process, 0));"';
+    const commandWithPause = `${command} 2>&1; ${pauseCommand}`;
+    const terminal = vscode.window.createTerminal({
+      name: name,
+      shellPath: defaultShell,
+      shellArgs: isWindows ? ['/c', commandWithPause] : ['-c', commandWithPause],
+    });
+    terminal.show();
+}
+
 function openSSHSession(username: string, host: string, name?: string) {
     let sessionName;
     if (name === undefined) {
@@ -959,17 +996,56 @@ function openSSHSession(username: string, host: string, name?: string) {
         sessionName = name;
     }
 
-    const terminal = vscode.window.createTerminal(`SSH: ${username}@${host}`);
-    terminal.sendText(`ssh ${username}@${host}`);
-    terminal.show();
+    const sshCommand = `ssh ${username}@${host}`;
+
+    runCommandInTerminal(sshCommand, `SSH: ${username}@${host}`);
 }
 
-function runDockerSSH(username: string, host: string, dockerImage: string) {
-   const sshCommand = `ssh ${username}@${host} "docker pull ${dockerImage} && docker run -p 8080:8080 -it ${dockerImage}"`;
+interface ConfigFiles {
+    applicationProperties : string | null;
+    bootstrapProperties: string | null;
+}
 
-    const terminal = vscode.window.createTerminal('Remote Docker');
-    terminal.sendText(sshCommand);
-    terminal.show();
+async function runDockerSSH(username: string, host: string, dockerImage: string, isRepositoryPrivate: boolean) {
+    const configFiles: ConfigFiles = await vscode.commands.executeCommand('nbls.config.file.path') as ConfigFiles;
+    const { applicationProperties, bootstrapProperties } = configFiles;
+
+    const applicationPropertiesRemotePath = `/home/${username}/application.properties`;
+    const bootstrapPropertiesRemotePath = `/home/${username}/bootstrap.properties`;
+    const bearerTokenRemotePath = `/home/${username}/token.txt`;
+    const applicationPropertiesContainerPath = "/home/app/application.properties";
+    const bootstrapPropertiesContainerPath = "/home/app/bootstrap.properties";
+    const ocirServer = dockerImage.split('/')[0];
+
+    let sshCommand = "";
+    let mountVolume = "";
+    let micronautConfigFilesEnv = "";
+    if (isRepositoryPrivate) {
+        const bearerTokenFile = await commands.executeCommand(COMMAND_PREFIX + '.cloud.assets.createBearerToken', ocirServer);
+        sshCommand = `scp "${bearerTokenFile}" ${username}@${host}:${bearerTokenRemotePath} && `;
+    }
+
+    if (bootstrapProperties) {
+        sshCommand += `scp "${bootstrapProperties}" ${username}@${host}:${bootstrapPropertiesRemotePath} && `;
+        mountVolume = `-v ${bootstrapPropertiesRemotePath}:${bootstrapPropertiesContainerPath}:Z `;
+        micronautConfigFilesEnv = `${bootstrapPropertiesContainerPath}`;
+    }
+
+    if (applicationProperties) {
+        sshCommand += `scp "${applicationProperties}" ${username}@${host}:${applicationPropertiesRemotePath} && `;
+        mountVolume += ` -v ${applicationPropertiesRemotePath}:${applicationPropertiesContainerPath}:Z`;
+        micronautConfigFilesEnv += `${bootstrapProperties ? "," : ""}${applicationPropertiesContainerPath}`;
+    } 
+
+    let dockerPullCommand = "";
+    if (isRepositoryPrivate) {
+        dockerPullCommand = `cat ${bearerTokenRemotePath} | docker login --username=BEARER_TOKEN --password-stdin ${ocirServer} && `;
+    }
+    dockerPullCommand += `docker pull ${dockerImage} && `;
+
+    sshCommand += `ssh ${username}@${host} "${dockerPullCommand} docker run -p 8080:8080 ${mountVolume} -e MICRONAUT_CONFIG_FILES=${micronautConfigFilesEnv} -it ${dockerImage}"`;
+
+    runCommandInTerminal(sshCommand, `Container: ${username}@${host}`)
 }
 
 function killNbProcess(notifyKill : boolean, log : vscode.OutputChannel, specProcess?: ChildProcess) : Promise<void> {
@@ -1265,12 +1341,25 @@ function doActivateWithJDK(specifiedJDK: string | null, context: ExtensionContex
                 // don't ask why vscode mangles URIs this way; in addition, it uses lowercase drive letter ???
                 return `file:///${re[1].toLowerCase()}%3A/${re[2]}`;
             });
+            let ok = true;
             for (let ed of workspace.textDocuments) {
-                if (uriList.includes(ed.uri.toString())) {
-                    return ed.save();
+                let uri = ed.uri.toString();
+
+                if (uriList.includes(uri)) {
+                    ed.save();
+                    continue;
+                } 
+                if (uri.startsWith("file:///")) {
+                    // make file:/// just file:/
+                    uri = "file:/" + uri.substring(8);
+                    if (uriList.includes(uri)) {
+                        ed.save();
+                        continue;
+                    }
                 }
+                ok = false;
             }
-            return false;
+            return ok;
         });
         c.onRequest(InputBoxRequest.type, async param => {
             return await window.showInputBox({ title: param.title, prompt: param.prompt, value: param.value, password: param.password });
@@ -1410,6 +1499,11 @@ function doActivateWithJDK(specifiedJDK: string | null, context: ExtensionContex
                 }
                 return item;
             }
+            const lifecycleState: String = getValueAfterPrefix(item.contextValue, "lifecycleState:");
+            if (lifecycleState) {
+                item.description = lifecycleState === "PENDING_DELETION" ? '(pending deletion)' : undefined;
+            }
+
             return item;
         }
 

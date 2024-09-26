@@ -716,26 +716,30 @@ public final class WorkspaceServiceImpl implements WorkspaceService, LanguageCli
                 return (CompletableFuture<Object>)(CompletableFuture<?>)new ProjectInfoWorker(locations, projectStructure, recursive, actions).process();
             }
             case Server.JAVA_ENABLE_PREVIEW: {
-                String source = ((JsonPrimitive) params.getArguments().get(0)).getAsString();
-                String newSourceLevel = params.getArguments().size() > 1 ? ((JsonPrimitive) params.getArguments().get(1)).getAsString()
-                                                                         : null;
-                FileObject file;
-                try {
-                    file = URLMapper.findFileObject(new URL(source));
-                    if (file != null) {
-                        for (Factory factory : Lookup.getDefault().lookupAll(Factory.class)) {
-                            PreviewEnabler enabler = factory.enablerFor(file);
-                            if (enabler != null) {
-                                enabler.enablePreview(newSourceLevel);
-                                break;
+                CompletableFuture<Object> result = new CompletableFuture<>();
+                WORKER.post(() -> {
+                    try {
+                        String source = ((JsonPrimitive) params.getArguments().get(0)).getAsString();
+                        String newSourceLevel = params.getArguments().size() > 1 ? ((JsonPrimitive) params.getArguments().get(1)).getAsString()
+                                                                                 : null;
+                        FileObject file = Utils.fromUri(source);
+
+                        if (file != null) {
+                            for (Factory factory : Lookup.getDefault().lookupAll(Factory.class)) {
+                                PreviewEnabler enabler = factory.enablerFor(file);
+                                if (enabler != null) {
+                                    enabler.enablePreview(newSourceLevel);
+                                    break;
+                                }
                             }
                         }
+                        result.complete(true);
+                    } catch (Exception ex) {
+                        Exceptions.printStackTrace(ex);
+                        result.completeExceptionally(ex);
                     }
-                } catch (Exception ex) {
-                    Exceptions.printStackTrace(ex);
-                    return CompletableFuture.completedFuture(Collections.emptyList());
-                }
-                return CompletableFuture.completedFuture(true);
+                });
+                return result;
             }
             case Server.NBLS_DOCUMENT_SYMBOLS: {
                 List<DocumentSymbol> result = new ArrayList<>();

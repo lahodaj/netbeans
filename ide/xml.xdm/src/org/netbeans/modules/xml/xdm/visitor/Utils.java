@@ -28,6 +28,8 @@ import org.netbeans.editor.BaseDocument;
 import org.netbeans.editor.BaseKit;
 import org.netbeans.modules.xml.xdm.nodes.Document;
 import org.netbeans.modules.xml.xdm.nodes.XMLSyntaxParser;
+import org.netbeans.spi.lsp.modification.DocumentContentModifier;
+import org.openide.util.Lookup;
 import org.w3c.dom.NodeList;
 
 /**
@@ -85,7 +87,10 @@ public class Utils {
 	  
 	  final String s = newDocument.substring(offset, tailIndex + delta);
 	  final int length = tailIndex - offset;
-	  if (doc instanceof AbstractDocument) {
+          DocumentContentModifier modifier = Lookup.getDefault().lookup(DocumentContentModifier.class);
+          if (modifier != null) {
+              modifier.writeNewDocumentContent(doc, offset, length, s);
+          } else if (doc instanceof AbstractDocument) {
 		  ((AbstractDocument) doc).replace(offset, length, s, null);
 	  } else {
 		  if (length > 0) {

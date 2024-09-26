@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.text.Document;
 
 /**
@@ -60,6 +62,7 @@ public final class OpenedDocuments {
      */
     public void notifyOpened(String uri, Document doc) {
         openedDocuments.put(uri, doc);
+        doc.addDocumentListener(NO_MODIFICATIONS);
         synchronized (openedConsumers) {
             for (Consumer<String> c : openedConsumers) {
                 c.accept(uri);
@@ -71,7 +74,13 @@ public final class OpenedDocuments {
      * Notify that a document was closed.
      */
     public Document notifyClosed(String uri) {
-        return openedDocuments.remove(uri);
+        Document doc = openedDocuments.remove(uri);
+
+        if (doc != null) {
+            doc.removeDocumentListener(NO_MODIFICATIONS);
+        }
+
+        return doc;
     }
 
     /**
@@ -95,4 +104,39 @@ public final class OpenedDocuments {
             openedConsumers.remove(openedConsumer);
         }
     }
+
+    public static final ThreadLocal<Boolean> MODIFICATION_PERMITTED = new ThreadLocal<Boolean>() {
+        @Override
+        protected Boolean initialValue() {
+            return false;
+        }
+    };
+    private static final DocumentListener NO_MODIFICATIONS = new DocumentListener() {
+        @Override
+        public void insertUpdate(DocumentEvent e) {
+            checkModification();
+        }
+
+        @Override
+        public void removeUpdate(DocumentEvent e) {
+            checkModification();
+        }
+
+        @Override
+        public void changedUpdate(DocumentEvent e) {
+        }
+
+        private void checkModification() {
+            if (!MODIFICATION_PERMITTED.get()) {
+                IllegalStateException exc = new IllegalStateException("Illegal direct Document modification from: ");
+                for (StackTraceElement el : exc.getStackTrace()) {
+                    if ("loadFromStreamToKit".equals(el.getMethodName())) {
+                        //looks like a load or reload, ignore:
+                        return ;
+                    }
+                }
+                exc.printStackTrace();
+            }
+        }
+    };
 }

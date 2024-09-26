@@ -240,6 +240,7 @@ import org.netbeans.modules.refactoring.spi.Transaction;
 import org.netbeans.api.lsp.StructureElement;
 import org.netbeans.modules.editor.indent.api.Reformat;
 import org.netbeans.modules.java.lsp.server.URITranslator;
+import org.netbeans.modules.java.lsp.server.files.OpenedDocuments;
 import org.netbeans.modules.java.lsp.server.ui.AbstractJavaPlatformProviderOverride;
 import org.netbeans.modules.parsing.impl.SourceAccessor;
 import org.netbeans.spi.editor.hints.ErrorDescription;
@@ -1701,18 +1702,24 @@ public class TextDocumentServiceImpl implements TextDocumentService, LanguageCli
         Document rawDoc = server.getOpenedDocuments().getDocument(uri);
         if (rawDoc != null) {
             StyledDocument doc = (StyledDocument) rawDoc;
-            NbDocument.runAtomic(doc, () -> {
-                for (TextDocumentContentChangeEvent change : params.getContentChanges()) {
-                    try {
-                        int start = Utils.getOffset(doc, change.getRange().getStart());
-                        int end   = Utils.getOffset(doc, change.getRange().getEnd());
-                        doc.remove(start, end - start);
-                        doc.insertString(start, change.getText(), null);
-                    } catch (BadLocationException ex) {
-                        throw new IllegalStateException(ex);
+            boolean prevModificationPermitted = OpenedDocuments.MODIFICATION_PERMITTED.get();
+            try {
+                OpenedDocuments.MODIFICATION_PERMITTED.set(true);
+                NbDocument.runAtomic(doc, () -> {
+                    for (TextDocumentContentChangeEvent change : params.getContentChanges()) {
+                        try {
+                            int start = Utils.getOffset(doc, change.getRange().getStart());
+                            int end   = Utils.getOffset(doc, change.getRange().getEnd());
+                            doc.remove(start, end - start);
+                            doc.insertString(start, change.getText(), null);
+                        } catch (BadLocationException ex) {
+                            throw new IllegalStateException(ex);
+                        }
                     }
-                }
-            });
+                });
+            } finally {
+                OpenedDocuments.MODIFICATION_PERMITTED.set(prevModificationPermitted);
+            }
             for (String key : VALID_ERROR_KEYS) {
                 doc.putProperty("lsp-errors-valid-" + key, null);
             }

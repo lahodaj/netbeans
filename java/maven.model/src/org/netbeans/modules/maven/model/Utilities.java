@@ -47,6 +47,7 @@ import org.netbeans.modules.xml.xam.ComponentListener;
 import org.netbeans.modules.xml.xam.Model;
 import org.netbeans.modules.xml.xam.ModelSource;
 import org.netbeans.modules.xml.xam.dom.AbstractDocumentModel;
+import org.netbeans.spi.lsp.modification.DocumentSave;
 import org.openide.awt.StatusDisplayer;
 import org.openide.cookies.EditorCookie;
 import org.openide.cookies.SaveCookie;
@@ -255,12 +256,18 @@ public class Utilities {
                 //TODO report
             }
         } else {
-            SaveCookie save = dobj.getLookup().lookup(SaveCookie.class);
-            if (save != null) {
-                logger.log(Level.FINE, "saving changes in {0}", dobj);
-                save.save();
+            DocumentSave documentSave = Lookup.getDefault().lookup(DocumentSave.class);
+
+            if (documentSave != null) {
+                documentSave.saveDocument(dobj.getPrimaryFile());
             } else {
-                logger.log(Level.FINE, "no changes in {0} where modified={1}", new Object[] {dobj, dobj.isModified()});
+                SaveCookie save = dobj.getLookup().lookup(SaveCookie.class);
+                if (save != null) {
+                    logger.log(Level.FINE, "saving changes in {0}", dobj);
+                    save.save();
+                } else {
+                    logger.log(Level.FINE, "no changes in {0} where modified={1}", new Object[] {dobj, dobj.isModified()});
+                }
             }
         }
     }

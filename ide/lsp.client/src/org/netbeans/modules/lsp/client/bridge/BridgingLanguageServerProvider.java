@@ -23,7 +23,6 @@ import org.netbeans.modules.lsp.client.LanguageServerProviderAccessor;
 import org.netbeans.modules.lsp.client.spi.LanguageServerProvider;
 import org.openide.util.Lookup;
 
-@MimeRegistration(mimeType = "text/x-java", service = LanguageServerProvider.class)
 public class BridgingLanguageServerProvider implements LanguageServerProvider {
 
     private static final LanguageServerDescription GLOBAL =

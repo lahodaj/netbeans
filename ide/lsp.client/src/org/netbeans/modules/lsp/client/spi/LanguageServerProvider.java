@@ -20,6 +20,7 @@ package org.netbeans.modules.lsp.client.spi;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import org.eclipse.lsp4j.services.LanguageServer;
 import org.netbeans.api.annotations.common.CheckForNull;
 import org.netbeans.api.annotations.common.NonNull;
 import org.netbeans.api.annotations.common.NullAllowed;
@@ -57,18 +58,32 @@ public interface LanguageServerProvider {
          * @return an instance of LanguageServerDescription
          */
         public static @NonNull LanguageServerDescription create(@NonNull InputStream in, @NonNull OutputStream out, @NullAllowed Process process) {
-            return new LanguageServerDescription(in, out, process);
+            return new LanguageServerDescription(in, out, process, null);
+        }
+
+        /**XXX: internal only!!
+         * Create the description of a running language server.
+         *
+         * @param in the InputStream that should be used to communicate with the server
+         * @param out the OutputStream that should be used to communicate with the server
+         * @param process the process of the running language server, or null if none.
+         * @return an instance of LanguageServerDescription
+         */
+        public static @NonNull LanguageServerDescription create(@NonNull LanguageServer server) {
+            return new LanguageServerDescription(null, null, null, server);
         }
 
         private final InputStream in;
         private final OutputStream out;
         private final Process process;
+        private final LanguageServer server;
         private LSPBindings bindings;
 
-        private LanguageServerDescription(InputStream in, OutputStream out, Process process) {
+        private LanguageServerDescription(InputStream in, OutputStream out, Process process, LanguageServer server) {
             this.in = in;
             this.out = out;
             this.process = process;
+            this.server = server;
         }
 
         static {
@@ -86,6 +101,11 @@ public interface LanguageServerProvider {
                 @Override
                 public Process getProcess(LanguageServerDescription desc) {
                     return desc.process;
+                }
+
+                @Override
+                public LanguageServer getServer(LanguageServerDescription desc) {
+                    return desc.server;
                 }
 
                 @Override

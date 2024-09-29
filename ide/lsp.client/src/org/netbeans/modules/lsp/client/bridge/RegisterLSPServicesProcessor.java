@@ -53,7 +53,8 @@ public final class RegisterLSPServicesProcessor extends LayerGeneratingProcessor
             }
             LayerBuilder builder = layer(e);
             for (String mimeType : services.mimeTypes()) {
-                File f = builder.file("Editors/" + mimeType + "/register-lsp-services");
+                File f = builder.file("Editors/" + mimeType + "/org-netbeans-modules-lsp-client-bridge-BridgingLanguageServerProvider.instance");
+                f.stringvalue("instanceOf", "org.netbeans.modules.lsp.client.spi.LanguageServerProvider");
                 f.write();
             }
         }

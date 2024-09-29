@@ -176,7 +176,7 @@ public class CompletionProviderImpl implements CompletionProvider {
                         String leftLabel;
                         String rightLabel;
                         if (i.getLabelDetails() != null) {
-                            leftLabel = encode(i.getLabel() + i.getLabelDetails().getDetail());
+                            leftLabel = encode(i.getLabel() + (i.getLabelDetails().getDetail() != null ? i.getLabelDetails().getDetail() : ""));
                             rightLabel = encode(i.getLabelDetails().getDescription());
                         } else {
                             leftLabel = encode(i.getLabel());

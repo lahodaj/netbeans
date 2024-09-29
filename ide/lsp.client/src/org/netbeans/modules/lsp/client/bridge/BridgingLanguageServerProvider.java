@@ -19,13 +19,16 @@
 package org.netbeans.modules.lsp.client.bridge;
 
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
+import org.netbeans.modules.lsp.client.LanguageServerProviderAccessor;
 import org.netbeans.modules.lsp.client.spi.LanguageServerProvider;
 import org.openide.util.Lookup;
 
 @MimeRegistration(mimeType = "text/x-java", service = LanguageServerProvider.class)
 public class BridgingLanguageServerProvider implements LanguageServerProvider {
 
-    private static final LanguageServerDescription GLOBAL = LanguageServerDescription.create(new BridgingLanguageServer());
+    private static final LanguageServerDescription GLOBAL =
+            LanguageServerProviderAccessor.getINSTANCE()
+                                          .createLanguageServerDescription(new BridgingLanguageServer());
 
     @Override
     public LanguageServerDescription startServer(Lookup lookup) {

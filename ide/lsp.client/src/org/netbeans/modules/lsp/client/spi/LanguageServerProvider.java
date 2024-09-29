@@ -61,15 +61,7 @@ public interface LanguageServerProvider {
             return new LanguageServerDescription(in, out, process, null);
         }
 
-        /**XXX: internal only!!
-         * Create the description of a running language server.
-         *
-         * @param in the InputStream that should be used to communicate with the server
-         * @param out the OutputStream that should be used to communicate with the server
-         * @param process the process of the running language server, or null if none.
-         * @return an instance of LanguageServerDescription
-         */
-        public static @NonNull LanguageServerDescription create(@NonNull LanguageServer server) {
+        static @NonNull LanguageServerDescription create(@NonNull LanguageServer server) {
             return new LanguageServerDescription(null, null, null, server);
         }
 
@@ -116,6 +108,11 @@ public interface LanguageServerProvider {
                 @Override
                 public void setBindings(LanguageServerDescription desc, LSPBindings bindings) {
                     desc.bindings = bindings;
+                }
+
+                @Override
+                public LanguageServerDescription createLanguageServerDescription(LanguageServer server) {
+                    return LanguageServerDescription.create(server);
                 }
             });
         }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.netbeans.modules.lsp.client.bridge;
+package org.netbeans.modules.lsp.bridge;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -25,7 +25,7 @@ import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
-import org.netbeans.modules.lsp.client.bridge.api.RegisterLSPServices;
+import org.netbeans.api.lsp.bridge.RegisterLSPServices;
 import org.openide.filesystems.annotations.LayerBuilder;
 import org.openide.filesystems.annotations.LayerBuilder.File;
 import org.openide.filesystems.annotations.LayerGeneratingProcessor;

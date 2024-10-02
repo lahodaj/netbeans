@@ -420,7 +420,6 @@
                 </test-type>
             </test-dependencies>
             <public-packages>
-                <package>org.netbeans.modules.lsp.client.bridge.api</package>
                 <package>org.netbeans.modules.lsp.client.spi</package>
             </public-packages>
             <class-path-extension>

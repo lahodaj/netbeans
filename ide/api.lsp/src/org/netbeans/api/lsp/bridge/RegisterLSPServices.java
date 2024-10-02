@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.netbeans.modules.lsp.client.bridge.api;
+package org.netbeans.api.lsp.bridge;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Target;

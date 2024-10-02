@@ -34,6 +34,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.ImageObserver;
+import java.awt.image.MultiResolutionImage;
 import java.awt.image.RGBImageFilter;
 import java.awt.image.WritableRaster;
 import java.io.IOException;
@@ -46,6 +47,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -185,9 +187,9 @@ public final class ImageUtilities {
     /**
      * Loads an image based on resource path.
      * Exactly like {@link #loadImage(String)} but may do a localized search.
-     * For example, requesting <samp>org/netbeans/modules/foo/resources/foo.gif</samp>
-     * might actually find <samp>org/netbeans/modules/foo/resources/foo_ja.gif</samp>
-     * or <samp>org/netbeans/modules/foo/resources/foo_mybranding.gif</samp>.
+     * For example, requesting <code>org/netbeans/modules/foo/resources/foo.gif</code>
+     * might actually find <code>org/netbeans/modules/foo/resources/foo_ja.gif</code>
+     * or <code>org/netbeans/modules/foo/resources/foo_mybranding.gif</code>.
      * 
      * <p>Caching of loaded images can be used internally to improve performance.
      * <p> Since version 8.12 the returned image object responds to call
@@ -322,10 +324,9 @@ public final class ImageUtilities {
      * @return icon corresponding icon
      */    
     public static final Icon image2Icon(Image image) {
-        /* Make sure to always return a ToolTipImage, to take advantage of its rendering tweaks for
-        HiDPI screens. */
-        return (image instanceof ToolTipImage)
+        ToolTipImage ret = (image instanceof ToolTipImage)
                 ? (ToolTipImage) image : assignToolTipToImageInternal(image, "");
+        return ret.asImageIconIfRequiredForRetina();
     }
     
     /**
@@ -376,8 +377,9 @@ public final class ImageUtilities {
             // so let's try second most used one type, it satisfies AbstractButton, JCheckbox. Not all cases are
             // covered, however.
             icon.paintIcon(dummyIconComponentButton, g, 0, 0);
+        } finally {
+            g.dispose();
         }
-        g.dispose();
         return image;
     }
     
@@ -457,7 +459,8 @@ public final class ImageUtilities {
         /* FilteredIcon's Javadoc mentions a caveat about the Component parameter that is passed to
         Icon.paintIcon. It's not really a problem; previous implementations had the same
         behavior. */
-        return FilteredIcon.create(DisabledButtonFilter.INSTANCE, icon);
+        return FilteredIcon.create(isDarkLaF()
+                ? DisabledButtonFilter.INSTANCE_DARK : DisabledButtonFilter.INSTANCE_LIGHT, icon);
     }
 
     /**
@@ -496,7 +499,7 @@ public final class ImageUtilities {
      */
     private static SVGLoader getSVGLoader() {
         /* "Objects contained in the default lookup are instantiated lazily when first requested."
-        ( http://wiki.netbeans.org/DevFaqLookupDefault ) So the SVGLoader implementation module will
+        ( https://netbeans.apache.org/wiki/DevFaqLookupDefault ) So the SVGLoader implementation module will
         only be loaded the first time an SVG file is actually encountered for loading, rather than,
         for instance, when the startup splash screen initializes ImageUtilities to load its PNG
         image. This was confirmed by printing a debugging message from a static initializer in
@@ -1048,15 +1051,10 @@ public final class ImageUtilities {
         it volatile instead, to be completely sure that the class is still thread-safe. */
         private volatile Icon delegate;
 
-        private IconImageIcon(Icon delegate) {
-            super(icon2Image(delegate));
+        IconImageIcon(ToolTipImage delegate) {
+            super(delegate);
             Parameters.notNull("delegate", delegate);
             this.delegate = delegate;
-        }
-
-        private static ImageIcon create(Icon delegate) {
-            return (delegate instanceof ImageIcon)
-                    ? (ImageIcon) delegate : new IconImageIcon(delegate);
         }
 
         @Override
@@ -1088,9 +1086,15 @@ public final class ImageUtilities {
     }
 
     /**
-     * Image with tool tip text (for icons with badges)
+     * Image with tool tip text (for icons with badges).
+     *
+     * <p>On MacOS, HiDPI (Retina) support in JMenuItem.setIcon(Icon) requires the Icon argument to
+     * be an instance of ImageIcon wrapping a MultiResolutionImage (see
+     * com.apple.laf.ScreenMenuIcon.setIcon, com.apple.laf.AquaIcon.getImageForIcon, and
+     * sun.lwawt.macosx.CImage.Creator.createFromImage). Thus we have this class implement
+     * MultiResolutionImage, and use asImageIcon when needed via asImageIconIfRequiredForRetina.
      */
-    private static class ToolTipImage extends BufferedImage implements Icon {
+    private static class ToolTipImage extends BufferedImage implements Icon, MultiResolutionImage {
         final String toolTipText;
         // May be null.
         final Icon delegateIcon;
@@ -1098,6 +1102,8 @@ public final class ImageUtilities {
         final URL url;
         // May be null.
         ImageIcon imageIconVersion;
+        // May be null.
+        volatile BufferedImage doubleSizeVariant;
 
         public static ToolTipImage createNew(String toolTipText, Image image, URL url) {
             ImageUtilities.ensureLoaded(image);
@@ -1136,9 +1142,16 @@ public final class ImageUtilities {
         }
 
         public synchronized ImageIcon asImageIcon() {
-          if (imageIconVersion == null)
-            imageIconVersion = IconImageIcon.create(this);
-          return imageIconVersion;
+            if (imageIconVersion == null) {
+                imageIconVersion = new IconImageIcon(this);
+            }
+            return imageIconVersion;
+        }
+
+        public Icon asImageIconIfRequiredForRetina() {
+            /* We could choose to do this only on MacOS, but doing it on all platforms will lower
+            the chance of undetected platform-specific bugs. */
+            return delegateIcon != null ? asImageIcon() : this;
         }
 
         /**
@@ -1236,26 +1249,78 @@ public final class ImageUtilities {
             }
             return super.getProperty(name, observer);
         }
-    }
 
-    private static class DisabledButtonFilter extends RGBImageFilter {
-        public static final RGBImageFilter INSTANCE = new DisabledButtonFilter();
-
-        DisabledButtonFilter() {
-            canFilterIndexColorModel = true;
+        private Image getDoubleSizeVariant() {
+          if (delegateIcon == null) {
+              return null;
+          }
+          BufferedImage ret = doubleSizeVariant;
+          if (ret == null) {
+              int SCALE = 2;
+              ColorModel model = getColorModel();
+              int w = delegateIcon.getIconWidth()  * SCALE;
+              int h = delegateIcon.getIconHeight() * SCALE;
+              ret = new BufferedImage(
+                    model,
+                    model.createCompatibleWritableRaster(w, h),
+                    model.isAlphaPremultiplied(), null);
+              Graphics g = ret.createGraphics();
+              try {
+                  ((Graphics2D) g).transform(AffineTransform.getScaleInstance(SCALE, SCALE));
+                  delegateIcon.paintIcon(dummyIconComponentLabel, g, 0, 0);
+              } finally {
+                  g.dispose();
+              }
+              doubleSizeVariant = ret;
+          }
+          return ret;
         }
 
-        public int filterRGB(int x, int y, int rgb) {
-            // Reduce the color bandwidth in quarter (>> 2) and Shift 0x88.
-            return (rgb & 0xff000000) + 0x888888 + ((((rgb >> 16) & 0xff) >> 2) << 16) + ((((rgb >> 8) & 0xff) >> 2) << 8) + (((rgb) & 0xff) >> 2);
+        @Override
+        public Image getResolutionVariant(double destImageWidth, double destImageHeight) {
+            if (destImageWidth <= getWidth(null) && destImageHeight <= getHeight(null)) {
+                /* Returning "this" should be safe here, as the same is done in
+                sun.awt.image.MultiResolutionToolkitImage. */
+                return this;
+            }
+            Image ds = getDoubleSizeVariant();
+            return ds != null ? ds : this;
+        }
+
+        @Override
+        public List<Image> getResolutionVariants() {
+            Image ds = getDoubleSizeVariant();
+            return ds == null ? List.of(this) : List.of(this, ds);
+        }
+    }
+
+    private static final class DisabledButtonFilter extends RGBImageFilter {
+        public static final RGBImageFilter INSTANCE_LIGHT = new DisabledButtonFilter(false);
+        public static final RGBImageFilter INSTANCE_DARK  = new DisabledButtonFilter(true);
+        private final int baseGray;
+
+        DisabledButtonFilter(boolean dark) {
+            canFilterIndexColorModel = true;
+            baseGray = dark ? 0x444444 : 0x888888;
+        }
+
+        @Override
+        public int filterRGB(int x, int y, int argb) {
+            return
+                // Keep the alpha channel unmodified.
+                (argb & 0xff000000) +
+                // Reduce the color bandwidth by a quarter (>> 2), and mix with gray.
+                baseGray +
+                ((((argb >> 16) & 0xff) >> 2) << 16) +
+                ((((argb >> 8 ) & 0xff) >> 2) <<  8) +
+                ((((argb      ) & 0xff) >> 2)      );
         }
 
         // override the superclass behaviour to not pollute
         // the heap with useless properties strings. Saves tens of KBs
         @Override
-        public void setProperties(Hashtable props) {
-            props = (Hashtable) props.clone();
-            consumer.setProperties(props);
+        public void setProperties(Hashtable<?,?> props) {
+            consumer.setProperties((Hashtable<?,?>) props.clone());
         }
     }
 }

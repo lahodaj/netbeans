@@ -416,7 +416,7 @@ final class SuiteSources implements Sources,
                     roots.add(d.srcDir);
                     roots.add(d.srcGenDir);
                 }
-                return new ImmutableResult(roots.toArray(new FileObject[roots.size()]));
+                return new ImmutableResult(roots.toArray(new FileObject[0]));
             }
         }
         for (Group group : this.groups) {
@@ -624,20 +624,20 @@ final class SuiteSources implements Sources,
                 try {
                     res = ClassPathSupport.createResource(getJarRoot());
                     return Collections.singletonList(res);
-                } catch (MalformedURLException ex) {
+                } catch (MalformedURLException | URISyntaxException ex) {
                     // OK
                 }
             }
             return Collections.emptyList();
         }
 
-        private URL getJarRoot() throws MalformedURLException {
+        private URL getJarRoot() throws MalformedURLException, URISyntaxException {
             return toJarURL(getJar());
         }
 
-        private URL toJarURL(FileObject jar) throws MalformedURLException {
+        private URL toJarURL(FileObject jar) throws MalformedURLException, URISyntaxException {
             if (jar != null) {
-                return new URL("jar:" + jar.toURL() + "!/");
+                return new URI("jar:" + jar.toURL() + "!/").toURL();
             } else {
                 return null;
             }
@@ -803,7 +803,7 @@ final class SuiteSources implements Sources,
             if (srcGenDir != null) {
                 roots.add(srcGenDir);
             }
-            sourceCP = ClassPathSupport.createClassPath(roots.toArray(new FileObject[roots.size()]));
+            sourceCP = ClassPathSupport.createClassPath(roots.toArray(new FileObject[0]));
 
             if (mxPrj.annotationProcessors().isEmpty()) {
                 processorPath = null;
@@ -1036,9 +1036,9 @@ final class SuiteSources implements Sources,
             updateExists(jar.exists());
             PathResourceImplementation res;
             try {
-                res = ClassPathSupport.createResource(new URL("jar:" + Utilities.toURI(jar).toURL() + "!/"));
+                res = ClassPathSupport.createResource(new URI("jar:" + Utilities.toURI(jar).toURL() + "!/").toURL());
                 return Collections.singletonList(res);
-            } catch (MalformedURLException ex) {
+            } catch (MalformedURLException | URISyntaxException ex) {
                 return Collections.emptyList();
             }
         }
@@ -1124,9 +1124,9 @@ final class SuiteSources implements Sources,
             updateExists(jar.exists());
             PathResourceImplementation res;
             try {
-                res = ClassPathSupport.createResource(new URL("jar:" + Utilities.toURI(jar).toURL() + "!/"));
+                res = ClassPathSupport.createResource(new URI("jar:" + Utilities.toURI(jar).toURL() + "!/").toURL());
                 return Collections.singletonList(res);
-            } catch (MalformedURLException ex) {
+            } catch (MalformedURLException | URISyntaxException ex) {
                 return Collections.emptyList();
             }
         }

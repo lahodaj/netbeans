@@ -18,9 +18,9 @@
  */
 package org.netbeans.modules.cloud.oracle.items;
 
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
 import java.util.Objects;
-import javax.swing.event.ChangeListener;
-import org.openide.util.ChangeSupport;
 
 /**
  * Represents Oracle Cloud Resource identified by Oracle Cloud Identifier (OCID)
@@ -30,23 +30,32 @@ import org.openide.util.ChangeSupport;
 public abstract class OCIItem {
     final OCID id;
     final String name;
+    final String compartmentId;
+    final String tenancyId;
+    final String regionCode;
     String description;
-    ChangeSupport changeSupport;
+    final transient PropertyChangeSupport changeSupport;
 
     /**
     * Construct a new {@code OCIItem}.
     * 
     * @param id OCID of the item
+    * @param compartmentId OCID of the compartmentId
     * @param name Name of the item
+    * @param tenancyId Tenancy OCID of the item
+    * @param regionCode Region code of the item
     */
-    public OCIItem(OCID id, String name) {
+    public OCIItem(OCID id, String compartmentId, String name, String tenancyId, String regionCode) {
         this.id = id;
         this.name = name;
-        changeSupport = new ChangeSupport(this);
+        this.compartmentId = compartmentId;
+        this.tenancyId = tenancyId;
+        this.regionCode = regionCode;
+        changeSupport = new PropertyChangeSupport(this);
     }
 
     public OCIItem() {
-        this(null, null);
+        this(null, null, null, null, null);
     }
     
     /**
@@ -77,6 +86,33 @@ public abstract class OCIItem {
     }
 
     /**
+     * OCID of the compartmentId.
+     * 
+     * @return OCID of the compartmentId
+     */
+    public String getCompartmentId() {
+        return compartmentId;
+    }
+
+    /**
+     * OCID of the tenancyId.
+     *
+     * @return OCID of the tenancyId
+     */
+    public String getTenancyId() {
+        return tenancyId;
+    }
+
+    /**
+     * 3 digit region code.
+     *
+     * @return 3 digit region code
+     */
+    public String getRegionCode() {
+        return regionCode;
+    }
+    
+    /**
      * Short description of the item.
      * 
      * @return Name
@@ -89,29 +125,33 @@ public abstract class OCIItem {
      * Triggers node refresh.
      */
     public void refresh() {
-        changeSupport.fireChange();
+        changeSupport.firePropertyChange("children", 0, 1);
     }
     
     /**
      * Adds a <code>ChangeListener</code> to the listener list.
      * 
-     * @param listener the <code>ChangeListener</code> to be added.
+     * @param listener the <code>PropertyChangeListener</code> to be added.
      */
-    public void addChangeListener(ChangeListener listener) {
-        changeSupport.addChangeListener(listener);
+    public void addChangeListener(PropertyChangeListener listener) {
+        changeSupport.addPropertyChangeListener(listener);
     }
     
     /**
      * Removes a <code>ChangeListener</code> from the listener list.
      * 
-     * @param listener the <code>ChangeListener</code> to be removed.
+     * @param listener the <code>PropertyChangeListener</code> to be removed.
      */
-    public void removeChangeListener(ChangeListener listener) {
-        changeSupport.removeChangeListener(listener);
+    public void removeChangeListener(PropertyChangeListener listener) {
+        changeSupport.removePropertyChangeListener(listener);
+    }
+    
+    protected void firePropertyChange(String propertyName, Object oldValue, Object newValue) {
+        changeSupport.firePropertyChange(propertyName, oldValue, newValue);
     }
 
     public int maxInProject() {
-        return 0;
+        return 1;
     }
 
     @Override
@@ -144,5 +184,8 @@ public abstract class OCIItem {
         return Objects.equals(this.id, other.id);
     }
     
+    public void fireRefNameChanged(String oldRefName, String referenceName) {
+        changeSupport.firePropertyChange("referenceName", oldRefName, referenceName);
+    }
     
 }

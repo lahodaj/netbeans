@@ -129,7 +129,7 @@ public abstract class JavaCompletionItem implements CompletionItem {
     }
 
     public static JavaCompletionItem createRecordPatternItem(CompilationInfo info, TypeElement elem, DeclaredType type, int substitutionOffset, ReferencesCount referencesCount, boolean isDeprecated, boolean insideNew, boolean addTypeVars) {
-        if(elem.getKind().equals(ElementKind.RECORD)) {
+        if(elem.getKind() == ElementKind.RECORD) {
             return new RecordPatternItem(info, elem, type, 0, substitutionOffset, referencesCount, isDeprecated, insideNew);
         }
         else {
@@ -1357,15 +1357,12 @@ public abstract class JavaCompletionItem implements CompletionItem {
             Iterator<? extends RecordComponentElement> it = elem.getRecordComponents().iterator();
             StringBuilder sb = new StringBuilder();
             RecordComponentElement recordComponent;
-            String name;
             sb.append("(");
             while (it.hasNext()) {
                 recordComponent = it.next();
-                name = recordComponent.getAccessor().getReturnType().toString();
-                name = name.substring(name.lastIndexOf(".") + 1);
-                sb.append(name);
+                sb.append(Utilities.getTypeName(info, recordComponent.getAccessor().getReturnType(), false));
                 sb.append(" ");
-                sb.append(recordComponent.getSimpleName().toString());
+                sb.append(recordComponent.getSimpleName());
                 if (it.hasNext()) {
                     sb.append(", "); //NOI18N
                 }
@@ -1525,7 +1522,7 @@ public abstract class JavaCompletionItem implements CompletionItem {
         public String toString() {
             return (typeName != null ? typeName + " " : "") + varName; //NOI18N
         }
-   }
+    }
 
     static class FieldItem extends WhiteListJavaCompletionItem<VariableElement> {
 
@@ -1548,6 +1545,7 @@ public abstract class JavaCompletionItem implements CompletionItem {
         private String typeName;
         private String leftText;
         private String rightText;
+        private CharSequence sortText;
         private boolean autoImportEnclosingType;
         private CharSequence enclSortText;
         private int castEndOffset;
@@ -1600,7 +1598,10 @@ public abstract class JavaCompletionItem implements CompletionItem {
 
         @Override
         public CharSequence getSortText() {
-            return simpleName + "#" + enclSortText; //NOI18N
+            if (sortText == null) {
+                sortText = LazySortText.link(simpleName, enclSortText);
+            }
+            return sortText;
         }
 
         @Override
@@ -1830,7 +1831,7 @@ public abstract class JavaCompletionItem implements CompletionItem {
         protected List<ParamDesc> params;
         private String typeName;
         private boolean addSemicolon;
-        private String sortText;
+        private CharSequence sortText;
         private String leftText;
         private String rightText;
         private boolean autoImportEnclosingType;
@@ -1913,7 +1914,7 @@ public abstract class JavaCompletionItem implements CompletionItem {
                     cnt++;
                 }
                 sortParams.append(')');
-                sortText = simpleName + "#" + enclSortText + "#" + ((cnt < 10 ? "0" : "") + cnt) + "#" + sortParams.toString(); //NOI18N
+                sortText = LazySortText.link(simpleName, enclSortText, ((cnt < 10 ? "0" : "") + cnt) + "#" + sortParams.toString()); //NOI18N
             }
             return sortText;
         }
@@ -2091,7 +2092,7 @@ public abstract class JavaCompletionItem implements CompletionItem {
                         if (toAddText.length() > idx + 1) {
                             sb.append(toAddText.substring(idx + 1));
                         }
-                        showTooltip = true;
+                        showTooltip = Utilities.popupPrameterTooltip();
                     }
                 }
             }
@@ -2708,7 +2709,7 @@ public abstract class JavaCompletionItem implements CompletionItem {
             if (sb.length() == 0) {
                 return cs;
             }
-            showTooltip = true;
+            showTooltip = Utilities.popupPrameterTooltip();
             return sb;
         }
 
@@ -3001,7 +3002,7 @@ public abstract class JavaCompletionItem implements CompletionItem {
                 }
             }
             sb.append(toAdd);
-            showTooltip = true;
+            showTooltip = Utilities.popupPrameterTooltip();
             return sb;
         }
 

@@ -1034,7 +1034,7 @@ public final class PhpProject implements Project {
         public List<Object> getTestSourceRoots(Collection<SourceGroup> createdSourceRoots, FileObject refFileObject) {
             ArrayList<Object> folders = new ArrayList<>();
             Project p = FileOwnerQuery.getOwner(refFileObject);
-            if (p != null && (p instanceof PhpProject)) {
+            if (p instanceof PhpProject) {
                 List<FileObject> seleniumDirectories = ProjectPropertiesSupport.getSeleniumDirectories((PhpProject) p, true);
                 SourceGroup[] sourceGroups = PhpProjectUtils.getSourceGroups((PhpProject) p);
                 for (SourceGroup sg : sourceGroups) {
@@ -1260,7 +1260,7 @@ public final class PhpProject implements Project {
             addRoots(roots, project.getTestRoots());
             addRoots(roots, project.getSeleniumRoots());
             addIncludePath(roots, PhpSourcePath.getIncludePath(project.getSourcesDirectory()));
-            return roots.toArray(new FileObject[roots.size()]);
+            return roots.toArray(new FileObject[0]);
         }
 
         // #197968

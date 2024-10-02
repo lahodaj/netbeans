@@ -1,5 +1,5 @@
 #Signature file v4.1
-#Version 2.95
+#Version 2.104
 
 CLSS public java.awt.datatransfer.Clipboard
 cons public init(java.lang.String)
@@ -228,30 +228,8 @@ meth public static boolean isArchivePopulated()
 meth public static void saveArchive()
 meth public void destroy()
 supr org.netbeans.ProxyClassLoader
-hfds LOGGER,archive,cache,module,patchingBytecode,sources
+hfds BASE_VERSION,LOGGER,META_INF,MULTI_RELEASE,RUNTIME_VERSION,archive,cache,module,patchingBytecode,sources
 hcls DirSource,JarSource,JarURLStreamHandler,NbJarURLConnection,Source
-
-CLSS public final org.netbeans.JaveleonModule
-cons public init(org.netbeans.ModuleManager,java.io.File,java.lang.Object,org.netbeans.Events) throws java.io.IOException
-fld public final static boolean isJaveleonPresent
-meth protected java.lang.ClassLoader createNewClassLoader(java.util.List<java.io.File>,java.util.List<java.lang.ClassLoader>)
-meth protected java.lang.ClassLoader getParentLoader(org.netbeans.Module)
-meth protected void classLoaderDown()
-meth protected void cleanup()
-meth public boolean isFixed()
-meth public final void reload() throws java.io.IOException
-meth public java.io.File getJarFile()
-meth public java.lang.Object getLocalizedAttribute(java.lang.String)
-meth public java.lang.String toString()
-meth public java.util.List<java.io.File> getAllJars()
-meth public java.util.jar.Manifest getManifest()
-meth public static boolean incrementGlobalId()
-meth public void classLoaderUp(java.util.Set<org.netbeans.Module>) throws java.io.IOException
-meth public void destroy()
-meth public void releaseManifest()
-meth public void setReloadable(boolean)
-supr org.netbeans.Module
-hfds LOG,currentClassLoaders,incrementGlobalId,registerClassLoader
 
 CLSS public final org.netbeans.Main
 meth public static void finishInitialization()
@@ -356,6 +334,7 @@ fld public final static java.lang.String PROP_CLASS_LOADER = "classLoader"
 fld public final static java.lang.String PROP_ENABLED_MODULES = "enabledModules"
 fld public final static java.lang.String PROP_MODULES = "modules"
 meth public boolean hasToEnableCompatModules(java.util.Set<org.netbeans.Module>)
+meth public boolean isOrWillEnable(org.netbeans.Module)
 meth public boolean shouldDelegateResource(org.netbeans.Module,org.netbeans.Module,java.lang.String)
  anno 0 java.lang.Deprecated()
 meth public boolean shouldDelegateResource(org.netbeans.Module,org.netbeans.Module,java.lang.String,java.lang.ClassLoader)
@@ -375,7 +354,6 @@ meth public java.lang.ClassLoader refineClassLoader(org.netbeans.Module,java.uti
 meth public java.util.Collection<org.netbeans.Module> getAttachedFragments(org.netbeans.Module)
 meth public java.util.List<org.netbeans.Module> simulateDisable(java.util.Set<org.netbeans.Module>)
 meth public java.util.List<org.netbeans.Module> simulateEnable(java.util.Set<org.netbeans.Module>)
-meth public java.util.List<org.netbeans.Module> simulateJaveleonReload(org.netbeans.Module)
 meth public java.util.Set<org.netbeans.Module> getModuleInterdependencies(org.netbeans.Module,boolean,boolean)
  anno 0 java.lang.Deprecated()
 meth public java.util.Set<org.netbeans.Module> getModuleInterdependencies(org.netbeans.Module,boolean,boolean,boolean)
@@ -395,10 +373,9 @@ meth public void disable(java.util.Set<org.netbeans.Module>)
 meth public void enable(java.util.Set<org.netbeans.Module>) throws org.netbeans.InvalidException
 meth public void releaseModuleManifests()
 meth public void reload(org.netbeans.Module) throws java.io.IOException
-meth public void replaceJaveleonModule(org.netbeans.Module,org.netbeans.Module)
 supr org.openide.modules.Modules
-hfds EMPTY_COLLECTION,MODULE_PROBLEMS_LOCK,MUTEX,MUTEX_PRIVILEGED,PRINT_TOPOLOGICAL_EXCEPTION_STACK_TRACES,PROBING_IN_PROCESS,bootstrapModules,changeSupport,classLoader,classLoaderLock,classLoaderPatches,completeLookup,ev,firer,fragmentModules,installer,lookup,mdc,moduleFactory,moduleProblemsWithNeeds,moduleProblemsWithoutNeeds,modules,modulesByName,netigso,providersOf,readOnly
-hcls CodeNameBaseComparator,ModuleDataCache,ProvidersOf,SystemClassLoader
+hfds DEPLOG,EMPTY_COLLECTION,MODULE_PROBLEMS_LOCK,MUTEX,MUTEX_PRIVILEGED,PRINT_TOPOLOGICAL_EXCEPTION_STACK_TRACES,PROBING_IN_PROCESS,addedBecauseOfDependent,bootstrapModules,changeSupport,classLoader,classLoaderLock,classLoaderPatches,completeLookup,eagerActivation,enableContext,environmentTokens,ev,firer,fragmentModules,installer,lookup,mdc,moduleFactory,moduleProblemsWithNeeds,moduleProblemsWithoutNeeds,modules,modulesByName,netigso,providersOf,readOnly,reported,reportedProblems
+hcls CodeNameBaseComparator,EnableContext,ModuleDataCache,ProvidersOf,SystemClassLoader
 
 CLSS public final org.netbeans.NbClipboard
 cons public init()
@@ -448,6 +425,7 @@ hfds CONSTRUCTOR_NAME,DESC_CTOR_ANNOTATION,DESC_DEFAULT_CTOR,DESC_PATCHED_PUBLIC
 
 CLSS public org.netbeans.ProxyClassLoader
 cons public init(java.lang.ClassLoader[],boolean)
+cons public init(java.lang.ClassLoader[],boolean,java.util.function.BiFunction<java.lang.String,java.lang.ClassLoader,java.lang.Boolean>)
 meth protected boolean shouldDelegateResource(java.lang.String,java.lang.ClassLoader)
 meth protected final void addCoveredPackages(java.lang.Iterable<java.lang.String>)
 meth protected final void setSystemClassLoader(java.lang.ClassLoader)
@@ -465,7 +443,7 @@ meth public java.util.Enumeration<java.net.URL> findResources(java.lang.String) 
 meth public void append(java.lang.ClassLoader[])
 meth public void destroy()
 supr java.lang.ClassLoader
-hfds LOGGER,LOG_LOADING,TOP_CL,arbitraryLoadWarnings,packages,parents,sclPackages
+hfds LOGGER,LOG_LOADING,TOP_CL,arbitraryLoadWarnings,delegatingPredicate,packages,parents,sclPackages
 
 CLSS public org.netbeans.ProxyURLStreamHandlerFactory
 intf java.net.URLStreamHandlerFactory

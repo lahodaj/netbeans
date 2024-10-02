@@ -59,6 +59,15 @@
                     </run-dependency>
                 </dependency>
                 <dependency>
+                    <code-name-base>org.netbeans.api.lsp</code-name-base>
+                    <build-prerequisite/>
+                    <compile-dependency/>
+                    <run-dependency>
+                        <release-version>1</release-version>
+                        <specification-version>1.28</specification-version>
+                    </run-dependency>
+                </dependency>
+                <dependency>
                     <code-name-base>org.netbeans.api.progress</code-name-base>
                     <build-prerequisite/>
                     <compile-dependency/>
@@ -436,6 +445,14 @@
             <class-path-extension>
                 <runtime-relative-path>ext/org.eclipse.lsp4j.jsonrpc-0.13.0.jar</runtime-relative-path>
                 <binary-origin>external/org.eclipse.lsp4j.jsonrpc-0.13.0.jar</binary-origin>
+            </class-path-extension>
+            <class-path-extension>
+                <runtime-relative-path>ext/org.eclipse.lsp4j.debug-0.13.0.jar</runtime-relative-path>
+                <binary-origin>external/org.eclipse.lsp4j.debug-0.13.0.jar</binary-origin>
+            </class-path-extension>
+            <class-path-extension>
+                <runtime-relative-path>ext/org.eclipse.lsp4j.jsonrpc.debug-0.13.0.jar</runtime-relative-path>
+                <binary-origin>external/org.eclipse.lsp4j.jsonrpc.debug-0.13.0.jar</binary-origin>
             </class-path-extension>
         </data>
     </configuration>

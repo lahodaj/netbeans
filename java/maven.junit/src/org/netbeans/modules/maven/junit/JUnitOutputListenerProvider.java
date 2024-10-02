@@ -42,10 +42,10 @@ import org.apache.maven.artifact.versioning.ComparableVersion;
 import org.codehaus.plexus.component.configurator.expression.ExpressionEvaluationException;
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.StringUtils;
-import org.jdom.Document;
-import org.jdom.Element;
-import org.jdom.JDOMException;
-import org.jdom.input.SAXBuilder;
+import org.jdom2.Document;
+import org.jdom2.Element;
+import org.jdom2.JDOMException;
+import org.jdom2.input.SAXBuilder;
 import org.netbeans.api.annotations.common.NonNull;
 import org.netbeans.api.annotations.common.NullAllowed;
 import org.netbeans.api.project.FileOwnerQuery;
@@ -103,14 +103,14 @@ public class JUnitOutputListenerProvider implements OutputProcessor {
     private static final String GROUP_FILE_NAME = "dir";
     
     public JUnitOutputListenerProvider(RunConfig config) {
-        runningPattern = Pattern.compile("(?:\\[surefire\\] )?Running (.*)", Pattern.DOTALL); //NOI18N        
+        runningPattern = Pattern.compile("(?:\\[(?:INFO|surefire)\\] )?Running (.*)", Pattern.DOTALL); //NOI18N
         outDirPattern = Pattern.compile ("(?:\\[INFO\\] )?Surefire report directory\\: (?<" + GROUP_FILE_NAME + ">.*)", Pattern.DOTALL); //NOI18N
         outDirPattern2 = Pattern.compile("(?:\\[INFO\\] )?Setting reports dir\\: (?<" + GROUP_FILE_NAME + ">.*)", Pattern.DOTALL); //NOI18N
         this.config = config;
-        usedNames = new HashSet<String>();
+        usedNames = new HashSet<>();
         startTimeStamp = System.currentTimeMillis();
-        runningTestClasses = new ArrayList<String>();
-        runningTestClassesInParallel = new ArrayList<String>();
+        runningTestClasses = new ArrayList<>();
+        runningTestClassesInParallel = new ArrayList<>();
         surefireRunningInParallel = isSurefireRunningInParallel();
     }
     
@@ -262,7 +262,7 @@ public class JUnitOutputListenerProvider implements OutputProcessor {
                 // http://maven.apache.org/surefire/maven-surefire-plugin/test-mojo.html#reportsDirectory
                 reportsDirectory = getReportsDirectory(
                     Constants.GROUP_APACHE_PLUGINS, Constants.PLUGIN_SUREFIRE,
-                    "test", "${project.build.directory}/surefire-reports"); //NOI81N
+                    "test", visitor, "${project.build.directory}/surefire-reports"); //NOI81N
             }
             reportNameSuffix = PluginPropertyUtils.getPluginProperty(
                 config.getMavenProject(), Constants.GROUP_APACHE_PLUGINS,
@@ -272,7 +272,7 @@ public class JUnitOutputListenerProvider implements OutputProcessor {
 	} else if ("mojo-execute#failsafe:integration-test".equals(sequenceId)) {  //NOI81N
 	    reportsDirectory = getReportsDirectory(
                 Constants.GROUP_APACHE_PLUGINS, Constants.PLUGIN_FAILSAFE,
-                "integration-test", "${project.build.directory}/failsafe-reports");  //NOI81N
+                "integration-test", visitor, "${project.build.directory}/failsafe-reports");  //NOI81N
             reportNameSuffix = PluginPropertyUtils.getPluginProperty(
                 config.getMavenProject(), Constants.GROUP_APACHE_PLUGINS,
                 Constants.PLUGIN_FAILSAFE, "reportNameSuffix", "integration-test",  //NOI81N
@@ -313,14 +313,26 @@ public class JUnitOutputListenerProvider implements OutputProcessor {
         }
     }
 
-    private String getReportsDirectory(String groupId, String artifactId, String goal, String fallbackExpression) {
-        String reportsDirectory = PluginPropertyUtils.getPluginProperty(config.getMavenProject(),
+    private String getReportsDirectory(String groupId, String artifactId, String goal, OutputVisitor visitor, String fallbackExpression) {
+        MavenProject currentProject = null;
+        // get maven module from context if available
+        OutputVisitor.Context context = visitor.getContext();
+        if (context != null && context.getCurrentProject() != null) {
+            NbMavenProject subProject = context.getCurrentProject().getLookup().lookup(NbMavenProject.class);
+            if (subProject != null) {
+                currentProject = subProject.getMavenProject();
+            }
+        }
+        if (currentProject == null) {
+            currentProject = config.getMavenProject();
+        }
+        String reportsDirectory = PluginPropertyUtils.getPluginProperty(currentProject,
            groupId, artifactId, "reportsDirectory", goal, null); // NOI18N
-        if (null == reportsDirectory) {
+        if (reportsDirectory == null) {
             // fallback to default value
             try {
                 Object defaultValue = PluginPropertyUtils
-                    .createEvaluator(config.getMavenProject())
+                    .createEvaluator(currentProject)
                     .evaluate(fallbackExpression);
                 if (defaultValue instanceof String) {
                     reportsDirectory = (String) defaultValue;
@@ -409,7 +421,7 @@ public class JUnitOutputListenerProvider implements OutputProcessor {
 			void rerun(Set<Testcase> tests) {
 			    RunConfig brc = RunUtils.cloneRunConfig(config);
 			    StringBuilder tst = new StringBuilder();
-			    Map<String, Collection<String>> methods = new HashMap<String, Collection<String>>();
+			    Map<String, Collection<String>> methods = new HashMap<>();
                             //#222776 calculate the approximate space the failed tests will occupy on the cmd line.
                             //important on windows which places a limit on the length.
                             int windowslimitcount = 0;
@@ -418,7 +430,7 @@ public class JUnitOutputListenerProvider implements OutputProcessor {
 				if (tc.getClassName() != null) {
 				    Collection<String> lst = methods.get(tc.getClassName());
 				    if (lst == null) {
-					lst = new ArrayList<String>();
+					lst = new ArrayList<>();
 					methods.put(tc.getClassName(), lst);
                                         windowslimitcount = windowslimitcount + tc.getClassName().length() + 1; // + 1 for ,
 				    }
@@ -470,7 +482,9 @@ public class JUnitOutputListenerProvider implements OutputProcessor {
 					return usingSurefire28(config.getMavenProject());
 				    } else if (usingJUnit4(config.getMavenProject())) { //#214334
 					return usingSurefire2121(config.getMavenProject());
-				    }
+				    } else if (getJUnitVersion(config.getMavenProject()).equals("JUNIT5")){
+                                        return usingSurefire2220(config.getMavenProject());
+                                    }
 				}
 			    }
 			    return false;
@@ -505,7 +519,12 @@ public class JUnitOutputListenerProvider implements OutputProcessor {
     private boolean usingSurefire28(MavenProject prj) {
         String v = PluginPropertyUtils.getPluginVersion(prj, Constants.GROUP_APACHE_PLUGINS, Constants.PLUGIN_SUREFIRE);
         return v != null && new ComparableVersion(v).compareTo(new ComparableVersion("2.8")) >= 0;
-    } 
+    }
+
+    private boolean usingSurefire2220(MavenProject prj) {
+        String v = PluginPropertyUtils.getPluginVersion(prj, Constants.GROUP_APACHE_PLUGINS, Constants.PLUGIN_SUREFIRE);
+        return v != null && new ComparableVersion(v).compareTo(new ComparableVersion("2.22.0")) >= 0;
+    }
     
      private boolean usingTestNG(MavenProject prj) {
         for (Artifact a : prj.getArtifacts()) {
@@ -526,6 +545,12 @@ public class JUnitOutputListenerProvider implements OutputProcessor {
                 }
                 if (version != null && new ComparableVersion(version).compareTo(new ComparableVersion("3.8")) >= 0) {
                     return "JUNIT3"; //NOI18N
+                }
+            }
+            if ("org.junit.jupiter".equals(a.getGroupId()) && "junit-jupiter-api".equals(a.getArtifactId())) {
+                String version = a.getVersion();
+                if (version != null && new ComparableVersion(version).compareTo(new ComparableVersion("5.0")) >= 0) {
+                    return "JUNIT5"; //NOI18N
                 }
             }
         }
@@ -581,7 +606,7 @@ public class JUnitOutputListenerProvider implements OutputProcessor {
         }
         if (text != null) {
             String[] strs = StringUtils.split(text, "\n");
-            List<String> lines = new ArrayList<String>();
+            List<String> lines = new ArrayList<>();
             if (message != null) {
                 lines.add(message);
             }
@@ -740,16 +765,14 @@ public class JUnitOutputListenerProvider implements OutputProcessor {
                     junitManager.displayOutput(session, FileUtils.fileRead(output), false);
                 }
             }
-        } catch (IOException x) {
-            LOG.log(Level.WARNING, "parsing " + report, x);
-        } catch (ParseException x) {
+        } catch (IOException | ParseException x) {
             LOG.log(Level.WARNING, "parsing " + report, x);
         }
     }
 
     private void logText(String text, Testcase test, boolean failure) {
         StringTokenizer tokens = new StringTokenizer(text, "\n"); //NOI18N
-        List<String> lines = new ArrayList<String>();
+        List<String> lines = new ArrayList<>();
         while (tokens.hasMoreTokens()) {
             lines.add(tokens.nextToken());
         }

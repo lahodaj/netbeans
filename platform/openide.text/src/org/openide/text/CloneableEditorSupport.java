@@ -660,6 +660,7 @@ public abstract class CloneableEditorSupport extends CloneableOpenSupport {
                 super(size);
             }
 
+            @Override
             public void writeTo(OutputStream os) throws IOException {
                 os.write(buf, 0, count);
             }
@@ -833,8 +834,8 @@ public abstract class CloneableEditorSupport extends CloneableOpenSupport {
                 }
                 
                 if ((last == ed) ||
-                    ((last != null) && (last instanceof Component) && (ed instanceof Container)
-                    && ((Container) ed).isAncestorOf((Component) last))) {
+                    ((last instanceof Component) && (ed instanceof Container)
+                     && ((Container) ed).isAncestorOf((Component) last))) {
                     ll.addFirst(p);
                 } else {
                     ll.add(p);
@@ -844,7 +845,7 @@ public abstract class CloneableEditorSupport extends CloneableOpenSupport {
             }
         }
 
-        return ll.isEmpty() ? null : ll.toArray(new JEditorPane[ll.size()]);
+        return ll.isEmpty() ? null : ll.toArray(new JEditorPane[0]);
     }
 
     /**
@@ -878,8 +879,8 @@ public abstract class CloneableEditorSupport extends CloneableOpenSupport {
             if (ed != null) {
                 JEditorPane p = null;
                 if ((last == ed) ||
-                    ((last != null) && (last instanceof Component) && (ed instanceof Container)
-                    && ((Container) ed).isAncestorOf((Component) last))) {
+                    ((last instanceof Component) && (ed instanceof Container)
+                     && ((Container) ed).isAncestorOf((Component) last))) {
                     if (ed instanceof CloneableEditor) {
                         if (((CloneableEditor) ed).isEditorPaneReady()) {
                             p = ed.getEditorPane();
@@ -1758,7 +1759,7 @@ public abstract class CloneableEditorSupport extends CloneableOpenSupport {
             ChangeListener[] ls;
 
             synchronized (this) {
-                ls = listeners.toArray(new ChangeListener[listeners.size()]);
+                ls = listeners.toArray(new ChangeListener[0]);
             }
 
             for (ChangeListener l : ls) {

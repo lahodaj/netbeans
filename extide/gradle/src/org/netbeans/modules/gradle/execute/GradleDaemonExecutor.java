@@ -37,7 +37,9 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
@@ -56,6 +58,7 @@ import org.netbeans.api.project.ProjectInformation;
 import org.netbeans.api.project.ProjectUtils;
 import org.netbeans.modules.gradle.api.execute.GradleDistributionManager.GradleDistribution;
 import org.netbeans.modules.gradle.api.execute.GradleExecConfiguration;
+import org.netbeans.modules.gradle.execute.GradleNetworkProxySupport.ProxyResult;
 import org.netbeans.modules.gradle.spi.GradleFiles;
 import org.netbeans.modules.gradle.spi.execute.GradleDistributionProvider;
 import org.netbeans.modules.gradle.spi.execute.GradleJavaPlatformProvider;
@@ -79,7 +82,7 @@ import org.openide.windows.InputOutput;
  * @author Laszlo Kishalmi
  */
 public final class GradleDaemonExecutor extends AbstractGradleExecutor {
-
+    private static final boolean DEBUG_GRADLE_BUILD_ACTION = Boolean.getBoolean("netbeans.debug.gradle.build.action"); //NOI18N
     private CancellationTokenSource cancelTokenSource;
     private static final Logger LOGGER = Logger.getLogger(GradleDaemonExecutor.class.getName());
     private static final String JAVA_HOME = "JAVA_HOME";    // NOI18N
@@ -239,6 +242,22 @@ public final class GradleDaemonExecutor extends AbstractGradleExecutor {
                 }
             }
             GradleExecAccessor.instance().configureGradleHome(buildLauncher);
+            GradleNetworkProxySupport proxySupport = config.getProject().getLookup().lookup(GradleNetworkProxySupport.class);
+            if (proxySupport != null) {
+                try {
+                    ProxyResult result = proxySupport.checkProxySettings().get();
+                    if (result.getStatus() == GradleNetworkProxySupport.Status.ABORT) {
+                        showAbort();
+                        return;
+                    }
+                    buildLauncher = result.configure(buildLauncher);
+                } catch (InterruptedException | ExecutionException ex) {
+                    throw new BuildCancelledException("Interrupted", ex);
+                }
+            }
+            if (DEBUG_GRADLE_BUILD_ACTION) {
+                buildLauncher.addJvmArguments("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5008");
+            }
             buildLauncher.run();
             StatusDisplayer.getDefault().setStatusText(Bundle.BUILD_SUCCESS(getProjectName()));
             gradleTask.finish(0);
@@ -283,7 +302,6 @@ public final class GradleDaemonExecutor extends AbstractGradleExecutor {
         String javaHome = null;
         if (platformProvider != null) {
             try {
-                buildLauncher.setJavaHome(platformProvider.getJavaHome());
                 javaHome = platformProvider.getJavaHome().getCanonicalPath();
             } catch (IOException ex) {
                 io.getErr().println(Bundle.NO_PLATFORM(ex.getMessage()));
@@ -423,41 +441,70 @@ public final class GradleDaemonExecutor extends AbstractGradleExecutor {
         return Utilities.isWindows() ? "bin\\gradle.bat" : "bin/gradle"; //NOI18N
     }
 
-    public final ExecutorTask createTask(ExecutorTask process) {
+    // TODO one of the two methods can likely go from the API
+    // setTask is called first and signals the runnable to start
+    // the started runnable requires (!) the gradleTask so it can't be created in createTask
+    @Override
+    public void setTask(ExecutorTask task) {
         assert gradleTask == null;
-        gradleTask = new GradleTask(process);
+        gradleTask = new GradleTask(task);
+        super.setTask(task);
+    }
+
+    @Override
+    public final ExecutorTask createTask(ExecutorTask process) {
+        assert gradleTask != null;
+        assert task == process;
         return gradleTask;
     }
 
+    // task which can finish early, like a CompletableFuture
     private static final class GradleTask extends ExecutorTask {
-        private final ExecutorTask delegate;
-        private Integer result;
 
+        private final ExecutorTask delegate;
+        private volatile Integer result;
+        // is 0 when wrapper or delegate finished
+        private final CountDownLatch doneSignal = new CountDownLatch(1);
+        
         GradleTask(ExecutorTask delegate) {
             super(() -> {});
             this.delegate = delegate;
+            this.delegate.addTaskListener(t -> doneSignal.countDown());
         }
 
         @Override
         public void stop() {
-            this.delegate.stop();
+            delegate.stop();
         }
 
         @Override
         public int result() {
-            if (result != null) {
-                return result;
-            }
-            return this.delegate.result();
+            waitFinished();
+            return result != null ? result : delegate.result();
         }
 
         @Override
         public InputOutput getInputOutput() {
-            return this.delegate.getInputOutput();
+            return delegate.getInputOutput();
+        }
+
+        // FIXME isFinished() is final... this is still broken
+
+        @Override
+        public boolean waitFinished(long milliseconds) throws InterruptedException {
+            return doneSignal.await(milliseconds, TimeUnit.MILLISECONDS);
+        }
+
+        @Override
+        public void waitFinished() {
+            try {
+                doneSignal.await();
+            } catch (InterruptedException ex) {}
         }
 
         public void finish(int result) {
             this.result = result;
+            doneSignal.countDown();
             notifyFinished();
         }
     }

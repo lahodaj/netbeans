@@ -38,9 +38,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -69,7 +67,6 @@ import org.netbeans.modules.gradle.spi.GradleFiles;
 import org.netbeans.modules.gradle.spi.GradleSettings;
 import org.openide.awt.Notification;
 import org.openide.awt.NotificationDisplayer;
-import org.openide.util.Exceptions;
 import org.openide.util.NbBundle;
 import org.openide.util.RequestProcessor;
 
@@ -85,9 +82,9 @@ public final class GradleDistributionManager {
 
     private static final String DOWNLOAD_URI = "https://services.gradle.org/distributions/gradle-%s-%s.zip"; //NOI18N
     private static final Pattern DIST_VERSION_PATTERN = Pattern.compile(".*(gradle-(\\d+\\.\\d+.*))-(bin|all)\\.zip"); //NOI18N
-    private static final Set<String> VERSION_BLACKLIST = new HashSet<>(Arrays.asList("2.3", "2.13")); //NOI18N
+    private static final Set<String> VERSION_BLACKLIST = Set.of("2.3", "2.13"); //NOI18N
     private static final Map<File, GradleDistributionManager> CACHE = new WeakHashMap<>();
-    private static final GradleVersion MINIMUM_SUPPORTED_VERSION = GradleVersion.version("2.0"); //NOI18N
+    private static final GradleVersion MINIMUM_SUPPORTED_VERSION = GradleVersion.version("3.0"); //NOI18N
     private static final GradleVersion[] JDK_COMPAT = new GradleVersion[]{
         GradleVersion.version("4.2.1"), // JDK-9
         GradleVersion.version("4.7"), // JDK-10
@@ -99,25 +96,14 @@ public final class GradleDistributionManager {
         GradleVersion.version("7.0"), // JDK-16
         GradleVersion.version("7.3"), // JDK-17
         GradleVersion.version("7.5"), // JDK-18
+        GradleVersion.version("7.6"), // JDK-19
+        GradleVersion.version("8.3"), // JDK-20
+        GradleVersion.version("8.5"), // JDK-21
+        GradleVersion.version("8.8"), // JDK-22
+        GradleVersion.version("8.10"),// JDK-23
     };
-    private static final int JAVA_VERSION;
 
-    static {
-        int ver = 8;
-        String version = System.getProperty("java.specification.version", System.getProperty("java.version")); //NOI18N
-        try {
-            int dot = version.indexOf('.');
-            ver = dot > 0 ? Integer.parseInt(version.substring(0, dot)) : Integer.parseInt(version);
-            if (ver == 1) {
-                version = version.substring(dot + 1);
-                dot = version.indexOf('.');
-                ver = dot > 0 ? Integer.parseInt(version.substring(0, dot)) : Integer.parseInt(version);
-            }
-        } catch (NumberFormatException ex) {
-            Exceptions.printStackTrace(ex);
-        }
-        JAVA_VERSION = ver;
-    }
+    private static final GradleVersion LAST_KNOWN_GRADLE = GradleVersion.version("8.10"); //NOI18N
 
     final File gradleUserHome;
 
@@ -379,7 +365,7 @@ public final class GradleDistributionManager {
         return new File(dist.getDistributionDir(), "gradle-" + version);
     }
 
-    
+    @SuppressWarnings("PackageVisibleInnerClass")
     static final class GradleVersionRange {
 
         public final GradleVersion lowerBound;
@@ -501,12 +487,21 @@ public final class GradleDistributionManager {
          * Checks if this Gradle distribution is compatible with the given
          * major version of Java. Java 1.6, 1.7 and 1.8 are treated as major
          * version 6, 7, and 8.
-         *
+         * <p>
+         * NetBeans uses a built in fixed list of compatibility matrix. That
+         * means it might not know about the compatibility of newer Gradle
+         * versions. Optimistic bias would return {@code true} on these
+         * versions form 2.37. 
+         * </p>
          * @param jdkMajorVersion the major version of the JDK
          * @return <code>true</code> if this version is supported with that JDK.
          */
         public boolean isCompatibleWithJava(int jdkMajorVersion) {
-            return jdkMajorVersion <= lastSupportedJava();
+            
+            // Optimistic bias, if the GradleVersion is newer than the last NB
+            // knows, we say it's compatible with any JDK
+            return LAST_KNOWN_GRADLE.compareTo(version.getBaseVersion()) < 0
+                    || jdkMajorVersion <= lastSupportedJava();
         }
 
         /**
@@ -518,7 +513,9 @@ public final class GradleDistributionManager {
          */
         public int lastSupportedJava() {
             int i = JDK_COMPAT.length - 1;
-            while ((i >= 0) && version.compareTo(JDK_COMPAT[i]) < 0) {
+            //Make sure that even RC-s are considered to be compatible.
+            GradleVersion baseVersion = version.getBaseVersion();
+            while ((i >= 0) && baseVersion.compareTo(JDK_COMPAT[i]) < 0) {
                 i--;
             }
             return i + 9;
@@ -528,10 +525,12 @@ public final class GradleDistributionManager {
          * Checks if this Gradle distribution is compatible the NetBeans
          * runtime JDK.
          *
-         * @return <code>true</code> if this version is supported with the runtime JDK.
+         * @return <code>true</code>.
+         * @deprecated shall be no reason to be used.
          */
+        @Deprecated
         public boolean isCompatibleWithSystemJava() {
-            return isCompatibleWithJava(JAVA_VERSION);
+            return true;
         }
 
         /**
@@ -668,6 +667,7 @@ public final class GradleDistributionManager {
         }
 
         @Override
+        @SuppressWarnings("NestedAssignment")
         public void download(URI uri, File file) throws Exception {
             URL url = uri.toURL();
             URLConnection conn = url.openConnection();

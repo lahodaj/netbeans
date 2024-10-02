@@ -77,10 +77,21 @@ public class ClassPathProviderImpl implements ClassPathProvider {
                 if (javac) {
                     ClassPath langtoolsCP = ClassPath.getClassPath(keyRoot, ClassPath.COMPILE);
                     Library testngLib = LibraryManager.getDefault().getLibrary("testng");
+                    Library junit5Lib = LibraryManager.getDefault().getLibrary("junit_5");
 
-                    if (testngLib != null) {
-                        return ClassPathSupport.createProxyClassPath(ClassPathSupport.createClassPath(testngLib.getContent("classpath").toArray(new URL[0])),
-                                                                     langtoolsCP);
+                    if (testngLib != null || junit5Lib != null) {
+                        List<ClassPath> parts = new ArrayList<>();
+
+                        if (testngLib != null) {
+                            parts.add(ClassPathSupport.createClassPath(testngLib.getContent("classpath").toArray(new URL[0])));
+                        }
+                        if (junit5Lib != null) {
+                            parts.add(ClassPathSupport.createClassPath(junit5Lib.getContent("classpath").toArray(new URL[0])));
+                        }
+
+                        parts.add(langtoolsCP);
+
+                        return ClassPathSupport.createProxyClassPath(parts.toArray(new ClassPath[0]));
                     }
 
                     if (langtoolsCP == null)
@@ -101,7 +112,7 @@ public class ClassPathProviderImpl implements ClassPathProvider {
                                                               "build/jdk.dev/classes/"}) {
                             roots.add(testRoot.getParent().toURI().resolve(rootPaths).toURL());
                         }
-                        return ClassPathSupport.createProxyClassPath(ClassPathSupport.createClassPath(roots.toArray(new URL[roots.size()])), langtoolsBCP);
+                        return ClassPathSupport.createProxyClassPath(ClassPathSupport.createClassPath(roots.toArray(new URL[0])), langtoolsBCP);
                     } catch (MalformedURLException ex) {
                         Exceptions.printStackTrace(ex);
                     }

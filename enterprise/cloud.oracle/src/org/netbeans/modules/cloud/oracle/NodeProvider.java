@@ -30,4 +30,15 @@ public interface NodeProvider<T extends OCIItem> {
     
     public Node apply(T t);
     
+    public default Node apply(T t, OCISessionInitiator i) {
+        return OCIManager.usingSession(i, () -> apply(t));
+    }
+    
+    public interface SessionAware<T extends OCIItem> extends NodeProvider<T> {
+        public default Node apply(T t) {
+            return apply(t, OCIManager.getDefault().getActiveSession());
+        }
+
+        public Node apply(T t, OCISessionInitiator session);
+    }
 }

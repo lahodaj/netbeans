@@ -306,7 +306,7 @@ public class CommitPanel extends AutoResizingPanel implements PreferenceChangeLi
             JTabbedPane hooksTabbedPane = new JTabbedPane();
             for (HgHook hook : hooks) {
                 hooksTabbedPane.add(hook.createComponent(hookContext),
-                                    hook.getDisplayName().replaceAll("\\&", ""));
+                                    hook.getDisplayName().replace("&", ""));
             }
             hookSectionPanel.add(hooksTabbedPane);
         }
@@ -672,7 +672,7 @@ public class CommitPanel extends AutoResizingPanel implements PreferenceChangeLi
                 allCookies.add(cookies[0]);
             }
         }
-        return allCookies.toArray(new EditorCookie[allCookies.size()]);
+        return allCookies.toArray(new EditorCookie[0]);
     }
 
     /**

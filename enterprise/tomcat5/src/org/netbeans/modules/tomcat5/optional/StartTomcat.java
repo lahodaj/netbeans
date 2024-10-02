@@ -772,7 +772,7 @@ public final class StartTomcat extends StartServer implements ProgressObject {
     }
     
     private String getJavaHome(JavaPlatform platform) {
-        FileObject fo = (FileObject)platform.getInstallFolders().iterator().next();
+        FileObject fo = platform.getInstallFolders().iterator().next();
         return FileUtil.toFile(fo).getAbsolutePath();
     }
     
@@ -929,8 +929,8 @@ public final class StartTomcat extends StartServer implements ProgressObject {
         private static final long serialVersionUID = 992972967554321415L;
         
         public TomcatFormat(File startupScript, File homeDir) {
-            super(new java.util.HashMap ());
-            java.util.Map map = getMap ();
+            super(new HashMap());
+            Map<String, String> map = getMap();
             String scriptPath = startupScript.getAbsolutePath();
             map.put(TAG_EXEC_CMD,       scriptPath);
             map.put(TAG_EXEC_STARTUP,   "run");         // NOI18N

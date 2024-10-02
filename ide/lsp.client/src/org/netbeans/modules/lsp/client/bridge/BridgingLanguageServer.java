@@ -20,8 +20,10 @@ package org.netbeans.modules.lsp.client.bridge;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -43,6 +45,8 @@ import org.eclipse.lsp4j.DidChangeWatchedFilesParams;
 import org.eclipse.lsp4j.DidCloseTextDocumentParams;
 import org.eclipse.lsp4j.DidOpenTextDocumentParams;
 import org.eclipse.lsp4j.DidSaveTextDocumentParams;
+import org.eclipse.lsp4j.DocumentSymbol;
+import org.eclipse.lsp4j.DocumentSymbolParams;
 import org.eclipse.lsp4j.InitializeParams;
 import org.eclipse.lsp4j.InitializeResult;
 import org.eclipse.lsp4j.InsertTextFormat;
@@ -52,6 +56,9 @@ import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.ServerCapabilities;
 import org.eclipse.lsp4j.ServerInfo;
+import org.eclipse.lsp4j.SymbolInformation;
+import org.eclipse.lsp4j.SymbolKind;
+import org.eclipse.lsp4j.SymbolTag;
 import org.eclipse.lsp4j.TextDocumentSyncKind;
 import org.eclipse.lsp4j.TextEdit;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
@@ -66,8 +73,10 @@ import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.lsp.Completion;
 import org.netbeans.api.lsp.Completion.Context;
 import org.netbeans.api.lsp.Completion.TriggerKind;
+import org.netbeans.api.lsp.StructureElement;
 import org.netbeans.modules.lsp.client.Utils;
 import org.netbeans.spi.lsp.ErrorProvider;
+import org.netbeans.spi.lsp.StructureProvider;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.util.RequestProcessor;
@@ -229,6 +238,27 @@ public class BridgingLanguageServer implements LanguageServer, LanguageClientAwa
                 }
                 return result;
             }
+
+            @Override
+            public CompletableFuture<List<Either<SymbolInformation, DocumentSymbol>>> documentSymbol(DocumentSymbolParams params) {
+                CompletableFuture<List<Either<SymbolInformation, DocumentSymbol>>> result = new CompletableFuture<>();
+                try {
+                    FileObject file = Utils.fromURI(params.getTextDocument().getUri());
+                    EditorCookie ec = file.getLookup().lookup(EditorCookie.class);
+                    Document doc = ec.openDocument();
+                    List<CompletionItem> items = new ArrayList<>();
+                    List<Either<SymbolInformation, DocumentSymbol>> symbols = new ArrayList<>();
+                    for (StructureProvider structure : MimeLookup.getLookup(file.getMIMEType()).lookupAll(StructureProvider.class)) {
+                        for (StructureElement el : structure.getStructure(doc)) {
+                            symbols.add(Either.forRight(structureElement2DocumentSymbol(doc, el)));
+                        }
+                    }
+                    result.complete(symbols);
+                } catch (IOException | BadLocationException ex) {
+                    result.completeExceptionally(ex);
+                }
+                return result;
+            }
         };
     }
 
@@ -288,6 +318,71 @@ public class BridgingLanguageServer implements LanguageServer, LanguageClientAwa
         }
         item.setData(new CompletionResolutionData(doc, completion));
         return item;
+    }
+
+    private static DocumentSymbol structureElement2DocumentSymbol(Document doc, StructureElement el) throws BadLocationException {
+        Position selectionStartPos = Utils.createPosition(doc, el.getSelectionStartOffset());
+        Position selectionEndPos = Utils.createPosition(doc, el.getSelectionEndOffset());
+        Range selectionRange = new Range(selectionStartPos, selectionEndPos);
+        Position enclosedStartPos = Utils.createPosition(doc, el.getExpandedStartOffset());
+        Position enclosedEndPos = Utils.createPosition(doc, el.getExpandedEndOffset());
+        Range expandedRange = new Range(enclosedStartPos, enclosedEndPos);
+        DocumentSymbol ds;
+        if (el.getChildren() != null && !el.getChildren().isEmpty()) {
+            List<DocumentSymbol> children = new ArrayList<>();
+            for (StructureElement child: el.getChildren()) {
+                ds = structureElement2DocumentSymbol(doc, child);
+                if (ds != null) {
+                    children.add(ds);
+                }
+            }
+            ds = new DocumentSymbol(el.getName(), structureElementKind2SymbolKind(el.getKind()), expandedRange, selectionRange, el.getDetail(), children);
+            ds.setTags(elementTags2SymbolTags(el.getTags()));
+            return ds;
+        }
+        ds = new DocumentSymbol(el.getName(), structureElementKind2SymbolKind(el.getKind()), expandedRange, selectionRange, el.getDetail());
+        ds.setTags(elementTags2SymbolTags(el.getTags()));
+        return ds;
+    }
+
+    private static SymbolKind structureElementKind2SymbolKind (StructureElement.Kind kind) {
+        switch (kind) {
+            case Array : return SymbolKind.Array;
+            case Boolean: return SymbolKind.Boolean;
+            case Class: return SymbolKind.Class;
+            case Constant: return SymbolKind.Constant;
+            case Constructor: return SymbolKind.Constructor;
+            case Enum: return SymbolKind.Enum;
+            case EnumMember: return SymbolKind.EnumMember;
+            case Event: return SymbolKind.Event;
+            case Field: return SymbolKind.Field;
+            case File: return SymbolKind.File;
+            case Function: return SymbolKind.Function;
+            case Interface: return SymbolKind.Interface;
+            case Key: return SymbolKind.Key;
+            case Method: return SymbolKind.Method;
+            case Module: return SymbolKind.Module;
+            case Namespace: return SymbolKind.Namespace;
+            case Null: return SymbolKind.Null;
+            case Number: return SymbolKind.Number;
+            case Object: return SymbolKind.Object;
+            case Operator: return SymbolKind.Operator;
+            case Package: return SymbolKind.Package;
+            case Property: return SymbolKind.Property;
+            case String: return SymbolKind.String;
+            case Struct: return SymbolKind.Struct;
+            case TypeParameter: return SymbolKind.TypeParameter;
+            case Variable: return SymbolKind.Variable;
+        }
+        return SymbolKind.Object;
+    }
+
+    private static List<SymbolTag> elementTags2SymbolTags (Set<StructureElement.Tag> tags) {
+        if (tags != null) {
+            // we now have only deprecated tag
+            return Collections.singletonList(SymbolTag.Deprecated);
+        }
+        return null;
     }
 
     @Override

@@ -51,12 +51,12 @@ public class NavigatorPanelImpl extends AbstractNavigatorPanel<Either<SymbolInfo
 
     @Override
     void addBackgroundTask(FileObject fo) {
-        LSPBindings.removeBackgroundTask(fo, this);
+        LSPBindings.addBackgroundTask(fo, this);
     }
 
     @Override
     void removeBackgroundTask(FileObject fo) {
-        LSPBindings.addBackgroundTask(fo, this);
+        LSPBindings.removeBackgroundTask(fo, this);
     }
 
     @Override

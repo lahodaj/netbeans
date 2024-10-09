@@ -34,29 +34,23 @@ import org.openide.filesystems.FileUtil;
 import org.openide.util.Lookup;
 import org.openide.util.Pair;
 import org.openide.util.lookup.ServiceProvider;
+import org.openide.util.lookup.ServiceProviders;
 
-/**
- *
- * @author Jan Lahoda
- */
-@ServiceProvider(service=JavaSourceTaskFactory.class)
+@ServiceProviders({
+    @ServiceProvider(service=JavaSourceTaskFactory.class),
+    @ServiceProvider(service=RunOnceFactory.class)
+})
 public class RunOnceFactory extends JavaSourceTaskFactory {
 
     private static final Logger LOG = Logger.getLogger(RunOnceFactory.class.getName());
-    
-//    static {
-//        LOG.setLevel(Level.ALL);
-//    }
-    
-    private static RunOnceFactory INSTANCE;
-    
-    private List<Pair<FileObject, CancellableTask<CompilationInfo>>> work = new LinkedList<Pair<FileObject, CancellableTask<CompilationInfo>>>();
+
+    private List<Pair<FileObject, CancellableTask<CompilationInfo>>> work = new LinkedList<>();
     private FileObject currentFile;
     private CancellableTask<CompilationInfo> task;
-    
+
     public RunOnceFactory() {
         super(Phase.RESOLVED, Priority.BELOW_NORMAL);
-        INSTANCE = this;
+//        INSTANCE = this;
     }
 
     protected synchronized CancellableTask<CompilationInfo> createTask(FileObject file) {
@@ -75,7 +69,7 @@ public class RunOnceFactory extends JavaSourceTaskFactory {
     protected synchronized Collection<FileObject> getFileObjects() {
         if (currentFile == null)
             return Collections.<FileObject>emptyList();
-        
+
         return Collections.<FileObject>singletonList(currentFile);
     }
 
@@ -83,45 +77,46 @@ public class RunOnceFactory extends JavaSourceTaskFactory {
         if (LOG.isLoggable(Level.FINE)) {
             LOG.log(Level.FINE, "addImpl({0}, {1})", new Object[] {FileUtil.getFileDisplayName(file), task.getClass().getName()});
         }
-        
+
         work.add(Pair.<FileObject, CancellableTask<CompilationInfo>>of(file, task));
-        
+
         if (currentFile == null)
             next();
     }
-    
+
     private synchronized void next() {
         LOG.fine("next, phase 1");
-        
+
         if (currentFile != null) {
             currentFile = null;
             task = null;
             fileObjectsChanged();
         }
-        
+
         LOG.fine("next, phase 1 done");
-        
+
         if (work.isEmpty())
             return ;
-        
+
         LOG.fine("next, phase 2");
-        
+
         Pair<FileObject, CancellableTask<CompilationInfo>> p = work.remove(0);
-        
+
         currentFile = p.first();
         task = p.second();
-        
+
         fileObjectsChanged();
-        
+
         LOG.fine("next, phase 2 done");
     }
-    
+
 
     public static void add(FileObject file, CancellableTask<CompilationInfo> task) {
-        Lookup.getDefault().lookupAll(JavaSourceTaskFactory.class).forEach(x -> {});
-        if (INSTANCE == null)
+        RunOnceFactory factory = Lookup.getDefault().lookup(RunOnceFactory.class);
+
+        if (factory == null)
             return ;
-        
-        INSTANCE.addImpl(file, task);
+
+        factory.addImpl(file, task);
     }
 }

@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.netbeans.api.java.source.CancellableTask;
@@ -29,6 +30,7 @@ import org.netbeans.api.java.source.CompilationInfo;
 import org.netbeans.api.java.source.JavaSource.Phase;
 import org.netbeans.api.java.source.JavaSource.Priority;
 import org.netbeans.api.java.source.JavaSourceTaskFactory;
+import org.netbeans.modules.parsing.spi.TaskIndexingMode;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.util.Lookup;
@@ -49,18 +51,34 @@ public class RunOnceFactory extends JavaSourceTaskFactory {
     private CancellableTask<CompilationInfo> task;
 
     public RunOnceFactory() {
-        super(Phase.RESOLVED, Priority.BELOW_NORMAL);
+        super(Phase.RESOLVED, Priority.BELOW_NORMAL, TaskIndexingMode.ALLOWED_DURING_SCAN);
 //        INSTANCE = this;
     }
 
-    protected synchronized CancellableTask<CompilationInfo> createTask(FileObject file) {
-        final CancellableTask<CompilationInfo> task = this.task;
+    protected CancellableTask<CompilationInfo> createTask(FileObject file) {
         return new CancellableTask<CompilationInfo>() {
+            private final AtomicReference<CancellableTask<CompilationInfo>> currentTask =
+                    new AtomicReference<>();
+
             public void cancel() {
-                task.cancel();
+                CancellableTask<CompilationInfo> task = currentTask.get();
+
+                if (task != null) {
+                    task.cancel();
+                }
             }
             public void run(CompilationInfo parameter) throws Exception {
+                CancellableTask<CompilationInfo> task;
+
+                synchronized (RunOnceFactory.this) {
+                    task = RunOnceFactory.this.task;
+                }
+
+                currentTask.set(task);
+
                 task.run(parameter);
+
+                currentTask.set(null);
                 next();
             }
         };
@@ -87,25 +105,30 @@ public class RunOnceFactory extends JavaSourceTaskFactory {
     private synchronized void next() {
         LOG.fine("next, phase 1");
 
-        if (currentFile != null) {
-            currentFile = null;
-            task = null;
-            fileObjectsChanged();
-        }
+        if (work.isEmpty()) {
+            if (currentFile != null) {
+                LOG.fine("clearing current file");
+                currentFile = null;
+                task = null;
+                fileObjectsChanged();
+            }
 
-        LOG.fine("next, phase 1 done");
-
-        if (work.isEmpty())
+            LOG.fine("work is empty");
             return ;
+        }
 
         LOG.fine("next, phase 2");
 
         Pair<FileObject, CancellableTask<CompilationInfo>> p = work.remove(0);
 
-        currentFile = p.first();
         task = p.second();
 
-        fileObjectsChanged();
+        if (currentFile == p.first()) {
+            reschedule(currentFile);
+        } else {
+            currentFile = p.first();
+            fileObjectsChanged();
+        }
 
         LOG.fine("next, phase 2 done");
     }

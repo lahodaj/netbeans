@@ -1950,7 +1950,7 @@ public class TextDocumentServiceImpl implements TextDocumentService, LanguageCli
     }
 
     private List<Diagnostic> doRunComputeDiagsOnBackground(String uri, ErrorProvider.Kind kind, long originalVersion, AtomicReference<Document> docHolder) {
-        return computeCancallablyOnBackground(uri, new CancellableTask<List<Diagnostic>>() {
+        return computeCancellablyOnBackground(uri, new CancellableTask<List<Diagnostic>>() {
             private final AtomicBoolean cancelled = new AtomicBoolean();
             private final AtomicReference<Runnable> cancelCallback = new AtomicReference<>();
             @Override
@@ -2389,7 +2389,7 @@ public class TextDocumentServiceImpl implements TextDocumentService, LanguageCli
     @Override
     public CompletableFuture<SemanticTokens> semanticTokensFull(SemanticTokensParams params) {
         String uri = params.getTextDocument().getUri();
-        return computeCancallablyOnBackground(uri, new CancellableTask<SemanticTokens>() {
+        return computeCancellablyOnBackground(uri, new CancellableTask<SemanticTokens>() {
             private final AtomicBoolean cancel = new AtomicBoolean();
             private final AtomicReference<SemanticHighlighterBase> computeTask = new AtomicReference<>();
             @Override
@@ -2684,7 +2684,8 @@ public class TextDocumentServiceImpl implements TextDocumentService, LanguageCli
     }
 
     private static final RequestProcessor DELAYED_RESCHEDULE = new RequestProcessor(TextDocumentServiceImpl.class.getName(), 1, false, false);
-    private <T> CompletableFuture<T> computeCancallablyOnBackground(String uri, CancellableTask<T> task, T defaultValue, int priority) {
+    private static final RequestProcessor EDITOR_BRACKGROUND = new RequestProcessor(TextDocumentServiceImpl.class.getName() + "-editor-background", 1, false, false);
+    private <T> CompletableFuture<T> computeCancellablyOnBackground(String uri, CancellableTask<T> task, T defaultValue, int priority) {
         CompletableFuture<T> result = new CompletableFuture<T>() {
             @Override
             public boolean cancel(boolean mayInterruptIfRunning) {
@@ -2722,7 +2723,7 @@ public class TextDocumentServiceImpl implements TextDocumentService, LanguageCli
                     }
                 });
             } else {
-                BACKGROUND_TASKS.post(() -> {
+                EDITOR_BRACKGROUND.post(() -> {
                     result.complete(task.compute());
                 });
             }

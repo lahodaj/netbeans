@@ -117,6 +117,46 @@ public class JavaCompletionTask121FeaturesTest extends CompletionTestBase {
         performTest("SwitchPatternMatching", 1275, "case R(var s,", "AutoCompletion_Guard_PatternMatchingSwitch.pass", SOURCE_LEVEL);
     }
 
+    public void testSealedTypeSwitch1() throws Exception {
+        performTest("SwitchWithSealedType", 1084, null, "sealedTypeSwitch.pass", SOURCE_LEVEL);
+    }
+
+    public void testSealedTypeSwitch2() throws Exception {
+        performTest("SwitchWithSealedType", 1084, "java.lang.", "javaLangSubPackages.pass", SOURCE_LEVEL);
+    }
+
+    public void testSealedTypeSwitch3() throws Exception {
+        performTest("SwitchWithSealedType", 1084, "java.lang.annotation.", "empty.pass", SOURCE_LEVEL);
+    }
+
+    public void testSealedTypeSwitchTypeFiltering() throws Exception {
+        performTest("SwitchWithSealedType", 1084, "J j -> {} case ", "sealedTypeSwitchJFiltered.pass", SOURCE_LEVEL);
+    }
+
+    public void testSealedTypeSwitchTypeFilteringGuard() throws Exception {
+        performTest("SwitchWithSealedType", 1084, "J j when j == null -> {} case ", "sealedTypeSwitch.pass", SOURCE_LEVEL);
+    }
+
+    public void testSealedTypeSwitchTypeFilteringQualified() throws Exception {
+        performTest("SwitchWithSealedType", 1084, "J j -> {} case test.Test.", "sealedTypeSwitchJFilteredQualified.pass", SOURCE_LEVEL);
+    }
+
+    public void testSealedTypeSwitchTypeFilteringQualifiedPackage() throws Exception {
+        performTest("SwitchWithSealedType", 1084, "J j -> {} case test.", "sealedTypeSwitchJFilteredQualifiedPackage.pass", SOURCE_LEVEL);
+    }
+
+    public void testSealedTypeSwitchEnumFiltering() throws Exception {
+        performTest("SwitchWithSealedType", 1084, "EJ.A -> {} case ", "sealedTypeSwitchEJAFiltered.pass", SOURCE_LEVEL);
+    }
+
+    public void testSealedTypeSwitchEnumFilteringQualified1() throws Exception {
+        performTest("SwitchWithSealedType", 1084, "EJ.A -> {} case test.Test.", "sealedTypeSwitchEJAFilteredQualified1.pass", SOURCE_LEVEL);
+    }
+
+    public void testSealedTypeSwitchEnumFilteringQualified2() throws Exception {
+        performTest("SwitchWithSealedType", 1084, "EJ.A -> {} case test.Test.EJ.", "sealedTypeSwitchEJAFilteredQualified2.pass", SOURCE_LEVEL);
+    }
+
     static {
         JavacParser.DISABLE_SOURCE_LEVEL_DOWNGRADE = true;
     }

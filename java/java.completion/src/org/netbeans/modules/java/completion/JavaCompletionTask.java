@@ -2622,6 +2622,10 @@ public final class JavaCompletionTask<T> extends BaseTask {
             //type String, give up and show all types:
             return null;
         } else {
+            if (selectorTypeElement.getModifiers().contains(Modifier.SEALED)) {
+                options.add(Options.ALL_COMPLETION);
+            }
+
             Pair<Set<Element>, Set<TypeMirror>> alreadyUsed = computedUsedInSwitch(env, switchPath);
             Predicate<TypeMirror> checkTypeCovered = type -> {
                 Types types = env.getController().getTypes();

@@ -22,7 +22,9 @@ package org.netbeans.modules.java.completion;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Reader;
 import java.io.Writer;
+import java.nio.file.Files;
 import java.util.*;
 
 import javax.lang.model.element.*;
@@ -33,6 +35,7 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.swing.text.Document;
+import junit.framework.AssertionFailedError;
 
 import org.netbeans.api.java.lexer.JavaTokenId;
 import org.netbeans.api.java.source.*;
@@ -107,7 +110,18 @@ public class CompletionTestBase extends CompletionTestBaseBase {
         
         File goldenFile = getGoldenFile(goldenFileName);
         File diffFile = new File(getWorkDir(), getName() + ".diff");        
-        assertFile(output, goldenFile, diffFile);
+        try {
+            assertFile(output, goldenFile, diffFile);
+        } catch (AssertionFailedError err) {
+            try (Reader input = Files.newBufferedReader(diffFile.toPath())) {
+                int r;
+
+                while ((r = input.read()) != (-1)) {
+                    System.err.println((char) r);
+                }
+            }
+            throw err;
+        }
         
         LifecycleManager.getDefault().saveAll();
     }

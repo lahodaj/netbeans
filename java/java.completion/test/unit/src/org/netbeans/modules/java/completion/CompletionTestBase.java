@@ -74,6 +74,7 @@ public class CompletionTestBase extends CompletionTestBaseBase {
         copyToWorkDir(new File(getDataDir(), "org/netbeans/modules/java/completion/data/" + source + ".java"), testSource);
         FileObject testSourceFO = FileUtil.toFileObject(testSource);
         assertNotNull(testSourceFO);
+        afterTestSetup();
         DataObject testSourceDO = DataObject.find(testSourceFO);
         assertNotNull(testSourceDO);
         EditorCookie ec = (EditorCookie) testSourceDO.getCookie(EditorCookie.class);
@@ -117,7 +118,7 @@ public class CompletionTestBase extends CompletionTestBaseBase {
                 int r;
 
                 while ((r = input.read()) != (-1)) {
-                    System.err.println((char) r);
+                    System.err.print((char) r);
                 }
             }
             throw err;
@@ -125,6 +126,8 @@ public class CompletionTestBase extends CompletionTestBaseBase {
         
         LifecycleManager.getDefault().saveAll();
     }
+
+    protected void afterTestSetup() throws Exception {}
 
     private static class CIFactory implements JavaCompletionTask.ModuleItemFactory<CI>, JavaCompletionTask.RecordPatternItemFactory<CI> {
 

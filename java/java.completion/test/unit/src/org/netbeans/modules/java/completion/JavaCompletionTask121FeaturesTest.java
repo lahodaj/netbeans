@@ -19,7 +19,12 @@
 
 package org.netbeans.modules.java.completion;
 
+import org.netbeans.api.java.classpath.ClassPath;
+import org.netbeans.api.java.classpath.GlobalPathRegistry;
+import org.netbeans.api.java.source.SourceUtils;
 import org.netbeans.modules.java.source.parsing.JavacParser;
+import org.netbeans.modules.parsing.api.indexing.IndexingManager;
+import org.netbeans.spi.java.classpath.support.ClassPathSupport;
 
 /**
  *
@@ -28,6 +33,7 @@ import org.netbeans.modules.java.source.parsing.JavacParser;
 public class JavaCompletionTask121FeaturesTest extends CompletionTestBase {
 
     private static final String SOURCE_LEVEL = "21"; //NOI18N
+    private ClassPath classPathRegistered;
 
     public JavaCompletionTask121FeaturesTest(String testName) {
         super(testName);
@@ -155,6 +161,25 @@ public class JavaCompletionTask121FeaturesTest extends CompletionTestBase {
 
     public void testSealedTypeSwitchEnumFilteringQualified2() throws Exception {
         performTest("SwitchWithSealedType", 1084, "EJ.A -> {} case test.Test.EJ.", "sealedTypeSwitchEJAFilteredQualified2.pass", SOURCE_LEVEL);
+    }
+
+    @Override
+    protected void afterTestSetup() throws Exception {
+        if (getName().startsWith("testSealed")) {
+            classPathRegistered = ClassPathSupport.createClassPath(getWorkDir().toURI().toURL());
+            GlobalPathRegistry.getDefault().register(ClassPath.SOURCE, new ClassPath[] {classPathRegistered});
+            IndexingManager.getDefault().refreshAllIndices(true, true, getWorkDir());
+            SourceUtils.waitScanFinished();
+        }
+    }
+
+    @Override
+    protected void tearDown() throws Exception {
+        if (classPathRegistered != null) {
+            GlobalPathRegistry.getDefault().unregister(ClassPath.SOURCE, new ClassPath[] {classPathRegistered});
+            SourceUtils.waitScanFinished();
+        }
+        super.tearDown();
     }
 
     static {

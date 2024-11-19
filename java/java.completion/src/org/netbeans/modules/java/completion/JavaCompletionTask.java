@@ -2652,7 +2652,7 @@ public final class JavaCompletionTask<T> extends BaseTask {
                                         continue;
                                     }
                                     //not filtering deprecated, etc., as those may be needed for exhaustiveness:
-                                    results.add(itemFactory.createStaticMemberItem(info, type, enumConstant, enumConstant.asType(), false, anchorOffset, info.getElements().isDeprecated(enumConstant), false, false));
+                                    results.add(itemFactory.createStaticMemberItem(info, type, enumConstant, enumConstant.asType(), false, anchorOffset, info.getElements().isDeprecated(enumConstant), false, true));
                                 }
                             }
                         }

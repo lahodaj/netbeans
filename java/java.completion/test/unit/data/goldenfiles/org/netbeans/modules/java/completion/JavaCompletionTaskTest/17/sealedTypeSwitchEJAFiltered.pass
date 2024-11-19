@@ -1,4 +1,3 @@
-null
 public static final EJ EJ.B
 public static final EJ EJ.C
 CI
@@ -7,9 +6,10 @@ CJ2
 EJ
 I
 J
-Test
+null
 com
 java
 javax
 org
 sun
+test

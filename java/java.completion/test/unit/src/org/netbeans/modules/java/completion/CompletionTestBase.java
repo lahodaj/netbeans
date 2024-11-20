@@ -22,9 +22,7 @@ package org.netbeans.modules.java.completion;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Reader;
 import java.io.Writer;
-import java.nio.file.Files;
 import java.util.*;
 
 import javax.lang.model.element.*;
@@ -35,7 +33,6 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.swing.text.Document;
-import junit.framework.AssertionFailedError;
 
 import org.netbeans.api.java.lexer.JavaTokenId;
 import org.netbeans.api.java.source.*;
@@ -111,18 +108,7 @@ public class CompletionTestBase extends CompletionTestBaseBase {
         
         File goldenFile = getGoldenFile(goldenFileName);
         File diffFile = new File(getWorkDir(), getName() + ".diff");        
-        try {
-            assertFile(output, goldenFile, diffFile);
-        } catch (AssertionFailedError err) {
-            try (Reader input = Files.newBufferedReader(diffFile.toPath())) {
-                int r;
-
-                while ((r = input.read()) != (-1)) {
-                    System.err.print((char) r);
-                }
-            }
-            throw err;
-        }
+        assertFile(output, goldenFile, diffFile);
         
         LifecycleManager.getDefault().saveAll();
     }
@@ -539,7 +525,7 @@ public class CompletionTestBase extends CompletionTestBaseBase {
         }
 
         @Override
-        public CI createStaticMemberItem(CompilationInfo info, DeclaredType type, Element memberElem, TypeMirror memberType, boolean multipleVersions, int substitutionOffset, boolean isDeprecated, boolean addSemicolon, boolean smartType) {
+        public CI createStaticMemberItem(CompilationInfo info, DeclaredType type, Element memberElem, TypeMirror memberType, boolean multipleVersions, int substitutionOffset, boolean isDeprecated, boolean addSemicolon) {
             switch (memberElem.getKind()) {
                 case METHOD:
                 case ENUM_CONSTANT:
@@ -591,14 +577,14 @@ public class CompletionTestBase extends CompletionTestBaseBase {
                         sb.append(')');
                         sortParams.append(')');
                     }
-                    return new CI(sb.toString(), (memberElem.getKind().isField() ? 720 : 750) - (smartType ? SMART_TYPE : 0), memberElem.getKind().isField() ? memberName + "#" + typeName : memberName + "#" + ((cnt < 10 ? "0" : "") + cnt) + "#" + sortParams.toString() + "#" + typeName); //NOI18N
+                    return new CI(sb.toString(), (memberElem.getKind().isField() ? 720 : 750) - SMART_TYPE, memberElem.getKind().isField() ? memberName + "#" + typeName : memberName + "#" + ((cnt < 10 ? "0" : "") + cnt) + "#" + sortParams.toString() + "#" + typeName); //NOI18N
                 default:
                     throw new IllegalArgumentException("kind=" + memberElem.getKind());
             }
         }
 
         @Override
-        public CI createStaticMemberItem(ElementHandle<TypeElement> handle, String name, int substitutionOffset, boolean addSemicolon, ReferencesCount referencesCount, Source source, boolean smartType) {
+        public CI createStaticMemberItem(ElementHandle<TypeElement> handle, String name, int substitutionOffset, boolean addSemicolon, ReferencesCount referencesCount, Source source) {
             String fqn = handle.getQualifiedName();
             int weight = 50;
             if (fqn.startsWith("java.lang") || fqn.startsWith("java.util")) { // NOI18N

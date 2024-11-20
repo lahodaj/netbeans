@@ -163,6 +163,10 @@ public class JavaCompletionTask121FeaturesTest extends CompletionTestBase {
         performTest("SwitchWithSealedType", 1084, "EJ.A -> {} case test.Test.EJ.", "sealedTypeSwitchEJAFilteredQualified2.pass", SOURCE_LEVEL);
     }
 
+    public void testNonSealedTypeSwitch1() throws Exception {
+        performTest("SwitchWithNonSealedType", 1070, null, "nonSealedTypeSwitch.pass", SOURCE_LEVEL);
+    }
+
     @Override
     protected void afterTestSetup() throws Exception {
         if (getName().startsWith("testSealed")) {

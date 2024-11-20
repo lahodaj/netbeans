@@ -107,9 +107,9 @@ public final class JavaCompletionTask<T> extends BaseTask {
 
         T createAttributeValueItem(CompilationInfo info, String value, String documentation, TypeElement element, int substitutionOffset, ReferencesCount referencesCount);
 
-        T createStaticMemberItem(CompilationInfo info, DeclaredType type, Element memberElem, TypeMirror memberType, boolean multipleVersions, int substitutionOffset, boolean isDeprecated, boolean addSemicolon);
+        T createStaticMemberItem(CompilationInfo info, DeclaredType type, Element memberElem, TypeMirror memberType, boolean multipleVersions, int substitutionOffset, boolean isDeprecated, boolean addSemicolon, boolean smartType);
 
-        T createStaticMemberItem(ElementHandle<TypeElement> handle, String name, int substitutionOffset, boolean addSemicolon, ReferencesCount referencesCount, Source source);
+        T createStaticMemberItem(ElementHandle<TypeElement> handle, String name, int substitutionOffset, boolean addSemicolon, ReferencesCount referencesCount, Source source, boolean smartType);
 
         T createChainedMembersItem(CompilationInfo info, List<? extends Element> chainedElems, List<? extends TypeMirror> chainedTypes, int substitutionOffset, boolean isDeprecated, boolean addSemicolon);
 
@@ -2622,7 +2622,9 @@ public final class JavaCompletionTask<T> extends BaseTask {
             //type String, give up and show all types:
             return null;
         } else {
-            if (selectorTypeElement.getModifiers().contains(Modifier.SEALED)) {
+            boolean selectorSealed = selectorTypeElement.getModifiers().contains(Modifier.SEALED);
+
+            if (selectorSealed) {
                 options.add(Options.ALL_COMPLETION);
             }
 
@@ -2652,7 +2654,7 @@ public final class JavaCompletionTask<T> extends BaseTask {
                                         continue;
                                     }
                                     //not filtering deprecated, etc., as those may be needed for exhaustiveness:
-                                    results.add(itemFactory.createStaticMemberItem(info, type, enumConstant, enumConstant.asType(), false, anchorOffset, info.getElements().isDeprecated(enumConstant), false));
+                                    results.add(itemFactory.createStaticMemberItem(info, type, enumConstant, enumConstant.asType(), false, anchorOffset, info.getElements().isDeprecated(enumConstant), false, selectorSealed));
                                 }
                             }
                         }
@@ -3577,7 +3579,7 @@ public final class JavaCompletionTask<T> extends BaseTask {
                             };
                             for (Element ee : controller.getElementUtilities().getMembers(type, acceptor)) {
                                 if (Utilities.isShowDeprecatedMembers() || !elements.isDeprecated(ee)) {
-                                    results.add(itemFactory.createStaticMemberItem(env.getController(), type, ee, asMemberOf(ee, type, types), false, anchorOffset, elements.isDeprecated(ee), false));
+                                    results.add(itemFactory.createStaticMemberItem(env.getController(), type, ee, asMemberOf(ee, type, types), false, anchorOffset, elements.isDeprecated(ee), false, true));
                                 }
                             }
                         }
@@ -3661,7 +3663,7 @@ public final class JavaCompletionTask<T> extends BaseTask {
                         };
                         for (Element ee : controller.getElementUtilities().getMembers(type, acceptor)) {
                             if (Utilities.isShowDeprecatedMembers() || !elements.isDeprecated(ee)) {
-                                results.add(itemFactory.createStaticMemberItem(env.getController(), type, ee, asMemberOf(ee, type, types), false, anchorOffset, elements.isDeprecated(ee), env.addSemicolon()));
+                                results.add(itemFactory.createStaticMemberItem(env.getController(), type, ee, asMemberOf(ee, type, types), false, anchorOffset, elements.isDeprecated(ee), env.addSemicolon(), true));
                             }
                         }
                     }
@@ -3698,7 +3700,7 @@ public final class JavaCompletionTask<T> extends BaseTask {
                     }
                     ExecutableType et = (ExecutableType) asMemberOf(e, enclClass != null ? enclClass.asType() : null, types);
                     if (e.getEnclosingElement() != enclClass && conflictsWithLocalMethods(e.getSimpleName(), enclClass, methodsIn)) {
-                        results.add(itemFactory.createStaticMemberItem(env.getController(), (DeclaredType)e.getEnclosingElement().asType(), e, et, false, anchorOffset, elements.isDeprecated(e), env.addSemicolon()));
+                        results.add(itemFactory.createStaticMemberItem(env.getController(), (DeclaredType)e.getEnclosingElement().asType(), e, et, false, anchorOffset, elements.isDeprecated(e), env.addSemicolon(), true));
                     } else {
                         results.add(itemFactory.createExecutableItem(env.getController(), (ExecutableElement) e, et, anchorOffset, null, env.getScope().getEnclosingClass() != e.getEnclosingElement(), elements.isDeprecated(e), false, env.addSemicolon(), isOfSmartType(env, getCorrectedReturnType(env, et, (ExecutableElement) e, enclClass != null ? enclClass.asType() : null), smartTypes), env.assignToVarPos(), false));
                     }
@@ -3870,7 +3872,7 @@ public final class JavaCompletionTask<T> extends BaseTask {
             for (DeclaredType dt : dts) {
                 if (startsWith(env, dt.asElement().getSimpleName().toString())) {
                     for (Element ee : controller.getElementUtilities().getMembers(dt, acceptor)) {
-                        results.add(itemFactory.createStaticMemberItem(env.getController(), dt, ee, asMemberOf(ee, dt, types), false, anchorOffset, elements.isDeprecated(ee), env.addSemicolon()));
+                        results.add(itemFactory.createStaticMemberItem(env.getController(), dt, ee, asMemberOf(ee, dt, types), false, anchorOffset, elements.isDeprecated(ee), env.addSemicolon(), true));
                     }
                 }
             }
@@ -3967,7 +3969,7 @@ public final class JavaCompletionTask<T> extends BaseTask {
                 }
                 for (String name : symbols.getSymbols()) {
                     if (!Utilities.isExcludeMethods() || !Utilities.isExcluded(symbols.getEnclosingType().getQualifiedName() + '.' + name)) {
-                        results.add(itemFactory.createStaticMemberItem(symbols.getEnclosingType(), name, anchorOffset, env.addSemicolon(), env.getReferencesCount(), controller.getSnapshot().getSource()));
+                        results.add(itemFactory.createStaticMemberItem(symbols.getEnclosingType(), name, anchorOffset, env.addSemicolon(), env.getReferencesCount(), controller.getSnapshot().getSource(), true));
                     }
                 }
             }

@@ -279,6 +279,7 @@ public class TreeFactory {
                      List<? extends TypeParameterTree> typeParameters,
                      Tree extendsClause,
                      List<? extends Tree> implementsClauses,
+                     List<? extends Tree> permitsClauses,
                      List<? extends Tree> memberDecls) 
     {
         ListBuffer<JCTypeParameter> typarams = new ListBuffer<JCTypeParameter>();
@@ -287,6 +288,9 @@ public class TreeFactory {
         ListBuffer<JCExpression> impls = new ListBuffer<JCExpression>();
         for (Tree t : implementsClauses)
             impls.append((JCExpression)t);
+        ListBuffer<JCExpression> permits = new ListBuffer<JCExpression>();
+        for (Tree t : permitsClauses)
+            permits.append((JCExpression)t);
         ListBuffer<JCTree> defs = new ListBuffer<JCTree>();
         for (Tree t : memberDecls)
             defs.append((JCTree)t);
@@ -295,6 +299,7 @@ public class TreeFactory {
                              typarams.toList(),
                              (JCExpression)extendsClause,
                              impls.toList(),
+                             permits.toList(),
                              defs.toList());
         
     }
@@ -1105,6 +1110,7 @@ public class TreeFactory {
             clazz.getTypeParameters(),
             clazz.getExtendsClause(),
             (List<ExpressionTree>) clazz.getImplementsClause(),
+            clazz.getPermitsClause(),
             c(clazz.getMembers(), index, member, op)
         );
         return copy;
@@ -1133,6 +1139,7 @@ public class TreeFactory {
             c(clazz.getTypeParameters(), index, typeParameter, op),
             clazz.getExtendsClause(),
             (List<ExpressionTree>) clazz.getImplementsClause(),
+            clazz.getPermitsClause(),
             clazz.getMembers()
         );
         return copy;
@@ -1161,6 +1168,7 @@ public class TreeFactory {
             clazz.getTypeParameters(),
             clazz.getExtendsClause(),
             c((List<ExpressionTree>) clazz.getImplementsClause(), index, implementsClause, op), // todo: cast!
+            clazz.getPermitsClause(),
             clazz.getMembers()
         );
         return copy;

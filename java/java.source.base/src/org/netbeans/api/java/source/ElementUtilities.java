@@ -532,7 +532,7 @@ public final class ElementUtilities {
         try {
             ordinary = Enum.valueOf((Class<Enum>) Class.forName("com.sun.tools.javac.api.JavacScope$ScopeType"), "ORDINARY");
         } catch (ClassNotFoundException ex) {
-            LOG.level(Level.FINE, null, ex);
+            LOG.log(Level.FINE, null, ex);
         }
 
         ORDINARY_SCOPE_TYPE = ordinary;

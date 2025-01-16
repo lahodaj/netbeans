@@ -382,7 +382,7 @@ public final class TreeMaker {
      * @param memberDecls       the list of fields defined by this class, or an
      *                          empty list.
      * @see com.sun.source.tree.ClassTree
-     * @since 2.74
+     * @since 2.75
      */
     public ClassTree Class(ModifiersTree modifiers,
               CharSequence simpleName,

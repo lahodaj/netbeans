@@ -124,7 +124,7 @@ jobs:
     timeout-minutes: 40
     strategy:
       matrix:
-        java: [ '17', '21', '23' ]
+        java: [ '17', '21', '24-ea' ]
         exclude:
           - java: ${{ github.event_name == 'pull_request' && 'nothing' || '21' }}
       fail-fast: false
@@ -229,7 +229,7 @@ jobs:
         java: [ 17 ]
         include:
           - os: ubuntu-latest
-            java: 22
+            java: 23
       fail-fast: false
     steps:
 
@@ -296,13 +296,6 @@ jobs:
           echo "::error::PRs must be labeled, see: https://cwiki.apache.org/confluence/display/NETBEANS/PRs+and+You+-+A+reviewer+Guide"
           exit 1
 
-      - name: Set up JDK ${{ matrix.java }} 
-        if: ${{ !cancelled() }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ matrix.java }} 
-          distribution: ${{ env.DEFAULT_JAVA_DISTRIBUTION }}
-
       - name: Checkout ${{ github.ref }} ( ${{ github.sha }} )
         if: ${{ !cancelled() }}
         uses: actions/checkout@v4
@@ -310,11 +303,24 @@ jobs:
           persist-credentials: false
           submodules: false
           show-progress: false
-          fetch-depth: 10
 
-      - name: Print last 10 Commits
+      - name: Set up JDK 23 for scripts
         if: ${{ github.event_name == 'pull_request' && !cancelled() }}
-        run: git log --oneline -n10 --pretty=format:'%h %an [%ae] %s'
+        uses: actions/setup-java@v4
+        with:
+          java-version: 23
+          distribution: ${{ env.DEFAULT_JAVA_DISTRIBUTION }}
+
+      - name: Check Commit Headers
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
+        run: java --enable-preview .github/scripts/CommitHeaderChecker.java ${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+
+      - name: Set up JDK ${{ matrix.java }} 
+        if: ${{ !cancelled() }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }} 
+          distribution: ${{ env.DEFAULT_JAVA_DISTRIBUTION }}
 
       - name: Check line endings and verify RAT report
         if: ${{ !cancelled() }}
@@ -416,6 +422,11 @@ jobs:
       - name: Build nbms
         run: ant $OPTS build-nbms
 
+      # runs only in PRs if requested; ~18 min
+      - name: Build all Tests
+        if: env.test_tests == 'true' && github.event_name == 'pull_request' && success()
+        run: ant -quiet -Dcluster.config=$CLUSTER_CONFIG test -Dtest.includes=NoTestsJustBuild
+
       # 13-14 min for javadoc; JDK version must be synced with nb-javac
       - name: Set up JDK 23 for javadoc
         if: env.test_javadoc == 'true' && success()
@@ -427,18 +438,6 @@ jobs:
       - name: Build javadoc
         if: env.test_javadoc == 'true' && success()
         run: ant $OPTS build-javadoc
-
-      - name: Set up JDK ${{ matrix.java }} 
-        if: env.test_javadoc == 'true' && success()
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ matrix.java }} 
-          distribution: ${{ env.DEFAULT_JAVA_DISTRIBUTION }}
-
-      # runs only in PRs if requested; ~18 min
-      - name: Build all Tests
-        if: env.test_tests == 'true' && github.event_name == 'pull_request' && success()
-        run: ant -quiet -Dcluster.config=$CLUSTER_CONFIG test -Dtest.includes=NoTestsJustBuild
 
       - name: Create Test Summary
         uses: test-summary/action@v2
@@ -757,6 +756,9 @@ jobs:
 
       - name: ide/team.commons
         run: ant $OPTS -f ide/team.commons test
+
+      - name: ide/textmate.lexer
+        run: ant $OPTS -f ide/textmate.lexer test
 
       - name: ide/terminal.nb
         run: ant $OPTS -f ide/terminal.nb test
@@ -1824,7 +1826,9 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        java: [ '17' ]
+        java: [ '17', '21' ]
+        exclude:
+          - java: ${{ github.event_name == 'pull_request' && 'nothing' || '21' }}
       fail-fast: false
     steps:
 
@@ -2017,10 +2021,6 @@ jobs:
 #      - name: j2ee.sun.ddui
 #        run: ant $OPTS -f enterprise/j2ee.sun.ddui test
 
-# Fails + Slow
-#      - name: jakarta.web.beans
-#        run: ant $OPTS -f enterprise/jakarta.web.beans test
-
       - name: javaee.wildfly
         run: .github/retry.sh ant $OPTS -f enterprise/javaee.wildfly test
 
@@ -2062,9 +2062,8 @@ jobs:
       - name: tomcat5
         run: ant $OPTS -f enterprise/tomcat5 test
 
-# Fails
-#      - name: web.beans
-#        run: ant $OPTS -f enterprise/web.beans test
+      - name: web.beans
+        run: ant $OPTS -f enterprise/web.beans test
 
 # Fails + Slow
 #      - name: web.core.syntax
@@ -2623,13 +2622,14 @@ jobs:
           env "netbeans.extra.options=-J-Dnetbeans.logger.console=true" ant $OPTS test-vscode-ext
  
 
-# last job depends on everything so that it is forced to run last even if a long job fails early
+# cleanup job depends on everything so that it is forced to run last even if a long job fails early.
+# 'paperwork' is left out intentionally, since it doesn't run unit tests (hopefully doesn't need restarts)
+# and shouldn't prevent cleanup on validation failure - which might be common during dev time
   cleanup:
     name: Cleanup Workflow Artifacts
     needs:
       - base-build
       - commit-validation
-      - paperwork
       - build-system-test
       - build-from-src-zip
       - ide-modules-test

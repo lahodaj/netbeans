@@ -4,7 +4,7 @@
 	"description": "Apache NetBeans Language Server Extension for Visual Studio Code",
 	"author": "Apache NetBeans",
 	"license": "Apache 2.0",
-	"version": "99.99.9",
+	"version": "0.1.0",
 	"preview": false,
 	"repository": {
 		"type": "git",
@@ -191,23 +191,6 @@
 					"type": "integer",
 					"default": 10000,
 					"description": "When code completion takes longer than this specified time (in milliseconds), there will be a warning produced (-1 to disable)"
-				},
-				"netbeans.format.codeFormatter": {
-					"type": "string",
-					"enum": [
-						"NetBeans",
-						"Eclipse",
-						"Google",
-						"Spring"
-					],
-					"enumDescriptions": [
-						"Internal NetBeans Code Formatter",
-						"Eclipse Code Formatter",
-						"Goolge Code Formatter",
-						"Spring Code Formatter"
-					],
-					"description": "Code formatter to use",
-					"default": "NetBeans"
 				},
 				"netbeans.format.settingsPath": {
 					"type": "string",

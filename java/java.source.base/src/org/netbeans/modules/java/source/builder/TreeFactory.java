@@ -308,17 +308,18 @@ public class TreeFactory {
                      CharSequence simpleName,
                      List<? extends TypeParameterTree> typeParameters,
                      List<? extends Tree> extendsClauses,
+                     List<? extends Tree> permitsClauses,
                      List<? extends Tree> memberDecls) 
     {
         long flags = getBitFlags(modifiers.getFlags()) | Flags.INTERFACE;
-        return Class(flags, (com.sun.tools.javac.util.List<JCAnnotation>) modifiers.getAnnotations(), simpleName, typeParameters, null, extendsClauses, memberDecls);
+        return Class(flags, (com.sun.tools.javac.util.List<JCAnnotation>) modifiers.getAnnotations(), simpleName, typeParameters, null, extendsClauses, permitsClauses, memberDecls);
     }
 
     public ClassTree AnnotationType(ModifiersTree modifiers, 
              CharSequence simpleName,
              List<? extends Tree> memberDecls) {
         long flags = getBitFlags(modifiers.getFlags()) | Flags.ANNOTATION;
-        return Class(flags, (com.sun.tools.javac.util.List<JCAnnotation>) modifiers.getAnnotations(), simpleName, Collections.<TypeParameterTree>emptyList(), null, Collections.<ExpressionTree>emptyList(), memberDecls);
+        return Class(flags, (com.sun.tools.javac.util.List<JCAnnotation>) modifiers.getAnnotations(), simpleName, Collections.<TypeParameterTree>emptyList(), null, Collections.<ExpressionTree>emptyList(), Collections.emptyList(), memberDecls);
     }
     
     public ClassTree Enum(ModifiersTree modifiers, 
@@ -326,7 +327,7 @@ public class TreeFactory {
              List<? extends Tree> implementsClauses,
              List<? extends Tree> memberDecls) {
         long flags = getBitFlags(modifiers.getFlags()) | Flags.ENUM;
-        return Class(flags, (com.sun.tools.javac.util.List<JCAnnotation>) modifiers.getAnnotations(), simpleName, Collections.<TypeParameterTree>emptyList(), null, implementsClauses, memberDecls);
+        return Class(flags, (com.sun.tools.javac.util.List<JCAnnotation>) modifiers.getAnnotations(), simpleName, Collections.<TypeParameterTree>emptyList(), null, implementsClauses, Collections.emptyList(), memberDecls);
     }
     
     public CompilationUnitTree CompilationUnit(PackageTree packageDecl,
@@ -1762,6 +1763,7 @@ public class TreeFactory {
                      List<? extends TypeParameterTree> typeParameters,
                      Tree extendsClause,
                      List<? extends Tree> implementsClauses,
+                     List<? extends Tree> permitsClauses,
                      List<? extends Tree> memberDecls) {
         ListBuffer<JCTypeParameter> typarams = new ListBuffer<JCTypeParameter>();
         for (TypeParameterTree t : typeParameters)
@@ -1769,6 +1771,9 @@ public class TreeFactory {
         ListBuffer<JCExpression> impls = new ListBuffer<JCExpression>();
         for (Tree t : implementsClauses)
             impls.append((JCExpression)t);
+        ListBuffer<JCExpression> permits = new ListBuffer<JCExpression>();
+        for (Tree t : permitsClauses)
+            permits.append((JCExpression)t);
         ListBuffer<JCTree> defs = new ListBuffer<JCTree>();
         for (Tree t : memberDecls)
             defs.append((JCTree)t);
@@ -1777,6 +1782,7 @@ public class TreeFactory {
                              typarams.toList(),
                              (JCExpression)extendsClause,
                              impls.toList(),
+                             permits.toList(),
                              defs.toList());
         
     }

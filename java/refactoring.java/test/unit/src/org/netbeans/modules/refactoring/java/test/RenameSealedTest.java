@@ -141,6 +141,38 @@ public class RenameSealedTest extends RefactoringTestBase {
 
     }
 
+    public void testRenameInterfaceWithPermittedClass() throws Exception {
+        String testCode = """
+                          package test;
+                          public sealed interface Te|st permits Subtype {
+                          }
+                          """;
+        TestInput splitCode = TestUtilities.splitCodeAndPos(testCode);
+        writeFilesAndWaitForScan(src,
+                                 new File("Test.java", splitCode.code()),
+                                 new File("Subtype.java",
+                                          """
+                                          package test;
+                                          public class Subtype implements Test {
+                                          }
+                                          """));
+        JavaRenameProperties props = new JavaRenameProperties();
+        performRename(src.getFileObject("Test.java"), splitCode.pos(), "Test2", props, true);
+        verifyContent(src, new File("Test.java",
+                                    """
+                                    package test;
+                                    public sealed interface Test2 permits Subtype {
+                                    }
+                                    """),
+                           new File("Subtype.java",
+                                    """
+                                    package test;
+                                    public class Subtype implements Test2 {
+                                    }
+                                    """));
+
+    }
+
     private void performRename(FileObject source, final int absPos, final String newname, final JavaRenameProperties props, final boolean searchInComments, Problem... expectedProblems) throws Exception {
         final RenameRefactoring[] r = new RenameRefactoring[1];
         JavaSource.forFileObject(source).runUserActionTask(new Task<CompilationController>() {

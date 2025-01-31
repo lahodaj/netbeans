@@ -1007,7 +1007,11 @@ public class CasualDiff {
             tokenSequence.move(insertHint);
             moveToSrcRelevant(tokenSequence, Direction.FORWARD);
             // it can be > (GT) or >> (SHIFT)
-            localPointer = insertHint = tokenSequence.offset() + tokenSequence.token().length();
+            insertHint = tokenSequence.offset() + tokenSequence.token().length();
+            if (newT.typarams.isEmpty()) {
+                //skip the final '>':
+                localPointer = insertHint;
+            }
         }
         //TODO: class to record and vice versa!
         if (oldT.getKind() == Kind.RECORD && newT.getKind() == Kind.RECORD) {

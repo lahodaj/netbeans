@@ -34,6 +34,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.ImageObserver;
+import java.awt.image.MultiResolutionImage;
 import java.awt.image.RGBImageFilter;
 import java.awt.image.WritableRaster;
 import java.io.IOException;
@@ -41,11 +42,14 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.ObjectStreamException;
 import java.lang.ref.SoftReference;
+import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -159,8 +163,13 @@ public final class ImageUtilities {
     }
 
     /**
-     * Loads an image from the specified resource ID. The image is loaded using the "system" classloader registered in
-     * Lookup.
+     * Loads an image from the specified resource path. The image is loaded using the "system"
+     * classloader registered in Lookup.
+     *
+     * <p>If the current look and feel is 'dark' (<code>UIManager.getBoolean("nb.dark.theme")</code>)
+     * then the method first attempts to load image
+     * <i>&lt;original file name&gt;<b>_dark</b>.&lt;original extension&gt;</i>. If such file
+     * doesn't exist the default one is loaded instead.
      *
      * <p>If the default lookup contains a service provider for the {@link SVGLoader} interface, and
      * there exists an SVG version of the requested image (e.g. "icon.svg" exists when "icon.png"
@@ -175,6 +184,13 @@ public final class ImageUtilities {
      * When painting on HiDPI-capable {@code Graphics2D} instances provided by Swing, the
      * appropriate transform will already be in place.
      *
+     * <p>Since version 8.12 the returned image object responds to call
+     * <code>image.getProperty({@link #PROPERTY_URL}, null)</code> by returning the internal
+     * {@link URL} of the found and loaded <code>resource</code>. The convenience method
+     * {@link #findImageBaseURL} should be used in preference to direct property access.
+     *
+     * <p>Caching of loaded images can be used internally to improve performance.
+     *
      * @param resourceID resource path of the icon (no initial slash)
      * @return icon's Image, or null, if the icon cannot be loaded.     
      */
@@ -183,29 +199,91 @@ public final class ImageUtilities {
     }
     
     /**
-     * Loads an image based on resource path.
+     * Loads an image based on a resource path.
      * Exactly like {@link #loadImage(String)} but may do a localized search.
      * For example, requesting <code>org/netbeans/modules/foo/resources/foo.gif</code>
      * might actually find <code>org/netbeans/modules/foo/resources/foo_ja.gif</code>
      * or <code>org/netbeans/modules/foo/resources/foo_mybranding.gif</code>.
-     * 
-     * <p>Caching of loaded images can be used internally to improve performance.
-     * <p> Since version 8.12 the returned image object responds to call
-     * <code>image.getProperty({@link #PROPERTY_URL}, null)</code> by returning the internal
-     * {@link URL} of the found and loaded <code>resource</code>. Convenience method {@link #findImageBaseURL}
-     * should be used in preference to direct property access.
-     * 
-     * <p>If the current look and feel is 'dark' (<code>UIManager.getBoolean("nb.dark.theme")</code>)
-     * then the method first attempts to load image <i>&lt;original file name&gt;<b>_dark</b>.&lt;original extension&gt;</i>.
-     * If such file doesn't exist the default one is loaded instead.
-     * </p>
-     * 
+     *
      * @param resource resource path of the image (no initial slash)
      * @param localized true for localized search
-     * @return icon's Image or null if the icon cannot be loaded
+     * @return the icon's Image, or null if the icon cannot be loaded
      */
     public static final Image loadImage(String resource, boolean localized) {
         return loadImageInternal(resource, localized);
+    }
+
+    /**
+     * Load an image from a URI/URL. If the URI uses the {@code nbresloc} protocol, it is loaded
+     * using the resource loading mechanism provided by {@link #loadImage(java.lang.String)}. This
+     * includes handling of SVG icons and dark mode variations.
+     *
+     * <p>This method is intended for use only when a URL or URI must be used instead of a resource
+     * path, e.g. in the implementation of pre-existing NetBeans APIs. External URLs should be
+     * avoided, as they may be disallowed in the future. Do not use this method for new code; prefer
+     * image loading by resource paths instead (e.g. {@link #loadImage(String)}).
+     *
+     * @param uri the URI of the image, possibly with the nbresloc protocol
+     * @return the loaded image, or either null or an uninitialized image if the image was not
+     *         available
+     * @since 7.36
+     */
+    public static final Image loadImage(URI uri) {
+        Parameters.notNull("icon", uri);
+        String scheme = uri.getScheme();
+        if (scheme.equals("nbresloc")) { // NOI18N
+            // Apply our dedicated handling logic. Omit the initial slash of the path.
+            return loadImage(uri.getPath().substring(1), false);
+        } else {
+            if (!(scheme.equals("file") ||
+                scheme.equals("jar") && uri.toString().startsWith("jar:file:") ||
+                scheme.equals("file")))
+            {
+                LOGGER.log(Level.WARNING, "loadImage(URI) called with unusual URI: {0}", uri);
+            }
+            try {
+                /* Observed to return an image with size (-1, -1) if URL points to a non-existent
+                file (after ensureLoaded(Image) is called). */
+                return Toolkit.getDefaultToolkit().createImage(uri.toURL());
+            } catch (MalformedURLException e) {
+                LOGGER.log(Level.WARNING, "Malformed URL passed to loadImage(URI)", e);
+                return null;
+            }
+        }
+    }
+
+    /**
+     * Convert an {@link Icon} instance to a delegating {@link ImageIcon} instance. If the supplied
+     * Icon instance is an SVG icon or has other HiDPI capabilities provided by the methods in this
+     * class, they are preserved by the conversion.
+     *
+     * <p>This method is intended for use only when existing APIs require the use of ImageIcon. In
+     * most other situations it is preferable to use the more general Icon type.
+     *
+     * @param icon the icon to be converted; may <em>not</em> be null
+     * @return the converted instance
+     * @since 7.36
+     */
+    public static final ImageIcon icon2ImageIcon(Icon icon) {
+        if (icon == null) {
+            /* Log a warning and return null rather than throwing an exception here. That way,
+            refactoring of existing code that wraps an existing expression in icon2ImageIcon will
+            not break existing functionality even if it accidentally relied on being able to pass
+            null in the past. */
+            LOGGER.log(Level.WARNING, "Passing null to icon2ImageIcon is not permitted",
+                    new NullPointerException());
+            return null;
+        }
+        if (icon instanceof ImageIcon) {
+            return (ImageIcon) icon;
+        } else if (icon instanceof ToolTipImage) {
+            return ((ToolTipImage) icon).asImageIcon();
+        } else {
+            Image image = icon2Image(icon);
+            ToolTipImage tti = (image instanceof ToolTipImage)
+                ? (ToolTipImage) image : assignToolTipToImageInternal(image, "");
+            return tti.asImageIcon();
+        }
     }
 
     /* Private version of the method showing the more specific return type. We always return a
@@ -233,16 +311,15 @@ public final class ImageUtilities {
     }
 
     /**
-     * Loads an icon based on resource path.
-     * Similar to {@link #loadImage(String, boolean)}, returns ImageIcon instead of Image.
-     * 
-     * <p>If the current look and feel is 'dark' (<code>UIManager.getBoolean("nb.dark.theme")</code>)
-     * then the method first attempts to load image <i>&lt;original file name&gt;<b>_dark</b>.&lt;original extension&gt;</i>.
-     * If such file doesn't exist the default one is loaded instead.
-     * </p>
+     * Loads an icon based on a resource path. Similar to {@link #loadImage(String, boolean)}, but
+     * returns {@link ImageIcon} instead of {@link Image}.
+     *
+     * <p>When a general Icon instance can be used rather than more specifically an ImageIcon, it is
+     * recommended to use {@link #loadIcon(java.lang.String, boolean)} instead. This method remains
+     * for compatibility.
      * 
      * @param resource resource path of the icon (no initial slash)
-     * @param localized localized resource should be used
+     * @param localized true for localized search
      * @return ImageIcon or null, if the icon cannot be loaded.
      * @since 7.22
      */
@@ -252,6 +329,35 @@ public final class ImageUtilities {
             return null;
         }
         return image.asImageIcon();
+    }
+
+    /**
+     * Loads an icon based on a resource path. Similar to {@link #loadImage(String, boolean)}, but
+     * returns {@link Icon} instead of {@link Image}.
+     *
+     * @param resource resource path of the icon (no initial slash)
+     * @param localized true for localized search
+     * @return ImageIcon or null, if the icon cannot be loaded.
+     * @since 7.36
+     */
+    public static final Icon loadIcon( String resource, boolean localized ) {
+        ToolTipImage image = loadImageInternal(resource, localized);
+        if( image == null ) {
+            return null;
+        }
+        return image.asImageIconIfRequiredForRetina();
+    }
+
+    /**
+     * Loads an icon based on a resource path. Similar to {@link #loadImage(String)}, but returns
+     * {@link Icon} instead of {@link Image}.
+     *
+     * @param resource resource path of the icon (no initial slash)
+     * @return ImageIcon or null, if the icon cannot be loaded.
+     * @since 7.36
+     */
+    public static final Icon loadIcon( String resource ) {
+        return loadIcon(resource, false);
     }
     
     private static boolean isDarkLaF() {
@@ -282,12 +388,14 @@ public final class ImageUtilities {
         return imageIconFilter;
     }
 
-    /** This method merges two images into the new one. The second image is drawn
+    /** This method merges two images into the a one. The second image is drawn
      * over the first one with its top-left corner at x, y. Images need not be of the same size.
-     * New image will have a size of max(second image size + top-left corner, first image size).
-     * Method is used mostly when second image contains transparent pixels (e.g. for badging).
-     * Method that attempts to find the merged image in the cache first, then
-     * creates the image if it was not found.
+     * The new image will have a size of max(second image size + top-left corner, first image size).
+     * This method is used mostly when second image contains transparent pixels (e.g. for badging).
+     *
+     * <p>The implementation attempts to find the merged image in the cache first, then creates the
+     * image if it was not found.
+     *
      * @param image1 underlying image
      * @param image2 second image
      * @param x x position of top-left corner
@@ -314,18 +422,43 @@ public final class ImageUtilities {
             compositeCache.put(k, new ActiveRef<CompositeImageKey>(cached, compositeCache, k));
             return cached;
         }
-    }    
-    
+    }
+
+    /** This method merges two icons into a new one. The second icon is drawn
+     * over the first one with its top-left corner at x, y. Icons need not be of the same size.
+     * The new icon will have a size of max(second icon size + top-left corner, first icon size).
+     * This method used mostly when second icon contains transparent pixels (e.g. for badging).
+     *
+     * <p>Similar to {@link #mergeImages(Image, Image, int, int)}, but on {@link Icon} instances
+     * rather than {@link Image} instances. This method is provided as a shortcut to avoid the need
+     * for conversions in client code.
+     *
+     * @param icon1 underlying icon
+     * @param icon2 second icon
+     * @param x x position of top-left corner
+     * @param y y position of top-left corner
+     * @return new merged icon
+     * @since 7.36
+     */
+    public static final Icon mergeIcons(Icon icon1, Icon icon2, int x, int y) {
+        if (icon1 == null || icon2 == null) {
+            throw new NullPointerException();
+        }
+        /* Use the Image-based mergeImages implementation rather than just creating a new
+        MergedIcon instance, to take advantage of the former's cache. Icon instances tend to get
+        converted back and forth between Icon and Image anyway. */
+        return image2Icon(mergeImages(icon2Image(icon1), icon2Image(icon2), x, y));
+    }
+
     /**
      * Converts given image to an icon.
      * @param image to be converted
      * @return icon corresponding icon
      */    
     public static final Icon image2Icon(Image image) {
-        /* Make sure to always return a ToolTipImage, to take advantage of its rendering tweaks for
-        HiDPI screens. */
-        return (image instanceof ToolTipImage)
+        ToolTipImage ret = (image instanceof ToolTipImage)
                 ? (ToolTipImage) image : assignToolTipToImageInternal(image, "");
+        return ret.asImageIconIfRequiredForRetina();
     }
     
     /**
@@ -376,13 +509,14 @@ public final class ImageUtilities {
             // so let's try second most used one type, it satisfies AbstractButton, JCheckbox. Not all cases are
             // covered, however.
             icon.paintIcon(dummyIconComponentButton, g, 0, 0);
+        } finally {
+            g.dispose();
         }
-        g.dispose();
         return image;
     }
     
     /**
-     * Assign tool tip text to given image (creates new or returns cached, original remains unmodified)
+     * Assign tool tip text to given image (creates new or returns cached, original remains unmodified).
      * Text can contain HTML tags e.g. "&#60;b&#62;my&#60;/b&#62; text"
      * @param image image to which tool tip should be set
      * @param text tool tip text
@@ -426,7 +560,7 @@ public final class ImageUtilities {
     }
 
     /**
-     * Add text to tool tip for given image (creates new or returns cached, original remains unmodified)
+     * Add text to tool tip for given image (creates new or returns cached, original remains unmodified).
      * Text can contain HTML tags e.g. "&#60;b&#62;my&#60;/b&#62; text"
      * @param text text to add to tool tip
      * @return Image with attached tool tip
@@ -447,7 +581,7 @@ public final class ImageUtilities {
 
     /**
      * Creates disabled (color saturation lowered) icon.
-     * Icon image conversion is performed lazily.
+     *
      * @param icon original icon used for conversion
      * @return less saturated Icon
      * @since 7.28
@@ -463,6 +597,7 @@ public final class ImageUtilities {
 
     /**
      * Creates disabled (color saturation lowered) image.
+     *
      * @param image original image used for conversion
      * @return less saturated Image
      * @since 7.28
@@ -847,7 +982,7 @@ public final class ImageUtilities {
         }
     }
     
-    private static final ToolTipImage doMergeImages(Image image1, Image image2, int x, int y) {
+    private static ToolTipImage doMergeImages(Image image1, Image image2, int x, int y) {
         ensureLoaded(image1);
         ensureLoaded(image2);
 
@@ -1049,15 +1184,10 @@ public final class ImageUtilities {
         it volatile instead, to be completely sure that the class is still thread-safe. */
         private volatile Icon delegate;
 
-        private IconImageIcon(Icon delegate) {
-            super(icon2Image(delegate));
+        IconImageIcon(ToolTipImage delegate) {
+            super(delegate);
             Parameters.notNull("delegate", delegate);
             this.delegate = delegate;
-        }
-
-        private static ImageIcon create(Icon delegate) {
-            return (delegate instanceof ImageIcon)
-                    ? (ImageIcon) delegate : new IconImageIcon(delegate);
         }
 
         @Override
@@ -1089,9 +1219,15 @@ public final class ImageUtilities {
     }
 
     /**
-     * Image with tool tip text (for icons with badges)
+     * Image with tool tip text (for icons with badges).
+     *
+     * <p>On MacOS, HiDPI (Retina) support in JMenuItem.setIcon(Icon) requires the Icon argument to
+     * be an instance of ImageIcon wrapping a MultiResolutionImage (see
+     * com.apple.laf.ScreenMenuIcon.setIcon, com.apple.laf.AquaIcon.getImageForIcon, and
+     * sun.lwawt.macosx.CImage.Creator.createFromImage). Thus we have this class implement
+     * MultiResolutionImage, and use asImageIcon when needed via asImageIconIfRequiredForRetina.
      */
-    private static class ToolTipImage extends BufferedImage implements Icon {
+    private static class ToolTipImage extends BufferedImage implements Icon, MultiResolutionImage {
         final String toolTipText;
         // May be null.
         final Icon delegateIcon;
@@ -1099,6 +1235,8 @@ public final class ImageUtilities {
         final URL url;
         // May be null.
         ImageIcon imageIconVersion;
+        // May be null.
+        volatile BufferedImage doubleSizeVariant;
 
         public static ToolTipImage createNew(String toolTipText, Image image, URL url) {
             ImageUtilities.ensureLoaded(image);
@@ -1137,9 +1275,16 @@ public final class ImageUtilities {
         }
 
         public synchronized ImageIcon asImageIcon() {
-          if (imageIconVersion == null)
-            imageIconVersion = IconImageIcon.create(this);
-          return imageIconVersion;
+            if (imageIconVersion == null) {
+                imageIconVersion = new IconImageIcon(this);
+            }
+            return imageIconVersion;
+        }
+
+        public Icon asImageIconIfRequiredForRetina() {
+            /* We could choose to do this only on MacOS, but doing it on all platforms will lower
+            the chance of undetected platform-specific bugs. */
+            return delegateIcon != null ? asImageIcon() : this;
         }
 
         /**
@@ -1236,6 +1381,49 @@ public final class ImageUtilities {
                 }
             }
             return super.getProperty(name, observer);
+        }
+
+        private Image getDoubleSizeVariant() {
+          if (delegateIcon == null) {
+              return null;
+          }
+          BufferedImage ret = doubleSizeVariant;
+          if (ret == null) {
+              int SCALE = 2;
+              ColorModel model = getColorModel();
+              int w = delegateIcon.getIconWidth()  * SCALE;
+              int h = delegateIcon.getIconHeight() * SCALE;
+              ret = new BufferedImage(
+                    model,
+                    model.createCompatibleWritableRaster(w, h),
+                    model.isAlphaPremultiplied(), null);
+              Graphics g = ret.createGraphics();
+              try {
+                  ((Graphics2D) g).transform(AffineTransform.getScaleInstance(SCALE, SCALE));
+                  delegateIcon.paintIcon(dummyIconComponentLabel, g, 0, 0);
+              } finally {
+                  g.dispose();
+              }
+              doubleSizeVariant = ret;
+          }
+          return ret;
+        }
+
+        @Override
+        public Image getResolutionVariant(double destImageWidth, double destImageHeight) {
+            if (destImageWidth <= getWidth(null) && destImageHeight <= getHeight(null)) {
+                /* Returning "this" should be safe here, as the same is done in
+                sun.awt.image.MultiResolutionToolkitImage. */
+                return this;
+            }
+            Image ds = getDoubleSizeVariant();
+            return ds != null ? ds : this;
+        }
+
+        @Override
+        public List<Image> getResolutionVariants() {
+            Image ds = getDoubleSizeVariant();
+            return ds == null ? List.of(this) : List.of(this, ds);
         }
     }
 

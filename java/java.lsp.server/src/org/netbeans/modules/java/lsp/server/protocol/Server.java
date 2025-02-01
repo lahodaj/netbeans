@@ -45,13 +45,14 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import com.google.gson.InstanceCreator;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import java.util.prefs.Preferences;
 import java.util.LinkedHashSet;
 import java.util.Objects;
-import java.util.WeakHashMap;
 import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.eclipse.lsp4j.CallHierarchyRegistrationOptions;
 import org.eclipse.lsp4j.CodeActionKind;
@@ -70,6 +71,7 @@ import org.eclipse.lsp4j.MessageParams;
 import org.eclipse.lsp4j.MessageType;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.RenameOptions;
+import org.eclipse.lsp4j.SaveOptions;
 import org.eclipse.lsp4j.SemanticTokensCapabilities;
 import org.eclipse.lsp4j.SemanticTokensParams;
 import org.eclipse.lsp4j.ServerCapabilities;
@@ -159,7 +161,13 @@ import org.openide.util.lookup.ProxyLookup;
  */
 public final class Server {
     private static final Logger LOG = Logger.getLogger(Server.class.getName());
-
+    /**
+     * Special logger that logs LSP in/out messages.
+     */
+    private static final Logger LSP_LOG = Logger.getLogger("org.netbeans.modules.java.lsp.server.lsptrace"); // NOI18N
+    private static final LspServerTelemetryManager LSP_SERVER_TELEMETRY = new LspServerTelemetryManager();
+    private static final ErrorsNotifier ERR_NOTIFIER = new ErrorsNotifier();
+    
     private Server() {
     }
 
@@ -181,7 +189,8 @@ public final class Server {
         ((LanguageClientAware) server).connect(remote);
         msgProcessor.attachClient(server.client);
         Future<Void> runningServer = serverLauncher.startListening();
-        LSPServerTelemetryFactory.getDefault().connect(server.client, runningServer);
+        LSP_SERVER_TELEMETRY.connect(server.client, runningServer);
+        ERR_NOTIFIER.connect(server, runningServer);
         return new NbLspServer(server, runningServer);
     }
     
@@ -263,7 +272,17 @@ public final class Server {
             // PENDING: allow for message consumer wrappers to be registered to add pre/post processing for
             // the request plus build the request's default Lookup contents.
             if (!(delegate instanceof Endpoint)) {
-                return delegate; 
+                return new MessageConsumer() {
+                    @Override
+                    public void consume(Message msg) throws MessageIssueException, JsonRpcException {
+                        if (LSP_LOG.isLoggable(Level.FINEST)) {
+                            LSP_LOG.log(Level.FINEST, "OUT: {0}", 
+                                    msg.toString().replace("\n", "\n\t"));
+                        }
+                        delegate.consume(msg);
+                    }
+                
+                };
             }
             return new MessageConsumer() {
                 @Override
@@ -272,6 +291,10 @@ public final class Server {
                     ProxyLookup ll = new ProxyLookup(new AbstractLookup(ic), sessionLookup);
                     final OperationContext ctx;
 
+                    if (LSP_LOG.isLoggable(Level.FINEST)) {
+                        LSP_LOG.log(Level.FINEST, "IN : {0}", 
+                                msg.toString().replace("\n", "\n\t"));
+                    }
                     // Intercept client REQUESTS; take the progress token from them, if it is
                     // attached.
                     Runnable r;
@@ -382,6 +405,7 @@ public final class Server {
 
         private static final String NETBEANS_FORMAT = "format";
         private static final String NETBEANS_JAVA_IMPORTS = "java.imports";
+        private static final String NETBEANS_PROJECT_JDKHOME = "project.jdkhome";
         private static final String NETBEANS_JAVA_HINTS = "hints";
 
         // change to a greater throughput if the initialization waits on more processes than just (serialized) project open.
@@ -645,13 +669,11 @@ public final class Server {
                 f.completeExceptionally(ex);
             }
         }
-
-        private void asyncOpenSelectedProjects1(CompletableFuture<Project[]> f, Project[] previouslyOpened, Project[] candidateMapping, List<Project> projects, boolean addToWorkspace) {
-            int id = this.openRequestId.getAndIncrement();
-
-            List<CompletableFuture> primingBuilds = new ArrayList<>();
+        
+        CompletableFuture<Void>[] primeProjects(Collection<Project> projects, int id, Map<Project, CompletableFuture<Void>> local) {
             List<Project> toOpen = new ArrayList<>();
-            Map<Project, CompletableFuture<Void>> local = new HashMap<>();
+            List<CompletableFuture<Void>> primingBuilds = new ArrayList<>();
+            
             synchronized (this) {
                 LOG.log(Level.FINER, "{0}: Opening project(s): {1}", new Object[]{ id, Arrays.asList(projects) });
                 for (Project p : projects) {
@@ -665,7 +687,7 @@ public final class Server {
                 }
                 beingOpened.putAll(local);
             }
-            long t = System.currentTimeMillis();
+
             LOG.log(Level.FINER, id + ": Opening projects: {0}", Arrays.asList(toOpen));
 
             // before the projects are officialy 'opened', try to prime the projects
@@ -699,9 +721,20 @@ public final class Server {
                     pap.invokeAction(ActionProvider.COMMAND_PRIME, Lookups.fixed(progress));
                 }
             }
+            return primingBuilds.toArray(new CompletableFuture[0]);
+        }
+        
+        private void asyncOpenSelectedProjects1(CompletableFuture<Project[]> f, Project[] previouslyOpened, Project[] candidateMapping, List<Project> initialProjects, boolean addToWorkspace) {
+            long t = System.currentTimeMillis();
+            int id = this.openRequestId.getAndIncrement();
+            Map<Project, CompletableFuture<Void>> local = new HashMap<>();
 
-            // Wait for all priming builds, even those already pending, to finish:
-            CompletableFuture.allOf(primingBuilds.toArray(new CompletableFuture[0])).thenRun(() -> {
+            CompletableFuture[] primingBuilds = primeProjects(initialProjects, id, local);
+            
+            AtomicReference<Consumer<Collection<Project>>> subprojectProcessor = new AtomicReference();
+            Set<Project> processedProjects = new HashSet<>();
+            AtomicInteger level = new AtomicInteger(1);
+            subprojectProcessor.set((projects) -> {
                 Set<Project> additionalProjects = new LinkedHashSet<>();
                 for (Project prj : projects) {
                     Set<Project> containedProjects = ProjectUtils.getContainedProjects(prj, true);
@@ -710,53 +743,78 @@ public final class Server {
                         additionalProjects.addAll(containedProjects);
                     }
                 }
-                projects.addAll(additionalProjects);
-                OpenProjects.getDefault().open(projects.toArray(new Project[0]), false);
-                try {
-                    LOG.log(Level.FINER, "{0}: Calling openProjects() for : {1}", new Object[]{id, Arrays.asList(projects)});
-                    OpenProjects.getDefault().openProjects().get();
-                } catch (InterruptedException | ExecutionException ex) {
-                    throw new IllegalStateException(ex);
-                }
-                for (Project prj : projects) {
-                    //init source groups/FileOwnerQuery:
-                    ProjectUtils.getSources(prj).getSourceGroups(Sources.TYPE_GENERIC);
-                    final CompletableFuture<Void> prjF = local.get(prj);
-                    if (prjF != null) {
-                        prjF.complete(null);
+                additionalProjects.removeAll(processedProjects);
+                additionalProjects.removeAll(projects);
+                
+                processedProjects.addAll(projects);
+                
+                LOG.log(Level.FINE, "Processing subprojects, level {0}: {1}", new Object[] { level.getAndIncrement(), additionalProjects });
+                
+                if (additionalProjects.isEmpty()) {
+                    OpenProjects.getDefault().open(processedProjects.toArray(new Project[processedProjects.size()]), false);
+                    try {
+                        LOG.log(Level.FINER, "{0}: Calling openProjects() for : {1}", new Object[]{id, Arrays.asList(processedProjects)});
+                        OpenProjects.getDefault().openProjects().get();
+                    } catch (InterruptedException | ExecutionException ex) {
+                        throw new IllegalStateException(ex);
                     }
-                }
-                Set<Project> projectSet = new HashSet<>(Arrays.asList(OpenProjects.getDefault().getOpenProjects()));
-                projectSet.retainAll(openedProjects);
-                projectSet.addAll(projects);
-
-                Project[] prjsRequested = projects.toArray(new Project[0]);
-                Project[] prjs = projects.toArray(new Project[0]);
-                LOG.log(Level.FINER, "{0}: Finished opening projects: {1}", new Object[]{id, Arrays.asList(projects)});
-                synchronized (this) {
-                    openedProjects = projectSet;
-                    if (addToWorkspace) {
-                        Set<Project> ns = new HashSet<>(projects);
-                        List<Project> current = Arrays.asList(workspaceProjects.getNow(new Project[0]));
-                        int s = current.size();
-                        ns.addAll(current);
-                        LOG.log(Level.FINER, "Current is: {0}, ns: {1}", new Object[] { current, ns });
-                        if (s != ns.size()) {
-                            prjs = ns.toArray(new Project[0]);
-                            workspaceProjects = CompletableFuture.completedFuture(prjs);
+                    for (Project prj : processedProjects) {
+                        //init source groups/FileOwnerQuery:
+                        ProjectUtils.getSources(prj).getSourceGroups(Sources.TYPE_GENERIC);
+                        final CompletableFuture<Void> prjF = local.get(prj);
+                        if (prjF != null) {
+                            prjF.complete(null);
                         }
                     }
-                    for (Project p : prjs) {
-                        // override flag in opening cache, no further questions asked.
-                        openingFileOwners.put(p, f.thenApply(unused -> p));
+                    Set<Project> projectSet = new HashSet<>(Arrays.asList(OpenProjects.getDefault().getOpenProjects()));
+                    projectSet.retainAll(openedProjects);
+                    projectSet.addAll(processedProjects);
+
+                    Project[] prjsRequested = projects.toArray(new Project[processedProjects.size()]);
+                    Project[] prjs = projects.toArray(new Project[processedProjects.size()]);
+                    LOG.log(Level.FINER, "{0}: Finished opening projects: {1}", new Object[]{id, Arrays.asList(processedProjects)});
+                    synchronized (this) {
+                        openedProjects = projectSet;
+                        if (addToWorkspace) {
+                            Set<Project> ns = new HashSet<>(processedProjects);
+                            List<Project> current = Arrays.asList(workspaceProjects.getNow(new Project[0]));
+                            int s = current.size();
+                            ns.addAll(current);
+                            LOG.log(Level.FINER, "Current is: {0}, ns: {1}", new Object[] { current, ns });
+                            if (s != ns.size()) {
+                                prjs = ns.toArray(new Project[ns.size()]);
+                                workspaceProjects.complete(prjs);
+                                workspaceProjects = CompletableFuture.completedFuture(prjs);
+                            }
+                        }
+                        for (Project p : prjs) {
+                            // override flag in opening cache, no further questions asked.
+                            openingFileOwners.put(p, f.thenApply(unused -> p));
+                        }
                     }
+                    f.complete(candidateMapping);
+                    List<FileObject> workspaceClientFolders = workspaceService.getClientWorkspaceFolders();
+                    LSP_SERVER_TELEMETRY.sendWorkspaceInfo(client, workspaceClientFolders, openedProjects, System.currentTimeMillis() - t);
+                    LOG.log(Level.INFO, "{0} projects opened in {1}ms", new Object[] { prjsRequested.length, (System.currentTimeMillis() - t) });
+                } else {
+                    LOG.log(Level.FINER, "{0}: Collecting projects to prime from: {1}", new Object[]{id, Arrays.asList(additionalProjects)});
+                    CompletableFuture[] nextPrimingBuilds = primeProjects(additionalProjects, id, local);
+                    CompletableFuture.allOf(nextPrimingBuilds).thenRun(() -> {
+                        subprojectProcessor.get().accept(additionalProjects);
+                    }).exceptionally(e -> {
+                        f.completeExceptionally(e);
+                        return null;
+                    }); 
                 }
-                f.complete(candidateMapping);
-                LOG.log(Level.INFO, "{0} projects opened in {1}ms", new Object[] { prjsRequested.length, (System.currentTimeMillis() - t) });
+            });
+
+            // Wait for all priming builds, even those already pending, to finish:
+            CompletableFuture.allOf(primingBuilds).thenRun(() -> {
+                subprojectProcessor.get().accept(initialProjects);
             }).exceptionally(e -> {
                 f.completeExceptionally(e);
                 return null;
-            });
+            }); 
         }
 
         private JavaSource checkJavaSupport() {
@@ -810,6 +868,9 @@ public final class Server {
                 textDocumentSyncOptions.setChange(TextDocumentSyncKind.Incremental);
                 textDocumentSyncOptions.setOpenClose(true);
                 textDocumentSyncOptions.setWillSaveWaitUntil(true);
+                // TODO: we now do not request to send saved contents, but in case of client side applied text edits, it could be cool to 
+                // receive the current document contents at a savepoint.
+                textDocumentSyncOptions.setSave(new SaveOptions(false));
                 capabilities.setTextDocumentSync(textDocumentSyncOptions);
                 CompletionOptions completionOptions = new CompletionOptions();
                 completionOptions.setResolveProvider(true);
@@ -989,6 +1050,7 @@ public final class Server {
         private void initializeOptions() {
             getWorkspaceProjects().thenAccept(projects -> {
                 ConfigurationItem item = new ConfigurationItem();
+                // PENDING: what about doing just one roundtrip to the client- we may request multiple ConfiguratonItems in one message ?
                 item.setSection(client.getNbCodeCapabilities().getConfigurationPrefix() + NETBEANS_JAVA_HINTS);
                 client.configuration(new ConfigurationParams(Collections.singletonList(item))).thenAccept(c -> {
                     if (c != null && !c.isEmpty() && c.get(0) instanceof JsonObject) {
@@ -998,6 +1060,16 @@ public final class Server {
                         textDocumentService.hintsSettingsRead = true;
                         textDocumentService.reRunDiagnostics();
                     }
+                });
+                item.setSection(client.getNbCodeCapabilities().getConfigurationPrefix() + NETBEANS_PROJECT_JDKHOME);
+                client.configuration(new ConfigurationParams(Collections.singletonList(item))).thenAccept(c -> {
+                    JsonPrimitive newProjectJDKHomePath = null;
+
+                    if (c != null && !c.isEmpty() && c.get(0) instanceof JsonPrimitive) {
+                        newProjectJDKHomePath = (JsonPrimitive) c.get(0);
+                    } else {
+                    }
+                    textDocumentService.updateProjectJDKHome(newProjectJDKHomePath);
                 });
                 if (projects != null && projects.length > 0) {
                     FileObject fo = projects[0].getProjectDirectory();
@@ -1078,6 +1150,7 @@ public final class Server {
             sessionServices.add(new WorkspaceUIContext(client));
             sessionServices.add(treeService.getNodeRegistry());
             sessionServices.add(inputService.getRegistry());
+            sessionServices.add(workspaceService.getWorkspace());
             ((LanguageClientAware) getTextDocumentService()).connect(client);
             ((LanguageClientAware) getWorkspaceService()).connect(client);
             ((LanguageClientAware) treeService).connect(client);
@@ -1287,6 +1360,30 @@ public final class Server {
             logWarning(Arrays.asList(documentUris));
             return CompletableFuture.completedFuture(false);
         }
+
+        @Override
+        public CompletableFuture<Void> writeOutput(OutputMessage lm) {
+            logWarning(lm.message);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletableFuture<Void> showOutput(String outputName) {
+            logWarning("Show output: " + outputName); //NOI18N
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletableFuture<Void> closeOutput(String outputName) {
+            logWarning("Close output: " + outputName); //NOI18N
+            return CompletableFuture.completedFuture(null);
+        }
+        
+        @Override
+        public CompletableFuture<Void> resetOutput(String outputName) {
+            logWarning("Reset output: " + outputName); //NOI18N
+            return CompletableFuture.completedFuture(null);
+        }
     };
 
 
@@ -1334,11 +1431,10 @@ public final class Server {
         }
     }
 
-    public static class LSPServerTelemetryFactory extends CustomIndexerFactory {
+    public static class CustomIndexerTelemetryFactory extends CustomIndexerFactory {
 
-        private static LSPServerTelemetryFactory INSTANCE;
+        private static CustomIndexerTelemetryFactory INSTANCE;
 
-        private final WeakHashMap<LanguageClient, Future<Void>> clients = new WeakHashMap<>();
         private final CustomIndexer noOp = new CustomIndexer() {
             @Override
             protected void index(Iterable<? extends Indexable> files, Context context) {
@@ -1346,49 +1442,26 @@ public final class Server {
         };
 
         @MimeRegistration(mimeType="", service=CustomIndexerFactory.class)
-        public static LSPServerTelemetryFactory getDefault() {
+        public static CustomIndexerTelemetryFactory getDefault() {
             if (INSTANCE == null) {
-                INSTANCE = new LSPServerTelemetryFactory();
+                INSTANCE = new CustomIndexerTelemetryFactory();
             }
             return INSTANCE;
         }
 
-        private LSPServerTelemetryFactory() {
-        }
-
-        public synchronized void connect(LanguageClient client, Future<Void> future) {
-            clients.put(client, future);
+        private CustomIndexerTelemetryFactory() {
         }
 
         @Override
         public synchronized boolean scanStarted(Context context) {
-            Set<LanguageClient> toRemove = new HashSet<>();
-            for (Map.Entry<LanguageClient, Future<Void>> entry : clients.entrySet()) {
-                if (entry.getValue().isDone()) {
-                    toRemove.add(entry.getKey());
-                } else {
-                    entry.getKey().telemetryEvent("nbls.scanStarted");
-                }
-            }
-            for (LanguageClient lc : toRemove) {
-                clients.remove(lc);
-            }
-            return true;
+            LSP_SERVER_TELEMETRY.sendTelemetry(new TelemetryEvent(MessageType.Info.toString(), LSP_SERVER_TELEMETRY.SCAN_START_EVT, "nbls.scanStarted")); 
+	    return true;
         }
 
         @Override
         public synchronized void scanFinished(Context context) {
-            Set<LanguageClient> toRemove = new HashSet<>();
-            for (Map.Entry<LanguageClient, Future<Void>> entry : clients.entrySet()) {
-                if (entry.getValue().isDone()) {
-                    toRemove.add(entry.getKey());
-                } else {
-                    entry.getKey().telemetryEvent("nbls.scanFinished");
-                }
-            }
-            for (LanguageClient lc : toRemove) {
-                clients.remove(lc);
-            }
+            LSP_SERVER_TELEMETRY.sendTelemetry(new TelemetryEvent(MessageType.Info.toString(),LSP_SERVER_TELEMETRY.SCAN_END_EVT,"nbls.scanFinished"));
+            ERR_NOTIFIER.notifyErrors(context.getRootURI());
         }
 
         @Override
@@ -1401,7 +1474,7 @@ public final class Server {
 
         @Override
         public String getIndexerName() {
-            return "LSPServerTelemetry";
+            return "CustomIndexerTelemetryFactory";
         }
 
         @Override

@@ -179,6 +179,7 @@ import org.netbeans.api.project.ui.OpenProjects;
 import org.netbeans.api.sendopts.CommandLine;
 import org.netbeans.junit.NbTestCase;
 import org.netbeans.modules.java.hints.infrastructure.JavaErrorProvider;
+import static org.netbeans.modules.java.lsp.server.LspTestUtils.tripleSlashUri;
 import org.netbeans.modules.java.lsp.server.TestCodeLanguageClient;
 import org.netbeans.modules.java.lsp.server.input.QuickPickItem;
 import org.netbeans.modules.java.lsp.server.input.ShowQuickPickParams;
@@ -987,7 +988,7 @@ public class ServerTest extends NbTestCase {
         Position pos = new Position(3, 30);
         List<? extends Location> definition = server.getTextDocumentService().definition(new DefinitionParams(new TextDocumentIdentifier(toURI(src)), pos)).get().getLeft();
         assertEquals(1, definition.size());
-        assertEquals(toURI(src), definition.get(0).getUri());
+        assertEquals(tripleSlashUri(toURI(src)), definition.get(0).getUri());
         assertEquals(1, definition.get(0).getRange().getStart().getLine());
         assertEquals(16, definition.get(0).getRange().getStart().getCharacter());
         assertEquals(1, definition.get(0).getRange().getEnd().getLine());
@@ -995,7 +996,7 @@ public class ServerTest extends NbTestCase {
         pos = new Position(4, 30);
         definition = server.getTextDocumentService().definition(new DefinitionParams(new TextDocumentIdentifier(toURI(src)), pos)).get().getLeft();
         assertEquals(1, definition.size());
-        assertEquals(toURI(src), definition.get(0).getUri());
+        assertEquals(tripleSlashUri(toURI(src)), definition.get(0).getUri());
         assertEquals(2, definition.get(0).getRange().getStart().getLine());
         assertEquals(27, definition.get(0).getRange().getStart().getCharacter());
         assertEquals(2, definition.get(0).getRange().getEnd().getLine());
@@ -1003,7 +1004,7 @@ public class ServerTest extends NbTestCase {
         pos = new Position(5, 22);
         definition = server.getTextDocumentService().definition(new DefinitionParams(new TextDocumentIdentifier(toURI(src)), pos)).get().getLeft();
         assertEquals(1, definition.size());
-        assertEquals(toURI(otherSrc), definition.get(0).getUri());
+        assertEquals(tripleSlashUri(toURI(otherSrc)), definition.get(0).getUri());
         assertEquals(2, definition.get(0).getRange().getStart().getLine());
         assertEquals(16, definition.get(0).getRange().getStart().getCharacter());
         assertEquals(2, definition.get(0).getRange().getEnd().getLine());
@@ -1070,7 +1071,7 @@ public class ServerTest extends NbTestCase {
         Position pos = new Position(3, 30);
         List<? extends Location> typeDefinition = server.getTextDocumentService().typeDefinition(new TypeDefinitionParams(new TextDocumentIdentifier(toURI(src)), pos)).get().getLeft();
         assertEquals(1, typeDefinition.size());
-        assertEquals(toURI(otherSrc), typeDefinition.get(0).getUri());
+        assertEquals(tripleSlashUri(toURI(otherSrc)), typeDefinition.get(0).getUri());
         assertEquals(1, typeDefinition.get(0).getRange().getStart().getLine());
         assertEquals(13, typeDefinition.get(0).getRange().getStart().getCharacter());
         assertEquals(1, typeDefinition.get(0).getRange().getEnd().getLine());
@@ -1134,7 +1135,7 @@ public class ServerTest extends NbTestCase {
         Position pos = new Position(1, 10);
         List<? extends Location> implementations = server.getTextDocumentService().implementation(new ImplementationParams(new TextDocumentIdentifier(toURI(src)), pos)).get().getLeft();
         assertEquals(1, implementations.size());
-        assertEquals(toURI(otherSrc), implementations.get(0).getUri());
+        assertEquals(tripleSlashUri(toURI(otherSrc)), implementations.get(0).getUri());
         assertEquals(2, implementations.get(0).getRange().getStart().getLine());
         assertEquals(16, implementations.get(0).getRange().getStart().getCharacter());
         assertEquals(2, implementations.get(0).getRange().getEnd().getLine());
@@ -1193,7 +1194,7 @@ public class ServerTest extends NbTestCase {
         assertNotNull(locs);
         assertEquals(1, locs.length);
         Location loc = locs[0];
-        assertEquals(toURI(otherSrc), loc.getUri());
+        assertEquals(tripleSlashUri(toURI(otherSrc)), loc.getUri());
         assertEquals(2, loc.getRange().getStart().getLine());
         assertEquals(9, loc.getRange().getStart().getCharacter());
         assertEquals(2, loc.getRange().getEnd().getLine());
@@ -1365,11 +1366,15 @@ public class ServerTest extends NbTestCase {
         File src = new File(getWorkDir(), "Test.java");
         src.getParentFile().mkdirs();
         String code = "/**\n" +
-                      " * This is a test class with Javadoc.\n" +
+                      " * This is a class level Javadoc.\n" +
                       " */\n" +
                       "public class Test {\n" +
-                      "    public static void main(String[] args) {\n" +
-                      "        Test t = new Test();\n" +
+                      "/**\n"+
+                      "This is constructor level Javadoc\n"+
+                      "**/\n"+
+                      "Test(int i){}\n"+ 
+                      "    public static void main(String[] args) {\n"+
+                      "        Test t = new Test(10000);\n" +
                       "    }\n" +
                       "}\n";
         try (Writer w = new FileWriter(src)) {
@@ -1404,18 +1409,35 @@ public class ServerTest extends NbTestCase {
         InitializeResult result = server.initialize(new InitializeParams()).get();
         assertTrue(result.getCapabilities().getHoverProvider().isLeft() && result.getCapabilities().getHoverProvider().getLeft());
         server.getTextDocumentService().didOpen(new DidOpenTextDocumentParams(new TextDocumentItem(toURI(src), "java", 0, code)));
-        Hover hover = server.getTextDocumentService().hover(new HoverParams(new TextDocumentIdentifier(toURI(src)), new Position(5, 10))).get();
-        assertNotNull(hover);
-        assertTrue(hover.getContents().isRight());
-        MarkupContent content = hover.getContents().getRight();
-        assertNotNull(content);
-        assertEquals(content.getKind(), "markdown");
-        assertEquals(content.getValue(), "```\n" +
+        Hover hoverClass = server.getTextDocumentService().hover(new HoverParams(new TextDocumentIdentifier(toURI(src)), new Position(9, 10))).get();
+        Hover hoverConstructor = server.getTextDocumentService().hover(new HoverParams(new TextDocumentIdentifier(toURI(src)), new Position(9, 23))).get();
+        Hover hoverIntegerArgument = server.getTextDocumentService().hover(new HoverParams(new TextDocumentIdentifier(toURI(src)), new Position(9, 26))).get();
+        assertNotNull(hoverClass);
+        assertNotNull(hoverConstructor);
+        assertNull(hoverIntegerArgument);
+        assertTrue(hoverConstructor.getContents().isRight());
+        assertTrue(hoverClass.getContents().isRight());
+        MarkupContent classContent = hoverClass.getContents().getRight();
+        MarkupContent constructorContent = hoverConstructor.getContents().getRight();
+        assertNotNull(classContent);
+        assertNotNull(constructorContent);
+        assertEquals(classContent.getKind(), "markdown");
+        assertEquals(constructorContent.getKind(), "markdown");
+        assertEquals(classContent.getValue(), "```\n" +
                 "public class Test\n" +
                 "extends Object\n" +
                 "```\n" +
                 "\n" +
-                "This is a test class with Javadoc.\n" +
+                "This is a class level Javadoc.\n" +
+                "\n");
+        assertEquals(constructorContent.getValue(),
+                "**Test**\n"+
+                "\n"+
+                "```\n" +
+                "Test(int i)\n" +
+                "```\n" +
+                "\n" +
+                "This is constructor level Javadoc\n" +
                 "\n");
     }
 
@@ -1947,11 +1969,12 @@ public class ServerTest extends NbTestCase {
             }
             return ws.getKind() + ":" + ws.getName() + ":" + ws.getContainerName() + ":" + (ws.getLocation().isLeft() ? toString(ws.getLocation().getLeft()) : toString(ws.getLocation().getRight()));
         }).collect(Collectors.toList());
-        assertEquals(Arrays.asList("Constructor:Test():Test:Test.java:0:7-0:7",
-                                   "Method:testMethod():Test:Test.java:2:4-2:38",
+        Collections.sort(actual);
+        assertEquals(Arrays.asList("Class:Test:null:?CLASS#Test",
+                                   "Class:TestNested:Test:?CLASS#Test$TestNested",
+                                   "Constructor:Test():Test:Test.java:0:7-0:7",
                                    "Constructor:TestNested():Test.TestNested:Test.java:1:18-1:18",
-                                   "Class:Test:null:?CLASS#Test",
-                                   "Class:TestNested:Test:?CLASS#Test$TestNested"),
+                                   "Method:testMethod():Test:Test.java:2:4-2:38"),
                      actual);
     }
 
@@ -2620,7 +2643,7 @@ public class ServerTest extends NbTestCase {
         assertEquals(1, changes.size());
         assertTrue(changes.get(0).isLeft());
         TextDocumentEdit edit = changes.get(0).getLeft();
-        assertEquals(edit.getTextDocument().getUri(), uri);
+        assertEquals(edit.getTextDocument().getUri(), tripleSlashUri(uri));
         List<TextEdit> fileChanges = edit.getEdits();
         assertNotNull(fileChanges);
         assertEquals(4, fileChanges.size());
@@ -2728,7 +2751,7 @@ public class ServerTest extends NbTestCase {
         assertEquals(1, changes.size());
         assertTrue(changes.get(0).isLeft());
         TextDocumentEdit edit = changes.get(0).getLeft();
-        assertEquals(edit.getTextDocument().getUri(), uri);
+        assertEquals(edit.getTextDocument().getUri(), tripleSlashUri(uri));
         List<TextEdit> fileChanges = edit.getEdits();
         assertNotNull(fileChanges);
         assertEquals(3, fileChanges.size());
@@ -2831,7 +2854,7 @@ public class ServerTest extends NbTestCase {
         assertEquals(1, changes.size());
         assertTrue(changes.get(0).isLeft());
         TextDocumentEdit edit = changes.get(0).getLeft();
-        assertEquals(edit.getTextDocument().getUri(), uri);
+        assertEquals(edit.getTextDocument().getUri(), tripleSlashUri(uri));
         List<TextEdit> fileChanges = edit.getEdits();
         assertNotNull(fileChanges);
         assertEquals(3, fileChanges.size());
@@ -2934,7 +2957,7 @@ public class ServerTest extends NbTestCase {
         assertEquals(1, changes.size());
         assertTrue(changes.get(0).isLeft());
         TextDocumentEdit edit = changes.get(0).getLeft();
-        assertEquals(edit.getTextDocument().getUri(), uri);
+        assertEquals(edit.getTextDocument().getUri(), tripleSlashUri(uri));
         List<TextEdit> fileChanges = edit.getEdits();
         assertNotNull(fileChanges);
         assertEquals(3, fileChanges.size());
@@ -3034,7 +3057,7 @@ public class ServerTest extends NbTestCase {
         WorkspaceEdit edit = gson.fromJson(gson.toJsonTree(ret), WorkspaceEdit.class);
         assertNotNull(edit);
         assertEquals(1, edit.getChanges().size());
-        List<TextEdit> fileChanges = edit.getChanges().get(uri);
+        List<TextEdit> fileChanges = edit.getChanges().get(tripleSlashUri(uri));
         assertNotNull(fileChanges);
         assertEquals(1, fileChanges.size());
         assertEquals(new Range(new Position(6, 0),
@@ -3102,7 +3125,7 @@ public class ServerTest extends NbTestCase {
         WorkspaceEdit edit = gson.fromJson(gson.toJsonTree(ret), WorkspaceEdit.class);
         assertNotNull(edit);
         assertEquals(1, edit.getChanges().size());
-        List<TextEdit> fileChanges = edit.getChanges().get(uri);
+        List<TextEdit> fileChanges = edit.getChanges().get(tripleSlashUri(uri));
         assertNotNull(fileChanges);
         assertEquals(1, fileChanges.size());
         assertEquals(new Range(new Position(3, 0),
@@ -3114,7 +3137,7 @@ public class ServerTest extends NbTestCase {
                      "    }\n",
                      fileChanges.get(0).getNewText());
     }
-
+    
     public void testSourceActionGetterSetter() throws Exception {
         File src = new File(getWorkDir(), "Test.java");
         src.getParentFile().mkdirs();
@@ -3179,7 +3202,7 @@ public class ServerTest extends NbTestCase {
         WorkspaceEdit edit = gson.fromJson(gson.toJsonTree(ret), WorkspaceEdit.class);
         assertNotNull(edit);
         assertEquals(1, edit.getChanges().size());
-        List<TextEdit> fileChanges = edit.getChanges().get(uri);
+        List<TextEdit> fileChanges = edit.getChanges().get(tripleSlashUri(uri));
         assertNotNull(fileChanges);
         assertEquals(1, fileChanges.size());
         assertEquals(new Range(new Position(3, 0),
@@ -3214,7 +3237,7 @@ public class ServerTest extends NbTestCase {
         edit = gson.fromJson(gson.toJsonTree(ret), WorkspaceEdit.class);
         assertNotNull(edit);
         assertEquals(1, edit.getChanges().size());
-        fileChanges = edit.getChanges().get(uri);
+        fileChanges = edit.getChanges().get(tripleSlashUri(uri));
         assertNotNull(fileChanges);
         assertEquals(1, fileChanges.size());
         assertEquals(new Range(new Position(11, 0),
@@ -3280,7 +3303,7 @@ public class ServerTest extends NbTestCase {
         WorkspaceEdit edit = gson.fromJson(gson.toJsonTree(ret), WorkspaceEdit.class);
         assertNotNull(edit);
         assertEquals(1, edit.getChanges().size());
-        List<TextEdit> fileChanges = edit.getChanges().get(uri);
+        List<TextEdit> fileChanges = edit.getChanges().get(tripleSlashUri(uri));
         assertNotNull(fileChanges);
         assertEquals(1, fileChanges.size());
         assertEquals(new Range(new Position(2, 0),
@@ -3363,7 +3386,7 @@ public class ServerTest extends NbTestCase {
         WorkspaceEdit edit = gson.fromJson(gson.toJsonTree(ret), WorkspaceEdit.class);
         assertNotNull(edit);
         assertEquals(1, edit.getChanges().size());
-        List<TextEdit> fileChanges = edit.getChanges().get(uri);
+        List<TextEdit> fileChanges = edit.getChanges().get(tripleSlashUri(uri));
         assertNotNull(fileChanges);
         assertEquals(1, fileChanges.size());
         assertEquals(new Range(new Position(13, 0),
@@ -3436,7 +3459,7 @@ public class ServerTest extends NbTestCase {
         WorkspaceEdit edit = gson.fromJson(gson.toJsonTree(ret), WorkspaceEdit.class);
         assertNotNull(edit);
         assertEquals(1, edit.getChanges().size());
-        List<TextEdit> fileChanges = edit.getChanges().get(uri);
+        List<TextEdit> fileChanges = edit.getChanges().get(tripleSlashUri(uri));
         assertNotNull(fileChanges);
         assertEquals(1, fileChanges.size());
         assertEquals(new Range(new Position(2, 0),
@@ -3525,7 +3548,7 @@ public class ServerTest extends NbTestCase {
         WorkspaceEdit edit = gson.fromJson(gson.toJsonTree(ret), WorkspaceEdit.class);
         assertNotNull(edit);
         assertEquals(1, edit.getChanges().size());
-        List<TextEdit> fileChanges = edit.getChanges().get(uri);
+        List<TextEdit> fileChanges = edit.getChanges().get(tripleSlashUri(uri));
         assertNotNull(fileChanges);
         assertEquals(2, fileChanges.size());
         assertEquals(new Range(new Position(0, 0),
@@ -3593,7 +3616,7 @@ public class ServerTest extends NbTestCase {
         WorkspaceEdit edit = gson.fromJson(gson.toJsonTree(ret), WorkspaceEdit.class);
         assertNotNull(edit);
         assertEquals(1, edit.getChanges().size());
-        List<TextEdit> fileChanges = edit.getChanges().get(uri);
+        List<TextEdit> fileChanges = edit.getChanges().get(tripleSlashUri(uri));
         assertNotNull(fileChanges);
         assertEquals(1, fileChanges.size());
         assertEquals(new Range(new Position(2, 0),
@@ -3663,7 +3686,7 @@ public class ServerTest extends NbTestCase {
         WorkspaceEdit edit = gson.fromJson(gson.toJsonTree(ret), WorkspaceEdit.class);
         assertNotNull(edit);
         assertEquals(1, edit.getChanges().size());
-        List<TextEdit> fileChanges = edit.getChanges().get(uri);
+        List<TextEdit> fileChanges = edit.getChanges().get(tripleSlashUri(uri));
         assertNotNull(fileChanges);
         assertEquals(2, fileChanges.size());
         assertEquals(new Range(new Position(0, 0),
@@ -3740,7 +3763,7 @@ public class ServerTest extends NbTestCase {
         WorkspaceEdit edit = resolvedCodeAction.getEdit();
         assertNotNull(edit);
         assertEquals(1, edit.getChanges().size());
-        List<TextEdit> fileChanges = edit.getChanges().get(uri);
+        List<TextEdit> fileChanges = edit.getChanges().get(tripleSlashUri(uri));
         assertNotNull(fileChanges);
         assertEquals(2, fileChanges.size());
         assertEquals(new Range(new Position(0, 0),
@@ -3775,6 +3798,13 @@ public class ServerTest extends NbTestCase {
                          Set<String> actual = edit.getDocumentChanges().stream().map(this::toString).collect(Collectors.toSet());
                          Set<String> expected = new HashSet<>(Arrays.asList("Test2.java:[0:27-0:31=>TestNew, 1:4-1:8=>TestNew, 2:11-2:15=>TestNew]", "Test.java:[0:13-0:17=>TestNew]", "Test.java=>TestNew.java"));
                          assertEquals(expected, actual);
+                     },
+                     cf -> {
+                         WorkspaceEdit edit = cf.get();
+                         assertTrue(edit.getChanges().isEmpty());
+                         Set<String> actual = edit.getDocumentChanges().stream().map(this::toString).collect(Collectors.toSet());
+                         Set<String> expected = new HashSet<>(Arrays.asList("Test3.java:[3:14-3:22=>arg, 6:36-6:44=>arg, 7:27-7:35=>arg]"));
+                         assertEquals(expected, actual);
                      });
     }
     
@@ -3799,12 +3829,20 @@ public class ServerTest extends NbTestCase {
                          Set<String> actual = edit.getDocumentChanges().stream().map(this::toString).collect(Collectors.toSet());
                          Set<String> expected = new HashSet<>(Arrays.asList("Test2.java:[0:27-0:31=>TestNew, 1:4-1:8=>TestNew, 2:11-2:15=>TestNew]", "Test.java:[0:13-0:17=>TestNew]", "Test.java=>TestNew.java"));
                          assertEquals(expected, actual);
+                     },
+                     cf -> {
+                         WorkspaceEdit edit = cf.get();
+                         assertTrue(edit.getChanges().isEmpty());
+                         Set<String> actual = edit.getDocumentChanges().stream().map(this::toString).collect(Collectors.toSet());
+                         Set<String> expected = new HashSet<>(Arrays.asList("Test3.java:[3:14-3:22=>arg, 6:36-6:44=>arg, 7:27-7:35=>arg]"));
+                         assertEquals(expected, actual);
                      });
     }
     
     private void doTestRename(Consumer<InitializeParams> settings,
                               Validator<CompletableFuture<WorkspaceEdit>> validateFieldRename,
-                              Validator<CompletableFuture<WorkspaceEdit>> validateClassRename) throws Exception {
+                              Validator<CompletableFuture<WorkspaceEdit>> validateClassRename,
+                              Validator<CompletableFuture<WorkspaceEdit>> validateArgumentRename) throws Exception {
         File src = new File(getWorkDir(), "Test.java");
         src.getParentFile().mkdirs();
         try (Writer w = new FileWriter(new File(src.getParentFile(), ".test-project"))) {}
@@ -3822,6 +3860,20 @@ public class ServerTest extends NbTestCase {
                        "}\n";
         try (Writer w = new FileWriter(src2)) {
             w.write(code2);
+        }
+        File src3 = new File(getWorkDir(), "Test3.java");
+        String code3 =  "public class Test3 {\n" +
+                        "    /**\n" +
+                        "     * They had an argument\n" +
+                        "     * @param argument\n" +
+                        "     *\n" +
+                        "     */\n" +
+                        "    public static void greet(String argument){\n" +
+                        "        System.out.println(argument);\n" +
+                        "    }\n" +
+                        "}";
+        try (Writer w = new FileWriter(src3)) {
+            w.write(code3);
         }
         List<Diagnostic>[] diags = new List[1];
         CountDownLatch indexingComplete = new CountDownLatch(1);
@@ -3879,6 +3931,14 @@ public class ServerTest extends NbTestCase {
                                                    "TestNew");
 
             validateClassRename.validate(server.getTextDocumentService().rename(params));
+        }
+        server.getTextDocumentService().didOpen(new DidOpenTextDocumentParams(new TextDocumentItem(toURI(src3), "java", 0, code3)));
+        {
+            RenameParams params = new RenameParams(new TextDocumentIdentifier(src3.toURI().toString()),
+                                                   new Position(6, 37),
+                                                   "arg");
+
+            validateArgumentRename.validate(server.getTextDocumentService().rename(params));
         }
     }
 
@@ -5110,7 +5170,7 @@ public class ServerTest extends NbTestCase {
         server.getTextDocumentService().didChange(new DidChangeTextDocumentParams(id, Arrays.asList(new TextDocumentContentChangeEvent(new Range(new Position(0, 19), new Position(0, 19)), 0, "alue=\"\""))));
         completion = server.getTextDocumentService().completion(new CompletionParams(new TextDocumentIdentifier(toURI(src)), new Position(0, 25))).get();
         actualItems = completion.getRight().getItems().stream().map(ci -> ci.getKind() + ":" + ci.getLabel()).collect(Collectors.toList());
-        assertTrue(actualItems.contains("Text:\"empty-statement\""));
+        assertTrue(actualItems.contains("Value:\"empty-statement\""));
     }
 
     interface Validator<T> {
@@ -5820,6 +5880,12 @@ public class ServerTest extends NbTestCase {
 
             @Override
             public void publishDiagnostics(PublishDiagnosticsParams params) {
+                synchronized (diags) {
+                    if (publishedDiagnosticsCount++ == 1) {
+                        diags[0] = params.getDiagnostics();
+                        diags.notifyAll();
+                    }
+                }
             }
 
             @Override
@@ -5903,6 +5969,95 @@ public class ServerTest extends NbTestCase {
                     "3:13: : int"));
             assertEquals(expectedHints, convertHints.apply(hints));
         }
+    }
+
+    public void testErrorBasedCodeActionFiltering() throws Exception {
+        File src = new File(getWorkDir(), "Test.java");
+        src.getParentFile().mkdirs();
+        String code = "public class Test {\n" +
+                      "    public void test() {\n" +
+                      "        System.err.println(0 << 0);\n" +
+                      "    }\n" +
+                      "}\n";
+        try (Writer w = new FileWriter(src)) {
+            w.write(code);
+        }
+
+        List<Diagnostic>[] diags = new List[1];
+        Launcher<LanguageServer> serverLauncher = createClientLauncherWithLogging(new LspClient() {
+            private int publishedDiagnosticsCount;
+            @Override
+            public void telemetryEvent(Object arg0) {
+            }
+
+            @Override
+            public void publishDiagnostics(PublishDiagnosticsParams params) {
+                synchronized (diags) {
+                    if (publishedDiagnosticsCount++ == 1) {
+                        diags[0] = params.getDiagnostics();
+                        diags.notifyAll();
+                    }
+                }
+            }
+
+            @Override
+            public void showMessage(MessageParams arg0) {
+            }
+
+            @Override
+            public CompletableFuture<MessageActionItem> showMessageRequest(ShowMessageRequestParams arg0) {
+                return CompletableFuture.completedFuture(new MessageActionItem(arg0.getActions().get(0).getTitle()));
+            }
+
+            @Override
+            public void logMessage(MessageParams arg0) {
+                throw new UnsupportedOperationException("Not supported yet.");
+            }
+
+            @Override
+            public CompletableFuture<ApplyWorkspaceEditResponse> applyEdit(ApplyWorkspaceEditParams params) {
+                throw new UnsupportedOperationException("Not supported yet.");
+            }
+
+        }, client.getInputStream(), client.getOutputStream());
+        serverLauncher.startListening();
+        LanguageServer server = serverLauncher.getRemoteProxy();
+        server.initialize(new InitializeParams()).get();
+        String uri = src.toURI().toString();
+        server.getTextDocumentService().didOpen(new DidOpenTextDocumentParams(new TextDocumentItem(uri, "java", 0, code)));
+        synchronized (diags) {
+            while (diags[0] == null) {
+                try {
+                    diags.wait();
+                } catch (InterruptedException ex) {
+                }
+            }
+        }
+        VersionedTextDocumentIdentifier id = new VersionedTextDocumentIdentifier(src.toURI().toString(), 1);
+        Set<String> presentKinds;
+        List<Either<Command, CodeAction>> codeActions;
+        codeActions = server.getTextDocumentService().codeAction(new CodeActionParams(id, new Range(new Position(2, 32), new Position(2, 32)), new CodeActionContext(Collections.emptyList(), null))).get();
+        presentKinds = codeActions.stream().map(d -> d.getRight().getKind()).collect(Collectors.toSet());
+        assertEquals(new HashSet<>(Arrays.asList(CodeActionKind.RefactorRewrite, CodeActionKind.QuickFix)), presentKinds);
+        codeActions = server.getTextDocumentService().codeAction(new CodeActionParams(id, new Range(new Position(2, 32), new Position(2, 32)), new CodeActionContext(Collections.emptyList(), Arrays.asList(CodeActionKind.RefactorRewrite)))).get();
+        presentKinds = codeActions.stream().map(d -> d.getRight().getKind()).collect(Collectors.toSet());
+        assertEquals(new HashSet<>(Arrays.asList(CodeActionKind.RefactorRewrite)), presentKinds);
+        codeActions = server.getTextDocumentService().codeAction(new CodeActionParams(id, new Range(new Position(2, 32), new Position(2, 32)), new CodeActionContext(Collections.emptyList(), Arrays.asList(CodeActionKind.Refactor)))).get();
+        presentKinds = codeActions.stream().map(d -> d.getRight().getKind()).collect(Collectors.toSet());
+        assertEquals(new HashSet<>(Arrays.asList(CodeActionKind.RefactorRewrite)), presentKinds);
+        codeActions = server.getTextDocumentService().codeAction(new CodeActionParams(id, new Range(new Position(2, 32), new Position(2, 32)), new CodeActionContext(Collections.emptyList(), Arrays.asList(CodeActionKind.QuickFix)))).get();
+        presentKinds = codeActions.stream().map(d -> d.getRight().getKind()).collect(Collectors.toSet());
+        assertEquals(new HashSet<>(Arrays.asList(CodeActionKind.QuickFix)), presentKinds);
+        codeActions = server.getTextDocumentService().codeAction(new CodeActionParams(id, new Range(new Position(2, 32), new Position(2, 32)), new CodeActionContext(Collections.emptyList(), Arrays.asList(CodeActionKind.RefactorExtract)))).get();
+        presentKinds = codeActions.stream().map(d -> d.getRight().getKind()).collect(Collectors.toSet());
+        assertEquals(new HashSet<>(Arrays.asList()), presentKinds);
+        codeActions = server.getTextDocumentService().codeAction(new CodeActionParams(id, new Range(new Position(2, 27), new Position(2, 33)), new CodeActionContext(Collections.emptyList(), Arrays.asList(CodeActionKind.RefactorExtract)))).get();
+        presentKinds = codeActions.stream().map(d -> d.getRight().getKind()).collect(Collectors.toSet());
+        assertEquals(new HashSet<>(Arrays.asList(CodeActionKind.RefactorExtract)), presentKinds);
+        //verify surround-with hints are correctly filtered:
+        codeActions = server.getTextDocumentService().codeAction(new CodeActionParams(id, new Range(new Position(2, 0), new Position(3, 0)), new CodeActionContext(Collections.emptyList(), Arrays.asList(CodeActionKind.RefactorExtract)))).get();
+        presentKinds = codeActions.stream().map(d -> d.getRight().getKind()).collect(Collectors.toSet());
+        assertEquals(new HashSet<>(Arrays.asList(CodeActionKind.RefactorExtract)), presentKinds);
     }
 
     static {

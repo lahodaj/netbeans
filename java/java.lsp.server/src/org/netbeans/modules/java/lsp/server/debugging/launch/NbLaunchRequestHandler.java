@@ -87,9 +87,10 @@ public final class NbLaunchRequestHandler {
         String filePath = (String)launchArguments.get("file");
         String projectFilePath = (String)launchArguments.get("projectFile");
         String mainFilePath = (String)launchArguments.get("mainClass");
+        boolean testRun = (Boolean) launchArguments.getOrDefault("testRun", Boolean.FALSE);
 
         if (!isNative && (StringUtils.isBlank(mainFilePath) && StringUtils.isBlank(filePath) && StringUtils.isBlank(projectFilePath)
-                          || modulePaths.isEmpty() && classPaths.isEmpty())) {
+                          || modulePaths.isEmpty() && classPaths.isEmpty()) && !testRun) {
             if (modulePaths.isEmpty() && classPaths.isEmpty()) {
                 ErrorUtilities.completeExceptionally(resultFuture,
                     "Failed to launch debuggee VM. Missing modulePaths/classPaths options in launch configuration.",
@@ -187,11 +188,14 @@ public final class NbLaunchRequestHandler {
         }
 
         if (!isNative) {
-            if (StringUtils.isBlank((String)launchArguments.get("vmArgs"))) {
+            List<String> vmArgList = NbLaunchDelegate.argsToStringList(launchArguments.get("vmArgs"));
+            if (vmArgList.isEmpty()) {
                 launchArguments.put("vmArgs", String.format("-Dfile.encoding=%s", context.getDebuggeeEncoding().name()));
             } else {
+                vmArgList = new ArrayList<>(vmArgList);
+                vmArgList.add(String.format("-Dfile.encoding=%s", context.getDebuggeeEncoding().name()));
                 // if vmArgs already has the file.encoding settings, duplicate options for jvm will not cause an error, the right most value wins
-                launchArguments.put("vmArgs", String.format("%s -Dfile.encoding=%s", launchArguments.get("vmArgs"), context.getDebuggeeEncoding().name()));
+                launchArguments.put("vmArgs", vmArgList);
             }
         }
         context.setDebugMode(!noDebug);
@@ -241,8 +245,9 @@ public final class NbLaunchRequestHandler {
             context.setSourcePaths((String[]) launchArguments.get("sourcePaths"));
         }
         String singleMethod = (String)launchArguments.get("methodName");
-        boolean testRun = (Boolean) launchArguments.getOrDefault("testRun", Boolean.FALSE);
-        activeLaunchHandler.nbLaunch(file, preferProjActions, nativeImageFile, singleMethod, launchArguments, context, !noDebug, testRun, new OutputListener(context)).thenRun(() -> {
+        String nestedClass = (String)launchArguments.get("nestedClass");
+        boolean testInParallel = (Boolean) launchArguments.getOrDefault("testInParallel", Boolean.FALSE);
+        activeLaunchHandler.nbLaunch(file, preferProjActions, nativeImageFile, singleMethod, nestedClass, launchArguments, context, !noDebug, testRun, new OutputListener(context), testInParallel).thenRun(() -> {
             activeLaunchHandler.postLaunch(launchArguments, context);
             resultFuture.complete(null);
         }).exceptionally(e -> {

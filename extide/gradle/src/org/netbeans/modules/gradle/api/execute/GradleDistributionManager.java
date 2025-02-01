@@ -38,9 +38,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -84,7 +82,7 @@ public final class GradleDistributionManager {
 
     private static final String DOWNLOAD_URI = "https://services.gradle.org/distributions/gradle-%s-%s.zip"; //NOI18N
     private static final Pattern DIST_VERSION_PATTERN = Pattern.compile(".*(gradle-(\\d+\\.\\d+.*))-(bin|all)\\.zip"); //NOI18N
-    private static final Set<String> VERSION_BLACKLIST = new HashSet<>(Arrays.asList("2.3", "2.13")); //NOI18N
+    private static final Set<String> VERSION_BLACKLIST = Set.of("2.3", "2.13"); //NOI18N
     private static final Map<File, GradleDistributionManager> CACHE = new WeakHashMap<>();
     private static final GradleVersion MINIMUM_SUPPORTED_VERSION = GradleVersion.version("3.0"); //NOI18N
     private static final GradleVersion[] JDK_COMPAT = new GradleVersion[]{
@@ -101,9 +99,11 @@ public final class GradleDistributionManager {
         GradleVersion.version("7.6"), // JDK-19
         GradleVersion.version("8.3"), // JDK-20
         GradleVersion.version("8.5"), // JDK-21
+        GradleVersion.version("8.8"), // JDK-22
+        GradleVersion.version("8.10"),// JDK-23
     };
 
-    private static final GradleVersion LAST_KNOWN_GRADLE = GradleVersion.version("8.6"); //NOI18N
+    private static final GradleVersion LAST_KNOWN_GRADLE = GradleVersion.version("8.10"); //NOI18N
 
     final File gradleUserHome;
 

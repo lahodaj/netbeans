@@ -3525,9 +3525,9 @@ public class FormatingTest extends NbTestCase {
 
     public void testAnnotatedRecord() throws Exception {
         try {
-            SourceVersion.valueOf("RELEASE_19"); //NOI18N
+            SourceVersion.valueOf("RELEASE_17"); //NOI18N
         } catch (IllegalArgumentException ex) {
-            //OK, no RELEASE_19, skip test
+            //OK, no RELEASE_17, skip test
             return;
         }
         testFile = new File(getWorkDir(), "Test.java");
@@ -5201,6 +5201,54 @@ public class FormatingTest extends NbTestCase {
                 + "}\n";
         reformat(doc, content, golden);
 
+        content ="""
+                package hierbas.del.litoral;
+
+                public class Test{
+                /**{@return foo bar method} */    String bar() { 
+                        return null; 
+                    }
+                }""";
+        golden ="""
+                package hierbas.del.litoral;
+
+                public class Test {
+
+                    /**
+                     * {@return foo bar method}
+                     */
+                    String bar() {
+                        return null;
+                    }
+                }
+                """;
+        reformat(doc, content, golden);    
+        
+        content ="""
+                 package hierbas.del.litoral;
+                 
+                 public class Test{
+                 /** bar method description {@return foo bar method} */    String bar() { 
+                         return null; 
+                     }
+                 }
+                 """;
+        golden ="""
+                package hierbas.del.litoral;
+                
+                public class Test {
+                
+                    /**
+                     * bar method description
+                     * {@return foo bar method}
+                     */
+                    String bar() {
+                        return null;
+                    }
+                }
+                """;
+        reformat(doc, content, golden);
+        
         content =
                 "package hierbas.del.litoral;\n"
                 + "\n"
@@ -6635,6 +6683,61 @@ public class FormatingTest extends NbTestCase {
                 + "}\n";
         reformat(doc, content, golden);
     }
+
+    // verify closing '}' position during record formatting
+    public void testRecordClosingBrace7043() throws Exception {
+        try {
+            SourceVersion.valueOf("RELEASE_17"); //NOI18N
+        } catch (IllegalArgumentException ex) {
+            //OK, no RELEASE_17, skip test
+            return;
+        }
+        sourceLevel = "17";
+        JavacParser.DISABLE_SOURCE_LEVEL_DOWNGRADE = true;
+        testFile = new File(getWorkDir(), "Test.java");
+        TestUtilities.copyStringToFile(testFile, "");
+        FileObject testSourceFO = FileUtil.toFileObject(testFile);
+        DataObject testSourceDO = DataObject.find(testSourceFO);
+        EditorCookie ec = (EditorCookie) testSourceDO.getCookie(EditorCookie.class);
+        final Document doc = ec.openDocument();
+        doc.putProperty(Language.class, JavaTokenId.language());
+        
+        Preferences preferences = MimeLookup.getLookup(JavaTokenId.language().mimeType()).lookup(Preferences.class);
+        preferences.putBoolean("spaceWithinMethodDeclParens", true);
+        preferences.putInt("blankLinesAfterClassHeader", 0);
+
+        String content ="""
+                        package test;
+                        record Student(int id,String lastname,String firstname) implements Serializable {
+                        int m(int x){ 
+                        return id+x;
+                        }
+                        } // should stay flush to left margin
+                        """;
+        String golden = """
+                        package test;
+
+                        record Student( int id, String lastname, String firstname ) implements Serializable {
+                            int m( int x ) {
+                                return id + x;
+                            }
+                        } // should stay flush to left margin
+                        """;
+        reformat(doc, content, golden);
+
+        preferences.putBoolean("spaceWithinMethodDeclParens", false);
+        golden =        """
+                        package test;
+
+                        record Student(int id, String lastname, String firstname) implements Serializable {
+                            int m(int x) {
+                                return id + x;
+                            }
+                        } // should stay flush to left margin
+                        """;
+        reformat(doc, content, golden);
+    }
+    
     @ServiceProvider(service = CompilerOptionsQueryImplementation.class, position = 100)
     public static class TestCompilerOptionsQueryImplementation implements CompilerOptionsQueryImplementation {
 
@@ -6753,32 +6856,6 @@ public class FormatingTest extends NbTestCase {
         reformat(doc, content, golden);
     }
   
-    public void testStringTemplate() throws Exception {
-        testFile = new File(getWorkDir(), "Test.java");
-        TestUtilities.copyStringToFile(testFile, "");
-        FileObject testSourceFO = FileUtil.toFileObject(testFile);
-        DataObject testSourceDO = DataObject.find(testSourceFO);
-        EditorCookie ec = (EditorCookie) testSourceDO.getCookie(EditorCookie.class);
-        final Document doc = ec.openDocument();
-        doc.putProperty(Language.class, JavaTokenId.language());
-        String content
-                = "\n"
-                + "class Test {\n\n"
-                + "    private String t() {\n"
-                + "        return STR.\"a\\{1 + 2}b\";\n"
-                + "    }\n"
-                + "}\n";
-
-        String golden
-                = "\n"
-                + "class Test {\n\n"
-                + "    private String t() {\n"
-                + "        return STR.\"a\\{1 + 2}b\";\n"
-                + "    }\n"
-                + "}\n";
-        reformat(doc, content, golden);
-    }
-
     private void reformat(Document doc, String content, String golden) throws Exception {
         reformat(doc, content, golden, 0, content.length());
     }

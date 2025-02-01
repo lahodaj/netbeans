@@ -21,6 +21,7 @@ package com.oracle.js.parser;
 
 import com.oracle.js.parser.ir.ClassNode;
 import com.oracle.js.parser.ir.FunctionNode;
+import com.oracle.js.parser.ir.IdentNode;
 import com.oracle.js.parser.ir.LexicalContext;
 import com.oracle.js.parser.ir.Node;
 import com.oracle.js.parser.ir.visitor.NodeVisitor;
@@ -309,6 +310,40 @@ public class ParserTest {
         definedConstructor = findNode(demoClass2Demo, functionNodeWithName("Demo2"), FunctionNode.class);
         assertNotNull(definedConstructor);
         assertTrue(definedConstructor.isGenerated());
+    }
+
+    @Test
+    public void testMetaProperties() {
+        // import.meta and new.target are declared meta properties provided by
+        // the runtime. The parser must be able to report them, even if they are
+        // based on keywords
+        assertParses("import.meta");
+        assertParses("function() { new.target }");
+
+        // Other variations should be rejected by the parser
+        assertParsesNot(Integer.MAX_VALUE, "import.dummy");
+        assertParsesNot(Integer.MAX_VALUE, "function() { new.dummy }");
+
+        FunctionNode programm1 = parse(Integer.MAX_VALUE, false, "import.meta");
+        FunctionNode programm2 = parse(Integer.MAX_VALUE, false, "function() { new.target }");
+        // The two special properties are reported as identifiers with an
+        // embedded period
+        assertNotNull(findNode(programm1, n -> n instanceof IdentNode && "import".equals(((IdentNode) n).getName()), IdentNode.class));
+        assertNotNull(findNode(programm2, n -> n instanceof IdentNode && "new".equals(((IdentNode) n).getName()), IdentNode.class));
+    }
+
+    @Test
+    public void testTopLevelAwait() {
+        // Validate top-level await is support for ES13 modules
+        assertParses(13, true, false, "await Promise.resolve(1);");
+        // Validate top-level await is not support for ES12 modules
+        assertParses(12, true, true, "await Promise.resolve(1);");
+        // Validate top-level await is not supported for ES13 non-modules
+        assertParses(13, false, true, "await Promise.resolve(1);");
+        // Validate await in async function can still be parsed
+        assertParses(12, false, false, "async function dummy() {await Promise.resolve(1);}");
+        // Validate await in synchronous function fails to parse
+        assertParses(12, false, true, "function dummy() {await Promise.resolve(1);}");
     }
 
     private Predicate<Node> functionNodeWithName(String name) {

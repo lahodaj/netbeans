@@ -102,6 +102,7 @@ public class MicronautDataCompletionTask {
     private int anchorOffset;
 
     public static interface ItemFactory<T> extends MicronautExpressionLanguageCompletion.ItemFactory<T> {
+        T createControllerMethodItem(CompilationInfo info, String annName, String controllerId, int offset);
         T createControllerMethodItem(CompilationInfo info, VariableElement delegateRepository, ExecutableElement delegateMethod, String controllerId, String id, int offset);
         T createFinderMethodItem(String name, String returnType, int offset);
         T createFinderMethodNameItem(String prefix, String name, int offset);
@@ -265,7 +266,11 @@ public class MicronautDataCompletionTask {
         AnnotationMirror controllerAnn = Utils.getAnnotation(te.getAnnotationMirrors(), CONTROLLER_ANNOTATION_NAME);
         if (controllerAnn != null) {
             List<VariableElement> repositories = Utils.getRepositoriesFor(info, te);
-            if (!repositories.isEmpty()) {
+            if (repositories.isEmpty()) {
+                Utils.collectMissingEndpoints(info, te, (annName, controllerId) -> {
+                    consumer.accept(factory.createControllerMethodItem(info, annName, controllerId, anchorOffset));
+                });
+            } else {
                 Utils.collectMissingDataEndpoints(info, te, prefix, (repository, delegateMethod, controllerId, id) -> {
                     consumer.accept(factory.createControllerMethodItem(info, repository, delegateMethod, controllerId, id, anchorOffset));
                 });
@@ -317,7 +322,7 @@ public class MicronautDataCompletionTask {
                 for (String propName : prop2Types.keySet()) {
                     String name = pattern + BY + propName;
                     if (prefix.length() >= name.length() && prefix.startsWith(name)) {
-                        addPropertyCriterionCompletions(prop2Types, name, prefix, full ? pattern.startsWith(COUNT) ? "int" : pattern.startsWith(EXISTS) ? "boolean" : "void"
+                        addCriterionCompletions(prop2Types, name, prefix, full ? pattern.startsWith(COUNT) ? "int" : pattern.startsWith(EXISTS) ? "boolean" : "void"
                                 : null, factory, consumer);
                     } else if (Utils.startsWith(name, prefix)) {
                         consumer.accept(full ? factory.createFinderMethodItem(name, name.startsWith(COUNT) ? "int" : name.startsWith(EXISTS) ? "boolean" : "void", anchorOffset)
@@ -336,14 +341,17 @@ public class MicronautDataCompletionTask {
 
     private <T> void addPropertyCriterionCompletions(Map<String, String> prop2Types, String namePrefix, String prefix, String returnType, ItemFactory<T> factory, Consumer<T> consumer) {
         for (String propName : prop2Types.keySet()) {
-            for (String criterion : CRITERION_EXPRESSIONS) {
-                String name = propName + criterion;
-                if (prefix.length() >= namePrefix.length() + name.length() && prefix.startsWith(namePrefix + name)) {
-                    addComposeAndOrderCompletions(prop2Types, namePrefix + name, prefix, returnType, factory, consumer);
-                } else if (Utils.startsWith(namePrefix + name, prefix)) {
-                    consumer.accept(returnType != null ? factory.createFinderMethodItem(namePrefix + name, returnType, anchorOffset)
-                            : factory.createFinderMethodNameItem(namePrefix, name, anchorOffset));
-                }
+            addCriterionCompletions(prop2Types, namePrefix + propName, prefix, returnType, factory, consumer);
+        }
+    }
+
+    private <T> void addCriterionCompletions(Map<String, String> prop2Types, String namePrefix, String prefix, String returnType, ItemFactory<T> factory, Consumer<T> consumer) {
+        for (String criterion : CRITERION_EXPRESSIONS) {
+            if (prefix.length() >= namePrefix.length() + criterion.length() && prefix.startsWith(namePrefix + criterion)) {
+                addComposeAndOrderCompletions(prop2Types, namePrefix + criterion, prefix, returnType, factory, consumer);
+            } else if (Utils.startsWith(namePrefix + criterion, prefix)) {
+                consumer.accept(returnType != null ? factory.createFinderMethodItem(namePrefix + criterion, returnType, anchorOffset)
+                        : factory.createFinderMethodNameItem(namePrefix, criterion, anchorOffset));
             }
         }
     }

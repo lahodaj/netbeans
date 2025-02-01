@@ -104,7 +104,7 @@ package org.netbeans.modules.css.lib;
     private boolean tokenNameEquals(String tokenImage) {
         return tokenImage.equalsIgnoreCase(input.LT(1).getText());
     }
-    
+
     private boolean tokenNameEquals2(String tokenImage) {
         return tokenImage.equalsIgnoreCase(input.LT(2).getText());
     }
@@ -713,11 +713,8 @@ atRuleId
 	;
 
 generic_at_rule
-    : AT_IDENT ws? ( atRuleId ws? )?
-        LBRACE
-        	syncTo_RBRACE
-        RBRACE
-	;
+    : {! tokenNameEquals("@charset")}? AT_IDENT (( ~ (SEMI | LBRACE)) => componentValue )* ((LBRACE) => braceBlock2 | SEMI);
+
 moz_document
 	:
 	MOZ_DOCUMENT_SYM ws? ( moz_document_function ws?) ( COMMA ws? moz_document_function ws? )*
@@ -734,7 +731,7 @@ moz_document_function
 //http://developer.apple.com/library/safari/#documentation/appleapplications/reference/SafariCSSRef/Articles/OtherStandardCSS3Features.html#//apple_ref/doc/uid/TP40007601-SW1
 webkitKeyframes
 	:
-	WEBKIT_KEYFRAMES_SYM ws? atRuleId ws?
+	( WEBKIT_KEYFRAMES_SYM | KEYFRAMES_SYM | {tokenNameEquals("@-moz-keyframes")}? AT_IDENT | {tokenNameEquals("@-o-keyframes")}? AT_IDENT ) ws? atRuleId ws?
 	LBRACE ws?
 		( webkitKeyframesBlock ws? )*
 	RBRACE
@@ -899,7 +896,7 @@ declaration
     | (cp_mixin_declaration)=>cp_mixin_declaration
     | (cp_mixin_call)=> cp_mixin_call (ws? IMPORTANT_SYM)?
     | (cp_mixin_call)=> {isScssSource()}? cp_mixin_call (ws? IMPORTANT_SYM)?    
-    | {isCssPreprocessorSource()}? at_rule
+    | at_rule
     | {isScssSource()}? sass_control
     | {isScssSource()}? sass_extend
     | {isScssSource()}? sass_debug
@@ -1096,7 +1093,15 @@ preservedToken: ~ (LPAREN | LBRACE | LBRACKET | RPAREN | RBRACE | RBRACKET);
 
 preservedTokenTopLevel: ~ (LPAREN | LBRACE | LBRACKET | RPAREN | RBRACE | RBRACKET | SEMI );
 
-braceBlock: LBRACE componentValue+ RBRACE;
+// {} block
+braceBlock2:
+    LBRACE ws?
+        declarations?
+    RBRACE
+    ;
+
+// simple brace block
+braceBlock: LBRACE componentValue* RBRACE;
 
 bracketBlock: LBRACKET componentValue+ RBRACKET;
 
@@ -1256,7 +1261,7 @@ cp_variable_declaration
 cp_variable
     :
         //every token which might possibly begin with the at sign
-        {isLessSource()}? ( AT_IDENT | IMPORT_SYM | PAGE_SYM | MEDIA_SYM | NAMESPACE_SYM | CHARSET_SYM | COUNTER_STYLE_SYM | FONT_FACE_SYM | TOPLEFTCORNER_SYM | TOPLEFT_SYM | TOPCENTER_SYM | TOPRIGHT_SYM | TOPRIGHTCORNER_SYM | BOTTOMLEFTCORNER_SYM | BOTTOMLEFT_SYM | BOTTOMCENTER_SYM | BOTTOMRIGHT_SYM | BOTTOMRIGHTCORNER_SYM | LEFTTOP_SYM | LEFTMIDDLE_SYM | LEFTBOTTOM_SYM | RIGHTTOP_SYM | RIGHTMIDDLE_SYM | RIGHTBOTTOM_SYM | MOZ_DOCUMENT_SYM | WEBKIT_KEYFRAMES_SYM | SASS_CONTENT | SASS_MIXIN | SASS_INCLUDE | SASS_EXTEND | SASS_DEBUG | SASS_WARN | SASS_IF | SASS_ELSE | SASS_FOR | SASS_FUNCTION | SASS_RETURN | SASS_EACH | SASS_WHILE | SASS_AT_ROOT | SASS_USE | SASS_FORWARD )
+        {isLessSource()}? ( AT_IDENT | IMPORT_SYM | PAGE_SYM | MEDIA_SYM | NAMESPACE_SYM | CHARSET_SYM | COUNTER_STYLE_SYM | FONT_FACE_SYM | TOPLEFTCORNER_SYM | TOPLEFT_SYM | TOPCENTER_SYM | TOPRIGHT_SYM | TOPRIGHTCORNER_SYM | BOTTOMLEFTCORNER_SYM | BOTTOMLEFT_SYM | BOTTOMCENTER_SYM | BOTTOMRIGHT_SYM | BOTTOMRIGHTCORNER_SYM | LEFTTOP_SYM | LEFTMIDDLE_SYM | LEFTBOTTOM_SYM | RIGHTTOP_SYM | RIGHTMIDDLE_SYM | RIGHTBOTTOM_SYM | MOZ_DOCUMENT_SYM | WEBKIT_KEYFRAMES_SYM | SASS_CONTENT | SASS_MIXIN | SASS_INCLUDE | SASS_EXTEND | SASS_DEBUG | SASS_WARN | SASS_IF | SASS_ELSE | SASS_FOR | SASS_FUNCTION | SASS_RETURN | SASS_EACH | SASS_WHILE | SASS_AT_ROOT | SASS_USE | SASS_FORWARD | KEYFRAMES_SYM )
         |
         {isScssSource()}? ( SASS_VAR | IDENT DOT SASS_VAR )
     ;
@@ -1998,6 +2003,7 @@ FONT_FACE_SYM       : '@FONT-FACE';
 SUPPORTS_SYM        : '@SUPPORTS';
 LAYER_SYM           : '@LAYER';
 CONTAINER_SYM       : '@CONTAINER';
+KEYFRAMES_SYM       : '@KEYFRAMES';
 
 TOPLEFTCORNER_SYM     :'@TOP-LEFT-CORNER';
 TOPLEFT_SYM           :'@TOP-LEFT';

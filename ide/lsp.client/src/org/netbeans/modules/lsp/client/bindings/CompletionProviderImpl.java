@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.netbeans.modules.lsp.client.bindings;
 
 import com.vladsch.flexmark.html.HtmlRenderer;
@@ -28,6 +29,8 @@ import java.net.URL;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.Action;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
@@ -78,6 +81,8 @@ import org.openide.xml.XMLUtil;
  */
 @MimeRegistration(mimeType="", service=CompletionProvider.class)
 public class CompletionProviderImpl implements CompletionProvider {
+
+    private static final Logger LOG = Logger.getLogger(CompletionProviderImpl.class.getName());
 
     @Override
     public CompletionTask createTask(int queryType, JTextComponent component) {
@@ -173,12 +178,18 @@ public class CompletionProviderImpl implements CompletionProvider {
                     }
                     for (CompletionItem i : items) {
                         String insert = i.getInsertText() != null ? i.getInsertText() : i.getLabel();
-                        String leftLabel = encode(i.getLabel());
+                        String leftLabel;
                         String rightLabel;
-                        if (i.getDetail() != null) {
-                            rightLabel = encode(i.getDetail());
+                        if (i.getLabelDetails() != null) {
+                            leftLabel = encode(i.getLabel() + (i.getLabelDetails().getDetail() != null ? i.getLabelDetails().getDetail() : ""));
+                            rightLabel = encode(i.getLabelDetails().getDescription());
                         } else {
-                            rightLabel = null;
+                            leftLabel = encode(i.getLabel());
+                            if (i.getDetail() != null) {
+                                rightLabel = encode(i.getDetail());
+                            } else {
+                                rightLabel = null;
+                            }
                         }
                         String sortText = i.getSortText() != null ? i.getSortText() : i.getLabel();
                         CompletionItemKind kind = i.getKind();
@@ -268,7 +279,7 @@ public class CompletionProviderImpl implements CompletionProvider {
                                             try {
                                                 temp = server.getTextDocumentService().resolveCompletionItem(i).get();
                                             } catch (InterruptedException | ExecutionException ex) {
-                                                Exceptions.printStackTrace(ex);
+                                                LOG.log(Level.INFO, "Failed to retrieve documentation data", ex);
                                                 temp = i;
                                             }
                                             resolved = temp;
@@ -298,6 +309,7 @@ public class CompletionProviderImpl implements CompletionProvider {
                                                             default:
                                                             case "plaintext": documentation.append("<pre>\n").append(content.getValue()).append("\n</pre>"); break;
                                                             case "markdown": documentation.append(HtmlRenderer.builder().build().render(Parser.builder().build().parse(content.getValue()))); break;
+                                                            case "html": documentation.append(content.getValue()); break;
                                                         }
                                                     }
                                                     return documentation.toString();

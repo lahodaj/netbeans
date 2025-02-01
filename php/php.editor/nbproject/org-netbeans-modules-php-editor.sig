@@ -1,5 +1,5 @@
 #Signature file v4.1
-#Version 2.36.0
+#Version 2.41.0
 
 CLSS public abstract interface java.beans.PropertyChangeListener
 intf java.util.EventListener
@@ -335,6 +335,7 @@ meth public abstract java.util.Set<org.netbeans.modules.php.editor.api.elements.
 meth public abstract java.util.Set<org.netbeans.modules.php.editor.api.elements.PhpElement> getTopLevelElements(org.netbeans.modules.php.editor.api.NameKind)
 meth public abstract java.util.Set<org.netbeans.modules.php.editor.api.elements.PhpElement> getTopLevelElements(org.netbeans.modules.php.editor.api.NameKind,java.util.Set<org.netbeans.modules.php.editor.api.AliasedName>,org.netbeans.modules.php.editor.api.elements.AliasedElement$Trait)
 meth public abstract java.util.Set<org.netbeans.modules.php.editor.api.elements.TraitElement> getTraits(org.netbeans.modules.php.editor.api.NameKind)
+meth public abstract java.util.Set<org.netbeans.modules.php.editor.api.elements.TraitElement> getTraits(org.netbeans.modules.php.editor.api.NameKind,java.util.Set<org.netbeans.modules.php.editor.api.AliasedName>,org.netbeans.modules.php.editor.api.elements.AliasedElement$Trait)
 meth public abstract java.util.Set<org.netbeans.modules.php.editor.api.elements.TypeConstantElement> getAccessibleMagicConstants(org.netbeans.modules.php.editor.api.elements.TypeElement)
 meth public abstract java.util.Set<org.netbeans.modules.php.editor.api.elements.TypeConstantElement> getAllTypeConstants(org.netbeans.modules.php.editor.api.NameKind$Exact,org.netbeans.modules.php.editor.api.NameKind)
 meth public abstract java.util.Set<org.netbeans.modules.php.editor.api.elements.TypeConstantElement> getAllTypeConstants(org.netbeans.modules.php.editor.api.elements.TypeElement)
@@ -2589,6 +2590,7 @@ CLSS public final static !enum org.netbeans.modules.php.editor.parser.astnodes.C
  outer org.netbeans.modules.php.editor.parser.astnodes.CastExpression
 fld public final static org.netbeans.modules.php.editor.parser.astnodes.CastExpression$Type ARRAY
 fld public final static org.netbeans.modules.php.editor.parser.astnodes.CastExpression$Type BOOL
+fld public final static org.netbeans.modules.php.editor.parser.astnodes.CastExpression$Type FLOAT
 fld public final static org.netbeans.modules.php.editor.parser.astnodes.CastExpression$Type INT
 fld public final static org.netbeans.modules.php.editor.parser.astnodes.CastExpression$Type OBJECT
 fld public final static org.netbeans.modules.php.editor.parser.astnodes.CastExpression$Type REAL
@@ -3451,6 +3453,7 @@ hfds scalarType,stringValue
 
 CLSS public final static !enum org.netbeans.modules.php.editor.parser.astnodes.Scalar$Type
  outer org.netbeans.modules.php.editor.parser.astnodes.Scalar
+fld public final static org.netbeans.modules.php.editor.parser.astnodes.Scalar$Type FLOAT
 fld public final static org.netbeans.modules.php.editor.parser.astnodes.Scalar$Type INT
 fld public final static org.netbeans.modules.php.editor.parser.astnodes.Scalar$Type REAL
 fld public final static org.netbeans.modules.php.editor.parser.astnodes.Scalar$Type STRING

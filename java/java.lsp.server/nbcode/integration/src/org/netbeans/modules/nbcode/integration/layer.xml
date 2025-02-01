@@ -52,13 +52,19 @@
                 <attr name="instanceCreate" methodvalue="org.netbeans.modules.java.lsp.server.explorer.NodeActionsProvider.forFile"/>
                 <attr name="action:org.netbeans.modules.cloud.oracle.actions.DownloadWalletAction" stringvalue="Tools"/>
                 <attr name="action:org.netbeans.modules.cloud.oracle.actions.AddADBAction" stringvalue="Tools"/>
-                <attr name="action:org.netbeans.modules.cloud.oracle.actions.AddDbConnectionToVault" stringvalue="Tools"/>
+                <attr name="action:org.netbeans.modules.cloud.oracle.actions.AddSecretsToVault" stringvalue="Tools"/>
                 <attr name="action:org.netbeans.modules.cloud.oracle.actions.CreateAutonomousDBAction" stringvalue="Tools"/>
                 <attr name="action:org.netbeans.modules.cloud.oracle.actions.OpenServiceConsoleAction" stringvalue="Tools"/>
                 <attr name="action:org.netbeans.modules.cloud.oracle.actions.CloudRefresh" stringvalue="Tools"/>
                 <attr name="action:org.netbeans.modules.cloud.oracle.actions.AddToProject" stringvalue="Tools"/>
                 <attr name="action:org.netbeans.modules.cloud.oracle.actions.CreateBuildRun" stringvalue="Tools"/>
                 <attr name="action:org.netbeans.modules.cloud.oracle.actions.AddRepository" stringvalue="Tools"/>
+                <attr name="action:org.netbeans.modules.cloud.oracle.actions.AddSuggestedItemAction" stringvalue="Tools"/>
+                <attr name="action:org.netbeans.modules.cloud.oracle.actions.RemoveFromProject" stringvalue="Tools"/>
+                <attr name="action:org.netbeans.modules.cloud.oracle.actions.SetReferenceName" stringvalue="Tools"/>
+                <attr name="action:org.netbeans.modules.cloud.oracle.actions.SetClusterNamespace" stringvalue="Tools"/>
+                <attr name="action:org.netbeans.modules.cloud.oracle.actions.RunInClusterAction" stringvalue="Tools"/>
+                <attr name="action:org.netbeans.modules.cloud.oracle.adm.ShowInBrowserAction" stringvalue="Tools"/>
             </file>
         </folder>
         <folder name="AutoupdateType">
@@ -75,6 +81,9 @@
         </folder>
         <folder name="foundProjects">
             <file name="project-cookies.contextValues" url="project-cookies.contextValues"/>
+        </folder>
+        <folder name="cloud.assets">
+            <file name="cloud-cookies.contextValues" url="cloud-cookies.contextValues"/>
         </folder>
     </folder>
     <folder name="Debugger">
@@ -165,6 +174,27 @@
                         <attr name="instanceCreate" methodvalue="org.netbeans.api.maven.MavenActions.forProjectLayer"/>
                         <attr name="resource" stringvalue="nbres:/org/netbeans/modules/micronaut/resources/spring-actions-override.xml"/>
                     </file>
+                </folder>
+            </folder>
+        </folder>
+    </folder>
+    <folder name="Editors">
+        <folder name="Keybindings">
+            <folder name="NetBeans">
+                <folder name="Defaults">
+                    <file name="org-netbeans-modules-editor-keybindings.xml_hidden"/>
+                </folder>
+            </folder>
+        </folder>
+        <folder name="text">
+            <folder name="x-java">
+                <folder name="Keybindings">
+                    <folder name="NetBeans">
+                        <folder name="Defaults">
+                            <file name="org-netbeans-modules-editor-java-keybindings.xml_hidden"/>
+                            <file name="org-netbeans-modules-editor-java-keybindings-mac.xml_hidden"/>
+                        </folder>
+                    </folder>
                 </folder>
             </folder>
         </folder>

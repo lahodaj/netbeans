@@ -5881,10 +5881,8 @@ public class ServerTest extends NbTestCase {
             @Override
             public void publishDiagnostics(PublishDiagnosticsParams params) {
                 synchronized (diags) {
-                    if (publishedDiagnosticsCount++ == 1) {
-                        diags[0] = params.getDiagnostics();
-                        diags.notifyAll();
-                    }
+                    diags[0] = params.getDiagnostics();
+                    diags.notifyAll();
                 }
             }
 
@@ -5924,7 +5922,7 @@ public class ServerTest extends NbTestCase {
         VersionedTextDocumentIdentifier id = new VersionedTextDocumentIdentifier(src.toURI().toString(), 1);
         Function<List<InlayHint>, Set<String>> convertHints = hints ->
                 hints.stream()
-                .map(ih -> ih.getPosition().getLine() + ":" + ih.getPosition().getCharacter() + ":" + ih.getLabel().getLeft())
+                .map(ih -> ih.getPosition().getLine() + ":" + ih.getPosition().getCharacter() + ":" + ih.getLabel().getRight().get(0).getValue())
                 .collect(Collectors.toSet());
         {
             List<InlayHint> hints = server.getTextDocumentService().inlayHint(new InlayHintParams(id, new Range(new Position(0, 0), new Position(9, 1)))).get();

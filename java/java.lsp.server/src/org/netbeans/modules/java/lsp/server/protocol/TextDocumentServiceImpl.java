@@ -136,6 +136,7 @@ import org.eclipse.lsp4j.Hover;
 import org.eclipse.lsp4j.HoverParams;
 import org.eclipse.lsp4j.ImplementationParams;
 import org.eclipse.lsp4j.InlayHint;
+import org.eclipse.lsp4j.InlayHintLabelPart;
 import org.eclipse.lsp4j.InlayHintParams;
 import org.eclipse.lsp4j.InsertTextFormat;
 import org.eclipse.lsp4j.Location;
@@ -254,6 +255,7 @@ import org.netbeans.spi.editor.hints.ErrorDescription;
 import org.netbeans.spi.lsp.CallHierarchyProvider;
 import org.netbeans.spi.lsp.CodeLensProvider;
 import org.netbeans.spi.lsp.ErrorProvider;
+import org.netbeans.spi.lsp.InlayHintsProvider;
 import org.netbeans.spi.lsp.StructureProvider;
 import org.netbeans.spi.project.ActionProvider;
 import org.netbeans.spi.project.ProjectConfiguration;
@@ -2809,64 +2811,58 @@ public class TextDocumentServiceImpl implements TextDocumentService, LanguageCli
     @Override
     public CompletableFuture<List<InlayHint>> inlayHint(InlayHintParams params) {
         String uri = params.getTextDocument().getUri();
-        JavaSource js = getJavaSource(uri);
+        ConfigurationItem conf = new ConfigurationItem();
+        conf.setScopeUri(uri);
+        conf.setSection(client.getNbCodeCapabilities().getConfigurationPrefix() + NETBEANS_INLAY_HINT);
+        return client.configuration(new ConfigurationParams(Collections.singletonList(conf))).thenCompose(c -> {
+            FileObject file;
+            try {
+                file = Utils.fromUri(uri);
+            } catch (MalformedURLException ex) {
+                return CompletableFuture.failedFuture(ex);
+            }
+            Set<String> enabled = null;
+            if (c != null && !c.isEmpty()) {
+                enabled = new HashSet<>();
 
-        if (js != null) {
-            ConfigurationItem conf = new ConfigurationItem();
-            conf.setScopeUri(uri);
-            conf.setSection(client.getNbCodeCapabilities().getConfigurationPrefix() + NETBEANS_INLAY_HINT);
-            return client.configuration(new ConfigurationParams(Collections.singletonList(conf))).thenApply(c -> {
-                Set<String> enabled = new HashSet<>();
-                if (c != null && !c.isEmpty()) {
-                    JsonArray actualSettings = ((JsonArray) c.get(0));
-                    for (JsonElement el : actualSettings) {
-                        enabled.add(((JsonPrimitive) el).getAsString());
-                    }
-                } else {
-                    enabled.addAll(Arrays.asList("chained", "parameter", "var"));
-                }
-                List<InlayHint> result = new ArrayList<>();
-                try {
-                    js.runUserActionTask(cc -> {
-                        cc.toPhase(JavaSource.Phase.RESOLVED);
-                        SemanticHighlighterBase.Settings settings =
-                                new SemanticHighlighterBase.Settings(enabled.contains("parameter"),
-                                                                     enabled.contains("chained"),
-                                                                     enabled.contains("var"));
-                        Document doc = cc.getSnapshot().getSource().getDocument(true);
-                        int start = Utils.getOffset((StyledDocument) doc, params.getRange().getStart());
-                        int end = Utils.getOffset((StyledDocument) doc, params.getRange().getEnd());
-                        new SemanticHighlighterBase() {
-                            @Override
-                            protected boolean process(CompilationInfo info, Document doc) {
-                                process(info, doc, settings, new ErrorDescriptionSetter() {
-                                    @Override
-                                    public void setHighlights(Document doc, Collection<Pair<int[], ColoringAttributes.Coloring>> highlights, Map<int[], String> preText) {
-                                        for (Entry<int[], String> e : preText.entrySet()) {
-                                            if (e.getKey()[0] >= start && e.getKey()[0] <= end) {
-                                                InlayHint hint = new InlayHint(Utils.createPosition(cc.getCompilationUnit(), e.getKey()[0]), Either.forLeft(e.getValue()));
-                                                result.add(hint);
-                                            }
-                                        }
-                                    }
+                JsonArray actualSettings = ((JsonArray) c.get(0));
 
-                                    @Override
-                                    public void setColorings(Document doc, Map<Token, ColoringAttributes.Coloring> colorings) {
-                                        //...nothing
-                                    }
-                                });
-                                return true;
-                            }
-                        }.process(cc, doc);
-                    }, true);
-                } catch (IOException ex) {
-                    //TODO: include stack trace:
-                    client.logMessage(new MessageParams(MessageType.Error, ex.getMessage()));
+                for (JsonElement el : actualSettings) {
+                    enabled.add(((JsonPrimitive) el).getAsString());
                 }
-                return result;
-            });
-        }
-        return CompletableFuture.completedFuture(Collections.emptyList());
+            }
+            org.netbeans.api.lsp.Range range = new org.netbeans.api.lsp.Range(Utils.getOffset(file, params.getRange().getStart()),
+                                                                              Utils.getOffset(file, params.getRange().getEnd()));
+            CompletableFuture<List<InlayHint>> result = CompletableFuture.completedFuture(List.of());
+            for (InlayHintsProvider p : MimeLookup.getLookup(FileUtil.getMIMEType(file)).lookupAll(InlayHintsProvider.class)) {
+                Set<String> currentTypes = new HashSet<>(p.supportedHintTypes());
+
+                if (enabled != null) {
+                    currentTypes.retainAll(enabled);
+                }
+
+                if (!currentTypes.isEmpty()) {
+                    InlayHintsProvider.Context ctx = new InlayHintsProvider.Context(file, currentTypes, range);
+                    result = result.thenCombine(p.codeLens(ctx).thenApply(lspHints -> {
+                        List<InlayHint> hints = new ArrayList<>();
+
+                        for (org.netbeans.api.lsp.InlayHint h : lspHints) {
+                            hints.add(new InlayHint(Utils.createPosition(file, h.getPosition().getOffset()), Either.forRight(List.of(new InlayHintLabelPart(h.getText())))));
+                        }
+
+                        return hints;
+                    }), (l1, l2) -> {
+                        List<InlayHint> combined = new ArrayList<>();
+
+                        combined.addAll(l1);
+                        combined.addAll(l2);
+
+                        return combined;
+                    });
+                }
+            }
+            return result;
+        });
     }
 
 }

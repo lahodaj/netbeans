@@ -357,7 +357,9 @@ public final class TreeMaker {
      * @param memberDecls       the list of fields defined by this class, or an
      *                          empty list.
      * @see com.sun.source.tree.ClassTree
+     * @deprecated use the method overload that also accepts the list of permitted types
      */
+    @Deprecated
     public ClassTree Class(ModifiersTree modifiers, 
               CharSequence simpleName,
               List<? extends TypeParameterTree> typeParameters,
@@ -406,7 +408,9 @@ public final class TreeMaker {
      * @param memberDecls       the list of fields defined by this class, or an
      *                          empty list.
      * @see com.sun.source.tree.ClassTree
+     * @deprecated use the method overload that also accepts the list of permitted types
      */
+    @Deprecated
     public ClassTree Interface(ModifiersTree modifiers, 
              CharSequence simpleName,
              List<? extends TypeParameterTree> typeParameters,

@@ -656,6 +656,8 @@ public class TreeFactory {
                 case NATIVE: flags |= Flags.NATIVE; break;
                 case STRICTFP: flags |= Flags.STRICTFP; break;
                 case DEFAULT: flags |= Flags.DEFAULT; break;
+                case SEALED: flags |= Flags.SEALED; break; //TODO: tested by CodeGeneratorTest
+                case NON_SEALED: flags |= Flags.NON_SEALED; break; //TODO: untested
                 default:
                     throw new AssertionError("Unknown Modifier: " + mod); //NOI18N
             }
@@ -1788,7 +1790,7 @@ public class TreeFactory {
     }
     
     private long getBitFlags(Set<Modifier> modifiers) {
-        int flags  = 0;
+        long flags  = 0;
         for (Modifier modifier : modifiers) {
             switch (modifier) {
                 case PUBLIC:       flags |= PUBLIC; break;
@@ -1802,8 +1804,10 @@ public class TreeFactory {
                 case SYNCHRONIZED: flags |= SYNCHRONIZED; break;
                 case NATIVE:       flags |= NATIVE; break;
                 case STRICTFP:     flags |= STRICTFP; break;
+                case SEALED:       flags |= SEALED; break;
+                case NON_SEALED:   flags |= NON_SEALED; break;
                 default:
-                    break;
+                    throw new IllegalStateException("Unknown modifier: " + modifier);
             }
         }
         return flags;

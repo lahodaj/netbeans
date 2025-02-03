@@ -20,6 +20,7 @@ package org.netbeans.api.java.source.gen;
 
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
+import com.sun.source.tree.ModifiersTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.VariableTree;
 import java.io.File;
@@ -651,6 +652,132 @@ public class ClassPermitsTest extends GeneratorTestMDRCompat {
                      final class Subtype1 extends Test {}
                      """,
                      res);
+    }
+
+    public void testAddRemovedSealed() throws Exception {
+        testFile = new File(getWorkDir(), "Test.java");
+        String code = """
+                      package hierbas.del.litoral;
+
+                      public class Test {
+                      }
+                      final class Subtype extends Test {}
+                      """;
+        TestUtilities.copyStringToFile(testFile, code);
+
+        JavaSource src = getJavaSource(testFile);
+
+        Task<WorkingCopy> task;
+        String res;
+
+        //add sealed:
+        task = (WorkingCopy workingCopy) -> {
+            workingCopy.toPhase(Phase.RESOLVED);
+            CompilationUnitTree cut = workingCopy.getCompilationUnit();
+            TreeMaker make = workingCopy.getTreeMaker();
+            ClassTree clazz = (ClassTree) cut.getTypeDecls().get(0);
+            List<Tree> augmentedPermits = new ArrayList<>();
+            augmentedPermits.add(make.QualIdent("hierbas.del.litoral.Subtype"));
+            ModifiersTree mods = clazz.getModifiers();
+            mods = make.addModifiersModifier(mods, Modifier.SEALED);
+            ClassTree newClass = make.Class(mods, clazz.getSimpleName(), clazz.getTypeParameters(), clazz.getExtendsClause(), clazz.getImplementsClause(), augmentedPermits, clazz.getMembers());
+            workingCopy.rewrite(clazz, newClass);
+        };
+        src.runModificationTask(task).commit();
+        res = TestUtilities.copyFileToString(testFile);
+        //System.err.println(res);
+        assertEquals("""
+                     package hierbas.del.litoral;
+
+                     public sealed class Test permits Subtype {
+                     }
+                     final class Subtype extends Test {}
+                     """, res);
+
+        //remove sealed:
+        task = (WorkingCopy workingCopy) -> {
+            workingCopy.toPhase(Phase.RESOLVED);
+            CompilationUnitTree cut = workingCopy.getCompilationUnit();
+            TreeMaker make = workingCopy.getTreeMaker();
+            ClassTree clazz = (ClassTree) cut.getTypeDecls().get(0);
+            List<Tree> augmentedPermits = new ArrayList<>(clazz.getPermitsClause());
+            augmentedPermits.remove(0);
+            ModifiersTree mods = clazz.getModifiers();
+            mods = make.removeModifiersModifier(mods, Modifier.SEALED);
+            ClassTree newClass = make.Class(mods, clazz.getSimpleName(), clazz.getTypeParameters(), clazz.getExtendsClause(), clazz.getImplementsClause(), augmentedPermits, clazz.getMembers());
+            workingCopy.rewrite(clazz, newClass);
+        };
+        src.runModificationTask(task).commit();
+        res = TestUtilities.copyFileToString(testFile);
+        //System.err.println(res);
+        assertEquals(code, res);
+
+        //add non-sealed:
+        task = (WorkingCopy workingCopy) -> {
+            workingCopy.toPhase(Phase.RESOLVED);
+            CompilationUnitTree cut = workingCopy.getCompilationUnit();
+            TreeMaker make = workingCopy.getTreeMaker();
+            ClassTree clazz = (ClassTree) cut.getTypeDecls().get(0);
+            ModifiersTree mods = clazz.getModifiers();
+            mods = make.addModifiersModifier(mods, Modifier.NON_SEALED);
+            ClassTree newClass = make.Class(mods, clazz.getSimpleName(), clazz.getTypeParameters(), clazz.getExtendsClause(), clazz.getImplementsClause(), clazz.getPermitsClause(), clazz.getMembers());
+            workingCopy.rewrite(clazz, newClass);
+        };
+        src.runModificationTask(task).commit();
+        res = TestUtilities.copyFileToString(testFile);
+        //System.err.println(res);
+        assertEquals("""
+                     package hierbas.del.litoral;
+
+                     public non-sealed class Test {
+                     }
+                     final class Subtype extends Test {}
+                     """, res);
+
+        //remove sealed:
+        task = (WorkingCopy workingCopy) -> {
+            workingCopy.toPhase(Phase.RESOLVED);
+            CompilationUnitTree cut = workingCopy.getCompilationUnit();
+            TreeMaker make = workingCopy.getTreeMaker();
+            ClassTree clazz = (ClassTree) cut.getTypeDecls().get(0);
+            ModifiersTree mods = clazz.getModifiers();
+            mods = make.removeModifiersModifier(mods, Modifier.NON_SEALED);
+            ClassTree newClass = make.Class(mods, clazz.getSimpleName(), clazz.getTypeParameters(), clazz.getExtendsClause(), clazz.getImplementsClause(), clazz.getPermitsClause(), clazz.getMembers());
+            workingCopy.rewrite(clazz, newClass);
+        };
+        src.runModificationTask(task).commit();
+        res = TestUtilities.copyFileToString(testFile);
+        //System.err.println(res);
+        assertEquals(code, res);
+
+        //TODO: syntheticze sealed/non-sealed:
+        task = (WorkingCopy workingCopy) -> {
+            workingCopy.toPhase(Phase.RESOLVED);
+            CompilationUnitTree cut = workingCopy.getCompilationUnit();
+            TreeMaker make = workingCopy.getTreeMaker();
+            ClassTree clazz = (ClassTree) cut.getTypeDecls().get(0);
+            List<Tree> newMembers = new ArrayList<>(clazz.getMembers());
+            newMembers.add(make.Interface(make.Modifiers(Set.of(Modifier.SEALED)), "Sealed", List.of(), List.of(), List.of(), List.of()));
+            newMembers.add(make.Interface(make.Modifiers(Set.of(Modifier.NON_SEALED)), "NonSealed", List.of(), List.of(), List.of(), List.of()));
+            ClassTree newClass = make.Class(clazz.getModifiers(), clazz.getSimpleName(), clazz.getTypeParameters(), clazz.getExtendsClause(), clazz.getImplementsClause(), clazz.getPermitsClause(), newMembers);
+            workingCopy.rewrite(clazz, newClass);
+        };
+        src.runModificationTask(task).commit();
+        res = TestUtilities.copyFileToString(testFile);
+        //System.err.println(res);
+        assertEquals("""
+                     package hierbas.del.litoral;
+
+                     public class Test {
+
+                         sealed interface Sealed {
+                         }
+
+                         non-sealed interface NonSealed {
+                         }
+                     }
+                     final class Subtype extends Test {}
+                     """, res);
     }
 
     String getGoldenPckg() {

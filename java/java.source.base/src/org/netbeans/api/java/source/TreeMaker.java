@@ -2495,8 +2495,10 @@ public final class TreeMaker {
             case TRANSIENT: c = c | Flags.TRANSIENT; break;
             case VOLATILE: c = c | Flags.VOLATILE; break;
             case DEFAULT: c = c | Flags.DEFAULT; break;
+            case SEALED: c = c | Flags.SEALED; break;
+            case NON_SEALED: c = c | Flags.NON_SEALED; break;
             default:
-                break;
+                throw new IllegalStateException("Unsupported modifier: " + modifier);
         }
         return Modifiers(c, modifiers.getAnnotations());
     }
@@ -2516,6 +2518,8 @@ public final class TreeMaker {
             case TRANSIENT: c = c & ~Flags.TRANSIENT; break;
             case VOLATILE: c = c & ~Flags.VOLATILE; break;
             case DEFAULT: c = c & ~Flags.DEFAULT; break;
+            case SEALED: c = c & ~Flags.SEALED; break;
+            case NON_SEALED: c = c & ~Flags.NON_SEALED; break;
             default:
                 break;
         }

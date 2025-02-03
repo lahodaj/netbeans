@@ -42,6 +42,8 @@ import org.openide.filesystems.FileUtil;
  */
 public class CodeGeneratorTest extends ClassIndexTestCase {
 
+    private String sourceLevel;
+
     public CodeGeneratorTest(String name) {
         super(name);
     }
@@ -151,6 +153,7 @@ public class CodeGeneratorTest extends ClassIndexTestCase {
     }
 
     public void testPermittedSubclasses() throws Exception {
+        sourceLevel = "17";
         performTest("""
                     package test;
                     public sealed interface Test {
@@ -158,6 +161,11 @@ public class CodeGeneratorTest extends ClassIndexTestCase {
                     }
                     """,
                     """
+                    package test;
+                    public sealed interface Test {
+                        public static final class Impl implements Test {
+                        }
+                    }
                     """);
     }
 
@@ -176,6 +184,11 @@ public class CodeGeneratorTest extends ClassIndexTestCase {
         FileObject testFile = FileUtil.createData(src, "test/Test.java");
         final FileObject testOutFile = FileUtil.createData(src, "out/Test.java");
         TestUtilities.copyStringToFile(testFile, test);
+
+        if (sourceLevel != null) {
+            SourceUtilsTestUtil.setSourceLevel(testFile, sourceLevel);
+        }
+
         final ClasspathInfo cpInfo = ClasspathInfoAccessor.getINSTANCE().create(testOutFile, null, true, true, false, true);
         JavaSource testSource = JavaSource.create(cpInfo, testOutFile);
         final String[] betterName = new String[1];

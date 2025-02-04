@@ -2525,7 +2525,7 @@ public final class TreeMaker {
             case SEALED: c = c & ~Flags.SEALED; break;
             case NON_SEALED: c = c & ~Flags.NON_SEALED; break;
             default:
-                break;
+                throw new IllegalStateException("Unsupported modifier: " + modifier);
         }
         return Modifiers(c, modifiers.getAnnotations());
     }

@@ -656,8 +656,8 @@ public class TreeFactory {
                 case NATIVE: flags |= Flags.NATIVE; break;
                 case STRICTFP: flags |= Flags.STRICTFP; break;
                 case DEFAULT: flags |= Flags.DEFAULT; break;
-                case SEALED: flags |= Flags.SEALED; break; //TODO: tested by CodeGeneratorTest
-                case NON_SEALED: flags |= Flags.NON_SEALED; break; //TODO: untested
+                case SEALED: flags |= Flags.SEALED; break;
+                case NON_SEALED: flags |= Flags.NON_SEALED; break;
                 default:
                     throw new AssertionError("Unknown Modifier: " + mod); //NOI18N
             }

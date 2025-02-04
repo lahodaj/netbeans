@@ -356,16 +356,16 @@ public final class ExtractInterfaceRefactoringPlugin extends JavaRefactoringPlug
                         classTree.getSimpleName(),
                         classTree.getTypeParameters(),
                         classTree.getExtendsClause(),
-                        classTree.getPermitsClause(),
                         impls2Add,
+                        classTree.getPermitsClause(),
                         members2Add);
             } else if (clazz.getKind() == ElementKind.INTERFACE) {
                 nc = maker.Interface(
                         classTree.getModifiers(),
                         classTree.getSimpleName(),
                         classTree.getTypeParameters(),
-                        classTree.getPermitsClause(),
                         impls2Add,
+                        classTree.getPermitsClause(),
                         members2Add);
             } else if (clazz.getKind() == ElementKind.ENUM) {
                 nc = maker.Enum(

@@ -18,33 +18,23 @@
  */
 package org.netbeans.modules.editor.java;
 
-import com.sun.source.util.TreePath;
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
-import java.util.regex.Pattern;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import javax.swing.text.Document;
 import static junit.framework.TestCase.assertNotNull;
 import static junit.framework.TestCase.assertTrue;
 import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.java.lexer.JavaTokenId;
-import org.netbeans.api.java.source.CompilationController;
 import org.netbeans.api.java.source.JavaSource;
 import org.netbeans.api.java.source.SourceUtilsTestUtil;
-import org.netbeans.api.java.source.Task;
 import org.netbeans.api.java.source.TestUtilities;
 import org.netbeans.api.lsp.Completion;
 import org.netbeans.api.lsp.Completion.Context;
 import org.netbeans.api.lsp.Completion.TriggerKind;
 import org.netbeans.api.lsp.TextEdit;
 import org.netbeans.junit.NbTestCase;
-import org.netbeans.modules.java.editor.base.imports.UnusedImports;
-import org.netbeans.modules.java.editor.imports.UnusedImportsTest;
 import org.netbeans.spi.editor.mimelookup.MimeDataProvider;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
@@ -160,8 +150,8 @@ public class JavaCompletionCollectorTest extends NbTestCase {
                                                             .collect(Collectors.joining(", ")));
                                      assertEquals("EEE",
                                                   completion.getInsertText());
+                                     found.set(true);
                                  }
-                                 found.set(true);
                              }
                          });
         assertTrue(found.get());
@@ -197,8 +187,8 @@ public class JavaCompletionCollectorTest extends NbTestCase {
                                                             .collect(Collectors.joining(", ")));
                                      assertEquals("EEE",
                                                   completion.getInsertText());
+                                     found.set(true);
                                  }
-                                 found.set(true);
                              }
                          });
         assertTrue(found.get());

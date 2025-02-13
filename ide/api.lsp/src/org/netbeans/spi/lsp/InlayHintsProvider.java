@@ -28,6 +28,7 @@ import org.netbeans.api.lsp.InlayHint;
 import org.netbeans.api.lsp.Range;
 import org.netbeans.spi.editor.mimelookup.MimeLocation;
 import org.openide.filesystems.FileObject;
+import org.openide.util.Parameters;
 
 /**
  * A provider for code lens for a given document.
@@ -37,6 +38,14 @@ import org.openide.filesystems.FileObject;
 @MimeLocation(subfolderName = "CodeLensProvider")
 public interface InlayHintsProvider {
 
+    /**
+     * Return a set of types of hints supported by this provider.
+     *
+     * The {@code codeLens} method will only be called if at least one
+     * of the hint type is enabled in the settings.
+     *
+     * @return a set of the hint types supported by this provider.
+     */
     public Set<String> supportedHintTypes();
 
     /**
@@ -45,29 +54,58 @@ public interface InlayHintsProvider {
      * @param doc the document
      * @return the (future) code lens.
      */
-    public CompletableFuture<List<? extends InlayHint>> codeLens(@NonNull Context context);
+    public CompletableFuture<List<? extends InlayHint>> inlayHints(@NonNull Context context);
 
+    /**
+     * Context in which the inlay hints should be evaluated.
+     */
     public static final class Context {
         private final @NonNull FileObject file;
-        private final @NonNull Set<String> requestedHintTypes;
         private final @NullAllowed Range range;
+        private final @NonNull Set<String> requestedHintTypes;
 
-        public Context(@NonNull FileObject file, @NonNull Set<String> requestedHintTypes, @NullAllowed Range range) {
+        /**
+         * Create the Context.
+         *
+         * @param file a file in which the inlay hints should be evaluated
+         * @param range the range for which the hints should be computed
+         * @param requestedHintTypes the types of hints that should be computed
+         */
+        public Context(@NonNull FileObject file, @NullAllowed Range range, @NonNull Set<String> requestedHintTypes) {
+            Parameters.notNull("file", file);
+            Parameters.notNull("range", range);
+            Parameters.notNull("requestedHintTypes", requestedHintTypes);
+
             this.file = file;
-            this.requestedHintTypes = requestedHintTypes;
             this.range = range;
+            this.requestedHintTypes = Set.copyOf(requestedHintTypes);
         }
 
+        /**
+         * The file for which the inlay hints should be computed.
+         *
+         * @return the file for which the inlay hints should be computed
+         */
         public @NonNull FileObject getFile() {
             return file;
         }
 
-        public Set<String> getRequestedHintTypes() {
-            return requestedHintTypes;
-        }
-
+        /**
+         * The range for which the inlay hints should be computed.
+         *
+         * @return the range for which the inlay hints should be computed
+         */
         public @CheckForNull Range getRange() {
             return range;
+        }
+
+        /**
+         * The types of hints that should be computed.
+         *
+         * @return the types of hints that should be computed
+         */
+        public @NonNull Set<String> getRequestedHintTypes() {
+            return requestedHintTypes;
         }
 
     }

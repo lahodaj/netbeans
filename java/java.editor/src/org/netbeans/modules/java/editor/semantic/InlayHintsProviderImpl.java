@@ -50,7 +50,7 @@ public class InlayHintsProviderImpl implements InlayHintsProvider {
     }
 
     @Override
-    public CompletableFuture<List<? extends InlayHint>> codeLens(Context context) {
+    public CompletableFuture<List<? extends InlayHint>> inlayHints(Context context) {
         CompletableFuture<List<? extends InlayHint>> result = new CompletableFuture<>();
         JavaSource js = JavaSource.forFileObject(context.getFile());
 

@@ -2842,8 +2842,8 @@ public class TextDocumentServiceImpl implements TextDocumentService, LanguageCli
                 }
 
                 if (!currentTypes.isEmpty()) {
-                    InlayHintsProvider.Context ctx = new InlayHintsProvider.Context(file, currentTypes, range);
-                    result = result.thenCombine(p.codeLens(ctx).thenApply(lspHints -> {
+                    InlayHintsProvider.Context ctx = new InlayHintsProvider.Context(file, range, currentTypes);
+                    result = result.thenCombine(p.inlayHints(ctx).thenApply(lspHints -> {
                         List<InlayHint> hints = new ArrayList<>();
 
                         for (org.netbeans.api.lsp.InlayHint h : lspHints) {

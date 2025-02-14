@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 import javax.swing.text.Document;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
 import org.netbeans.api.lsp.SignatureInformation;
+import org.netbeans.api.lsp.SignatureInformation.TriggerKind;
 import org.netbeans.modules.java.completion.JavaTooltipTask;
 import org.netbeans.modules.parsing.api.ParserManager;
 import org.netbeans.modules.parsing.api.Source;
@@ -45,6 +46,10 @@ public final class JavaSignatureInformationCollector implements SignatureInforma
             try {
                 JavaTooltipTask task = JavaTooltipTask.create(offset, () -> false);
                 ParserManager.parse(Collections.singletonList(Source.create(doc)), task);
+                if (context != null && task.isInStringLiteral() &&
+                    context.getTriggerKind() == TriggerKind.TriggerCharacter && context.getTriggerCharacter() == '(') {
+                    return ;
+                }
                 if (task.getTooltipData() != null && task.getTooltipSignatures() != null) {
                     Iterator<List<String>> it = task.getTooltipData().iterator();
                     for (int i = 0; i < task.getTooltipSignatures().size() && it.hasNext(); i++) {

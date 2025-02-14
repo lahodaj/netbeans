@@ -64,6 +64,7 @@ public final class JavaTooltipTask extends BaseTask {
     private int toolTipIndex;
     private int activeSignatureIndex;
     private int toolTipOffset;
+    private boolean inStringLiteral;
 
     private JavaTooltipTask(final int caretOffset, final Callable<Boolean> cancel) {
         super(caretOffset, cancel);
@@ -93,6 +94,10 @@ public final class JavaTooltipTask extends BaseTask {
         return toolTipOffset;
     }
 
+    public boolean isInStringLiteral() {
+        return inStringLiteral;
+    }
+
     @Override
     protected void resolve(CompilationController controller) throws IOException {
         Env env = getCompletionEnvironment(controller, false);
@@ -102,6 +107,7 @@ public final class JavaTooltipTask extends BaseTask {
         Tree lastTree = null;
         int offset = env.getOffset();
         TreePath path = env.getPath();
+        inStringLiteral = path.getLeaf().getKind() == Tree.Kind.STRING_LITERAL;
         while (path != null) {
             Tree tree = path.getLeaf();
             if (tree.getKind() == Tree.Kind.METHOD_INVOCATION) {

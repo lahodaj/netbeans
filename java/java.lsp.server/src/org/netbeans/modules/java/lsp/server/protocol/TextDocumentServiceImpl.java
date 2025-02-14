@@ -718,7 +718,27 @@ public class TextDocumentServiceImpl implements TextDocumentService, LanguageCli
         List<SignatureInformation> signatures = new ArrayList<>();
         AtomicInteger activeSignature = new AtomicInteger(-1);
         AtomicInteger activeParameter = new AtomicInteger(-1);
-        org.netbeans.api.lsp.SignatureInformation.collect(doc, Utils.getOffset(doc, params.getPosition()), null, signature -> {
+        org.netbeans.api.lsp.SignatureInformation.Context apiContext;
+        if (params.getContext() != null) {
+            org.netbeans.api.lsp.SignatureInformation.TriggerKind triggerKind;
+            switch (params.getContext().getTriggerKind()) {
+                case ContentChange: triggerKind = org.netbeans.api.lsp.SignatureInformation.TriggerKind.ContentChange; break;
+                default:
+                case Invoked: triggerKind = org.netbeans.api.lsp.SignatureInformation.TriggerKind.Invoked; break;
+                case TriggerCharacter: triggerKind = org.netbeans.api.lsp.SignatureInformation.TriggerKind.TriggerCharacter; break;
+            }
+            Character triggerCharacter;
+            if (params.getContext().getTriggerCharacter() == null ||
+                params.getContext().getTriggerCharacter().length() != 1) {
+                triggerCharacter = null;
+            } else {
+                triggerCharacter = params.getContext().getTriggerCharacter().charAt(0);
+            }
+            apiContext = new org.netbeans.api.lsp.SignatureInformation.Context(triggerKind, triggerCharacter);
+        } else {
+            apiContext = null;
+        }
+        org.netbeans.api.lsp.SignatureInformation.collect(doc, Utils.getOffset(doc, params.getPosition()), apiContext, signature -> {
             SignatureInformation signatureInformation = new SignatureInformation(signature.getLabel());
             List<ParameterInformation> parameters = new ArrayList<>(signature.getParameters().size());
             for (int i = 0; i < signature.getParameters().size(); i++) {

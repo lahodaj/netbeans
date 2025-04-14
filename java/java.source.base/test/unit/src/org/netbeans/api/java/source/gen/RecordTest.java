@@ -21,11 +21,14 @@ package org.netbeans.api.java.source.gen;
 import java.io.*;
 import com.sun.source.tree.*;
 import com.sun.source.tree.Tree.Kind;
+import com.sun.source.util.TreePath;
 import java.util.EnumSet;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.TypeElement;
 import org.netbeans.api.java.source.*;
 import static org.netbeans.api.java.source.JavaSource.*;
 import org.netbeans.junit.NbTestSuite;
+import org.openide.filesystems.FileUtil;
 
 public class RecordTest extends GeneratorTestMDRCompat {
 
@@ -225,6 +228,133 @@ public class RecordTest extends GeneratorTestMDRCompat {
                         break;
                     }
                 }
+            }
+
+        };
+        src.runModificationTask(task).commit();
+        String res = TestUtilities.copyFileToString(testFile);
+        //System.err.println(res);
+        assertEquals(golden, res);
+    }
+
+    public void testInner2Outer1() throws Exception {
+        sourceLevel = "21";
+        testFile = new File(getWorkDir(), "Test.java");
+        TestUtilities.copyStringToFile(testFile,
+                """
+                package hierbas.del.litoral;
+                """);
+        File sourceFile = new File(getWorkDir(), "Source.java");
+        TestUtilities.copyStringToFile(sourceFile,
+                """
+                package hierbas.del.litoral;
+                public class Source {
+                    public record R(String first, String component) {
+                    }
+                }
+                """);
+        String golden =
+                """
+                package hierbas.del.litoral;
+
+                public record R(String first, String component) {
+                }
+                """;
+
+        JavaSource src = getJavaSource(testFile);
+        Task<WorkingCopy> task = new Task<WorkingCopy>() {
+
+            public void run(WorkingCopy workingCopy) throws IOException {
+                SourceUtils.forceSource(workingCopy, FileUtil.toFileObject(sourceFile));
+                workingCopy.toPhase(Phase.RESOLVED);
+
+                TypeElement r = workingCopy.getElements().getTypeElement("hierbas.del.litoral.Source.R");
+                assertNotNull(r);
+                TreePath rPath = workingCopy.getTrees().getPath(r);
+                assertNotNull(rPath);
+
+                CompilationUnitTree cut = workingCopy.getCompilationUnit();
+                TreeMaker make = workingCopy.getTreeMaker();
+
+                workingCopy.rewrite(cut, make.addCompUnitTypeDecl(cut, rPath.getLeaf()));
+            }
+
+        };
+        src.runModificationTask(task).commit();
+        String res = TestUtilities.copyFileToString(testFile);
+        //System.err.println(res);
+        assertEquals(golden, res);
+    }
+
+    public void testInner2Outer2() throws Exception {
+        sourceLevel = "21";
+        testFile = new File(getWorkDir(), "Test.java");
+        TestUtilities.copyStringToFile(testFile,
+                """
+                package hierbas.del.litoral;
+                """);
+        File sourceFile = new File(getWorkDir(), "Source.java");
+        TestUtilities.copyStringToFile(sourceFile,
+                """
+                package hierbas.del.litoral;
+                public class Source {
+                    public record R(String first, String component) implements Runnable {
+                        public static final int CONST = 0;
+                        public R {
+                            first = "";
+                        }
+                        public R(String component) {
+                            this("", component);
+                        }
+                        public String first() {
+                            return first;
+                        }
+                        public void run() {
+                        }
+                    }
+                }
+                """);
+        String golden =
+                """
+                package hierbas.del.litoral;
+
+                public record R(String first, String component) implements Runnable {
+
+                    public static final int CONST = 0;
+
+                    public R {
+                        first = "";
+                    }
+
+                    public R(String component) {
+                        this("", component);
+                    }
+
+                    public String first() {
+                        return first;
+                    }
+
+                    public void run() {
+                    }
+                }
+                """;
+
+        JavaSource src = getJavaSource(testFile);
+        Task<WorkingCopy> task = new Task<WorkingCopy>() {
+
+            public void run(WorkingCopy workingCopy) throws IOException {
+                SourceUtils.forceSource(workingCopy, FileUtil.toFileObject(sourceFile));
+                workingCopy.toPhase(Phase.RESOLVED);
+
+                TypeElement r = workingCopy.getElements().getTypeElement("hierbas.del.litoral.Source.R");
+                assertNotNull(r);
+                TreePath rPath = workingCopy.getTrees().getPath(r);
+                assertNotNull(rPath);
+
+                CompilationUnitTree cut = workingCopy.getCompilationUnit();
+                TreeMaker make = workingCopy.getTreeMaker();
+
+                workingCopy.rewrite(cut, make.addCompUnitTypeDecl(cut, rPath.getLeaf()));
             }
 
         };

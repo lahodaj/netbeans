@@ -122,6 +122,7 @@ import org.netbeans.modules.java.source.builder.CommentSetImpl;
 import org.netbeans.modules.java.source.parsing.FileObjects;
 import org.netbeans.modules.java.source.parsing.JavacParser;
 import org.netbeans.modules.java.source.save.CasualDiff;
+import org.netbeans.modules.java.source.save.CasualDiff.ComponentsAndOtherMembers;
 import org.netbeans.modules.java.source.save.DiffContext;
 import org.netbeans.modules.java.source.save.PositionEstimator;
 import org.netbeans.modules.java.source.save.Reformatter;
@@ -865,6 +866,8 @@ public final class VeryPretty extends JCTree.Visitor implements DocTreeVisitor<V
 	    printFlags(flags & ~(INTERFACE | FINAL));
 	else
 	    printFlags(flags & ~(INTERFACE | ABSTRACT));
+        java.util.List<JCTree> members = CasualDiff.filterHidden(diffContext, tree.defs);
+        ComponentsAndOtherMembers componentsAndOtherMembers = CasualDiff.splitOutRecordComponents(members);
 	if ((flags & INTERFACE) != 0 || (flags & ANNOTATION) != 0) {
             if ((flags & ANNOTATION) != 0) print('@');
 	    print("interface ");
@@ -889,15 +892,8 @@ public final class VeryPretty extends JCTree.Visitor implements DocTreeVisitor<V
 	    printTypeParameters(tree.typarams);
             if ((flags & RECORD) != 0) {
                 print("(");
-                List<JCVariableDecl> components =
-                        List.from(tree.defs
-                                      .stream()
-                                      .filter(member -> member.getKind() == Kind.VARIABLE)
-                                      .map(member -> (JCVariableDecl) member)
-                                      .filter(comp -> (comp.mods.flags & RECORD) != 0)
-                                      .toList());
-                wrapTrees(components, WrapStyle.WRAP_IF_LONG, out.col); //TODO: read from settings(!)
-                print(") ");
+                wrapTrees(List.from(componentsAndOtherMembers.components()), WrapStyle.WRAP_IF_LONG, out.col); //TODO: read from settings(!)
+                print(")");
             }
 	    if (tree.extending != null) {
                 wrap("extends ", cs.wrapExtendsImplementsKeyword());
@@ -931,11 +927,10 @@ public final class VeryPretty extends JCTree.Visitor implements DocTreeVisitor<V
             needSpace();
 	print('{');
         printInnerCommentsAsTrailing(tree, true);
-        java.util.List<JCTree> members = CasualDiff.filterHidden(diffContext, tree.defs);
-	if (!members.isEmpty()) {
+	if (!componentsAndOtherMembers.defs().isEmpty()) {
 	    blankLines(enclClass.name.isEmpty() ? cs.getBlankLinesAfterAnonymousClassHeader() : (flags & ENUM) != 0 ? cs.getBlankLinesAfterEnumHeader() : cs.getBlankLinesAfterClassHeader());
             boolean firstMember = true;
-            for (JCTree t : members) {
+            for (JCTree t : componentsAndOtherMembers.defs()) {
                 printStat(t, true, firstMember, true, true, false);
                 firstMember = false;
             }
@@ -1009,26 +1004,37 @@ public final class VeryPretty extends JCTree.Visitor implements DocTreeVisitor<V
                 needSpace();
                 print(tree.name);
             }
-            print(cs.spaceBeforeMethodDeclParen() ? " (" : "(");
-            if (cs.spaceWithinMethodDeclParens() && tree.params.nonEmpty())
-                print(' ');
-            boolean oldPrintingMethodParams = printingMethodParams;
-            printingMethodParams = true;
-            wrapTrees(tree.params, cs.wrapMethodParams(), cs.alignMultilineMethodParams()
-                    ? out.col : out.leftMargin + cs.getContinuationIndentSize(),
-                      true);
-            printingMethodParams = oldPrintingMethodParams;
-            if (cs.spaceWithinMethodDeclParens() && tree.params.nonEmpty())
-                needSpace();
-            print(')');
-            if (tree.thrown.nonEmpty()) {
-                wrap("throws ", cs.wrapThrowsKeyword());
-                wrapTrees(tree.thrown, cs.wrapThrowsList(), cs.alignMultilineThrows()
+            if ((tree.mods.flags & COMPACT_RECORD_CONSTRUCTOR) == 0) {
+                print(cs.spaceBeforeMethodDeclParen() ? " (" : "(");
+                if (cs.spaceWithinMethodDeclParens() && tree.params.nonEmpty())
+                    print(' ');
+                boolean oldPrintingMethodParams = printingMethodParams;
+                printingMethodParams = true;
+                wrapTrees(tree.params, cs.wrapMethodParams(), cs.alignMultilineMethodParams()
                         ? out.col : out.leftMargin + cs.getContinuationIndentSize(),
                           true);
+                printingMethodParams = oldPrintingMethodParams;
+                if (cs.spaceWithinMethodDeclParens() && tree.params.nonEmpty())
+                    needSpace();
+                print(')');
+                if (tree.thrown.nonEmpty()) {
+                    wrap("throws ", cs.wrapThrowsKeyword());
+                    wrapTrees(tree.thrown, cs.wrapThrowsList(), cs.alignMultilineThrows()
+                            ? out.col : out.leftMargin + cs.getContinuationIndentSize(),
+                              true);
+                }
             }
             if (tree.body != null) {
-                printBlock(tree.body, tree.body.stats, cs.getMethodDeclBracePlacement(), cs.spaceBeforeMethodDeclLeftBrace(), true);
+                List<JCStatement> stats = tree.body.stats;
+                if ((tree.mods.flags & COMPACT_RECORD_CONSTRUCTOR) != 0 &&
+                    stats.head instanceof JCExpressionStatement stat &&
+                    stat.expr instanceof JCMethodInvocation mi &&
+                    mi.meth instanceof JCIdent ident &&
+                    ident.name.contentEquals("super")) {
+                    //hack - presume this is a synthetic super constructor call and ignore
+                    stats = stats.tail;
+                }
+                printBlock(tree.body, stats, cs.getMethodDeclBracePlacement(), cs.spaceBeforeMethodDeclLeftBrace(), true);
             } else {
                 if (tree.defaultValue != null) {
                     print(" default ");

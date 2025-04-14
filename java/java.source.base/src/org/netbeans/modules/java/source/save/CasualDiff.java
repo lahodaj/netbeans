@@ -1200,7 +1200,7 @@ public class CasualDiff {
         return bounds[1];
     }
     
-    private ComponentsAndOtherMembers splitOutRecordComponents(List<JCTree> defs) {
+    public static ComponentsAndOtherMembers splitOutRecordComponents(List<JCTree> defs) {
         ListBuffer<JCTree> components = new ListBuffer<>();
         ListBuffer<JCTree> filteredDefs = new ListBuffer<>();
 
@@ -1217,7 +1217,7 @@ public class CasualDiff {
                                              filteredDefs.toList());
     }
 
-    record ComponentsAndOtherMembers(List<JCTree> components, List<JCTree> defs) {}
+    public record ComponentsAndOtherMembers(List<JCTree> components, List<JCTree> defs) {}
 
     /**
      * When the enumeration contains just methods, it is necessary to preced them with single ;. If a constant is
@@ -4123,9 +4123,6 @@ public class CasualDiff {
             if (diffContext.syntheticTrees.contains(tree)) continue;
             else if (Kind.VARIABLE == tree.getKind()) {
                 JCVariableDecl var = (JCVariableDecl) tree;
-                if ((var.mods.flags & Flags.RECORD) != 0) {
-                    continue;
-                }
                 if ((var.mods.flags & Flags.ENUM) != 0) {
                     // collect enum constants, make a field group from them
                     // and set the flag.

@@ -878,13 +878,27 @@ public final class VeryPretty extends JCTree.Visitor implements DocTreeVisitor<V
 	} else {
 	    if ((flags & ENUM) != 0)
 		print("enum ");
-	    else {
+            else if ((flags & RECORD) != 0) {
+                print("record ");
+            } else {
 		if ((flags & ABSTRACT) != 0)
 		    print("abstract ");
 		print("class ");
 	    }
 	    print(tree.name);
 	    printTypeParameters(tree.typarams);
+            if ((flags & RECORD) != 0) {
+                print("(");
+                List<JCVariableDecl> components =
+                        List.from(tree.defs
+                                      .stream()
+                                      .filter(member -> member.getKind() == Kind.VARIABLE)
+                                      .map(member -> (JCVariableDecl) member)
+                                      .filter(comp -> (comp.mods.flags & RECORD) != 0)
+                                      .toList());
+                wrapTrees(components, WrapStyle.WRAP_IF_LONG, out.col); //TODO: read from settings(!)
+                print(") ");
+            }
 	    if (tree.extending != null) {
                 wrap("extends ", cs.wrapExtendsImplementsKeyword());
 		print(tree.extending);
@@ -1029,9 +1043,12 @@ public final class VeryPretty extends JCTree.Visitor implements DocTreeVisitor<V
     @Override
     public void visitVarDef(JCVariableDecl tree) {
         boolean notEnumConst = (tree.mods.flags & Flags.ENUM) == 0;
+        boolean recordComponent = (tree.mods.flags & Flags.RECORD) != 0;
         printAnnotations(tree.mods.annotations);
         if (notEnumConst) {
-            printFlags(tree.mods.flags);
+            if (!recordComponent) {
+                printFlags(tree.mods.flags);
+            }
             if (!suppressVariableType) {
                 if ((tree.mods.flags & VARARGS) != 0) {
                     // Variable arity method. Expecting  ArrayType, print ... instead of [].

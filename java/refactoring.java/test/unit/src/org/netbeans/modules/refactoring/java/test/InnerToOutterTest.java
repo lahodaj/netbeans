@@ -35,7 +35,7 @@ import org.netbeans.modules.refactoring.java.api.InnerToOuterRefactoring;
 public class InnerToOutterTest extends RefactoringTestBase {
 
     public InnerToOutterTest(String name) {
-        super(name);
+        super(name, name.contains("Record") ? "21" : "8");
     }
     
 
@@ -654,6 +654,32 @@ public class InnerToOutterTest extends RefactoringTestBase {
                                            "    public B(List<? extends Runnable> runnables) {\n" +
                                            "        assert runnables.stream().noneMatch(r -> r instanceof RunnableFuture);\n" + //TODO: note the conversion of "(r)" to "r" - would be better if the form would be kept
                                            "    }\n" +
+                                           "} "));
+    }
+
+    public void testRecord1() throws Exception {
+        writeFilesAndWaitForScan(src,
+                                 new File("t/A.java", "package t;\n" +
+                                                      "\n" +
+                                                      "import java.util.List;\n" +
+                                                      "import java.util.concurrent.RunnableFuture;\n" +
+                                                      "\n" +
+                                                      "public class A {\n" +
+                                                      "    public record R(int i) {\n" +
+                                                      "    }\n" +
+                                                      "}"));
+        performInnerToOuterTest(null);
+        verifyContent(src,
+                      new File("t/A.java", "package t;\n" +
+                                           "\n" +
+                                           "import java.util.List;\n" +
+                                           "import java.util.concurrent.RunnableFuture;\n" +
+                                           "\n" +
+                                           "public class A {\n" +
+                                           "}"),
+                      new File("t/R.java", "package t;\n" +
+                                           "\n" +
+                                           "/** * * @author junit */ public record R(int i) {\n" +
                                            "} "));
     }
 

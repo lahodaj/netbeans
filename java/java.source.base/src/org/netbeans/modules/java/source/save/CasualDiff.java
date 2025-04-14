@@ -4123,6 +4123,9 @@ public class CasualDiff {
             if (diffContext.syntheticTrees.contains(tree)) continue;
             else if (Kind.VARIABLE == tree.getKind()) {
                 JCVariableDecl var = (JCVariableDecl) tree;
+                if ((var.mods.flags & Flags.RECORD) != 0) {
+                    continue;
+                }
                 if ((var.mods.flags & Flags.ENUM) != 0) {
                     // collect enum constants, make a field group from them
                     // and set the flag.

@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -71,8 +72,8 @@ public class ImportAnalysis2 {
     private TreeFactory make;
     private Set<Element> imports;
     private Set<Element> imported;
-    private Stack<Set<Element>> visibleThroughClasses;
-    private Map<String, Element> simpleNames2Elements;
+    private LinkedList<Set<Element>> visibleThroughClasses;
+    private Map<String, List<Element>> simpleNames2Elements;
     private PackageElement unnamedPackage;
     private Element pack;
     private ASTService model;
@@ -123,8 +124,8 @@ public class ImportAnalysis2 {
     public void setImports(List<? extends ImportTree> importsToAdd) {
         imports = new HashSet<Element>();
         imported = new HashSet<Element>();
-        simpleNames2Elements = new HashMap<String, Element>();
-        visibleThroughClasses = new Stack<Set<Element>>();
+        simpleNames2Elements = new HashMap<>();
+        visibleThroughClasses = new LinkedList<Set<Element>>();
         usedImplicitlyImportedClassesCache = null;
 
         List<ImportTree> moduleImports = new ArrayList<>();
@@ -181,16 +182,16 @@ public class ImportAnalysis2 {
             visible.add(currentClassElement);
         }
 
-        visibleThroughClasses.push(visible);
+        visibleThroughClasses.addFirst(visible);
     }
 
     public void enterVisibleThroughClasses(ClassTree clazz) {
-        Set<Element> visible = visibleThroughClasses.peek();
+        Set<Element> visible = visibleThroughClasses.getFirst();
         visible.addAll(overlay.getAllVisibleThrough(model, elements, currentFQN.getFQN(), clazz, modle));
     }
 
     public void classLeft() {
-        visibleThroughClasses.pop();
+        visibleThroughClasses.removeFirst();
         currentFQN.leaveClass();
     }
 
@@ -233,6 +234,7 @@ public class ImportAnalysis2 {
                 for (PackageElement pack : elementUtils.transitivelyExportedPackages((ModuleElement) resolved)) {
                     for (Element packageContent : pack.getEnclosedElements()) {
                         addImportedElement(overlay.wrap(model, elements, packageContent),
+                                           false,
                                            currentTypeImportedNames,
                                            currentTypeClashingNames);
                     }
@@ -242,7 +244,7 @@ public class ImportAnalysis2 {
             Element resolve = overlay.resolve(model, elements, fqn);
 
             if (resolve != null) {
-                addImportedElement(resolve, currentTypeImportedNames, currentTypeClashingNames);
+                addImportedElement(resolve, false, currentTypeImportedNames, currentTypeClashingNames);
             } else {
                 //.*?:
                 if (fqn.endsWith(".*")) {
@@ -256,7 +258,7 @@ public class ImportAnalysis2 {
                     }
 
                     for (TypeElement te : classes) {
-                        addImportedElement(te, currentTypeImportedNames, currentTypeClashingNames);
+                        addImportedElement(te, false, currentTypeImportedNames, currentTypeClashingNames);
                     }
                 } else {
                     //cannot resolve - the imports will probably not work correctly...
@@ -278,7 +280,7 @@ public class ImportAnalysis2 {
                             continue;
                         }
                         if (isStarred || memberName.contains(e.getSimpleName().toString())) {
-                            addImportedElement(e, currentTypeImportedNames, currentTypeClashingNames);
+                            addImportedElement(e, true, currentTypeImportedNames, currentTypeClashingNames);
                         }
                     }
                 } else {
@@ -291,6 +293,7 @@ public class ImportAnalysis2 {
     }
 
     private void addImportedElement(Element el,
+                                    boolean staticImport,
                                     Set<String> currentTypeImportedNames,
                                     Set<String> currentTypeClashingNames) {
         String simpleName = el.getSimpleName().toString();
@@ -303,23 +306,23 @@ public class ImportAnalysis2 {
             return ;
         }
 
-        Element existing = simpleNames2Elements.get(simpleName);
+        List<Element> existing = simpleNames2Elements.computeIfAbsent(simpleName, x -> new ArrayList<>());
 
-        if (existing != null && !existing.equals(el)) {
+        if (!existing.isEmpty() && !existing.contains(el)) {
             if (!currentTypeImportedNames.contains(simpleName)) {
                 //the element from other import type is shadowed, clear from imported:
-                imported.remove(existing);
-            } else {
+                imported.removeAll(existing);
+            } else if (!staticImport) {
                 //clashing simple names inside the same import type:
-                imported.remove(existing);
-                simpleNames2Elements.remove(simpleName);
+                imported.removeAll(existing);
+                existing.clear();
                 currentTypeClashingNames.add(simpleName);
                 return ;
             }
         }
 
         imported.add(el);
-        simpleNames2Elements.put(simpleName, el);
+        existing.add(el);
         currentTypeImportedNames.add(simpleName);
     }
 
@@ -335,30 +338,23 @@ public class ImportAnalysis2 {
             return make.MemberSelect(orig.getExpression(), orig.getIdentifier());
         }
         
+        String simpleName = element.getSimpleName().toString();
+        boolean clash = false;
+
         //if type is already accessible, do not import:
         for (Set<Element> els : visibleThroughClasses) {
             if (els.contains(element)) {
                 return make.Identifier(element.getSimpleName());
             }
-        }
-
-        String simpleName = element.getSimpleName().toString();
-        Element alreadyImported = simpleNames2Elements.get(simpleName);
-        
-        if(alreadyImported == null) {
-            //check also visibleThroughClasses:
-            OUTER: for (Set<Element> visible : visibleThroughClasses) {
-                for (Element e : visible) {
-                    if (e == null || e.getSimpleName() == null) continue;
-                    if (simpleName.equals(e.getSimpleName().toString())) {
-                        alreadyImported = e;
-                        break OUTER;
-                    }
-                }
+            if (els.stream().anyMatch(el -> el.getSimpleName().contentEquals(simpleName))) {
+                clash = true;
+                break;
             }
         }
 
-        boolean clash = alreadyImported != null && !element.equals(alreadyImported);
+        List<Element> alreadyImported = simpleNames2Elements.get(simpleName);
+
+        clash = clash | (alreadyImported != null && !alreadyImported.isEmpty() && !alreadyImported.contains(element));
         
         //in the same package:
         if (!clash && (element.getKind().isClass() || element.getKind().isInterface())) {
@@ -370,7 +366,7 @@ public class ImportAnalysis2 {
             }
         }
 
-        if (imported.contains(element)) {
+        if (!clash && imported.contains(element)) {
             return make.Identifier(element.getSimpleName());
         }
 
@@ -396,7 +392,8 @@ public class ImportAnalysis2 {
             
             //for inner classes, try to resolve import for outter class first:
             if (element.getEnclosingElement().getKind().isClass() || element.getEnclosingElement().getKind().isInterface() && orig.getExpression().getKind() == Kind.MEMBER_SELECT) {
-                return make.MemberSelect(resolveImport((MemberSelectTree) orig.getExpression(), element.getEnclosingElement()), orig.getIdentifier());
+                Element wrappedEnclosingClass = overlay.wrap(model, elements, element.getEnclosingElement());
+                return make.MemberSelect(resolveImport((MemberSelectTree) orig.getExpression(), wrappedEnclosingClass), orig.getIdentifier());
             } else {
                 return make.MemberSelect(orig.getExpression(), orig.getIdentifier());
             }

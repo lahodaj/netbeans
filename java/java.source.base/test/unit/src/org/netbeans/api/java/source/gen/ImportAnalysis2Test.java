@@ -24,6 +24,7 @@ import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.ImportTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
+import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.TypeParameterTree;
 
@@ -1506,6 +1507,67 @@ public class ImportAnalysis2Test extends GeneratorTestMDRCompat {
                 ExecutableElement testMethod2 = testClass.getEnclosedElements().stream().filter(el -> el.getKind() == ElementKind.METHOD).map(el -> ((ExecutableElement) el)).filter(el -> el.getSimpleName().contentEquals("test") && el.getParameters().size() == 1).findAny().orElseThrow();
                 MethodInvocationTree invocation2 = make.MethodInvocation(List.of(), make.QualIdent(testMethod2), List.of(make.Literal(1)));
                 workingCopy.rewrite(testMethodDeclaration.getBody(), make.addBlockStatement(make.addBlockStatement(testMethodDeclaration.getBody(), make.ExpressionStatement(invocation1)), make.ExpressionStatement(invocation2)));
+            }
+
+        };
+        src.runModificationTask(task).commit();
+        String res = TestUtilities.copyFileToString(testFile);
+        //System.err.println(res);
+        assertEquals(golden, res);
+    }
+
+    public void testVisibleThroughClasses3() throws Exception {
+        beginTx();
+        String code =
+                """
+                package hierbas.del.litoral;
+                public class Test {
+                    private Object x() {
+                        return nu|ll
+                    }
+                }
+                """;
+        int pos = code.indexOf('|');
+
+        code = code.substring(0, pos) + code.substring(pos + 1);
+
+        testFile = new File(getWorkDir(), "hierbas/del/litoral/Test.java");
+        assertTrue(testFile.getParentFile().mkdirs());
+        TestUtilities.copyStringToFile(testFile, code);
+        String golden =
+            """
+            package hierbas.del.litoral;
+            public class Test {
+                private Object x() {
+                    return new Test() {
+                        Object o = Test.this;
+                    }
+                }
+            }
+            """;
+
+        ClasspathInfo cpInfo = ClasspathInfoAccessor.getINSTANCE().create (BootClassPathUtil.getBootClassPath(), ClassPath.EMPTY, ClassPath.EMPTY, ClassPath.EMPTY, ClassPath.EMPTY, ClassPathSupport.createClassPath(getSourcePath()), ClassPath.EMPTY, null, true, false, false, true, false, null);
+        JavaSource src = JavaSource.create(cpInfo, FileUtil.toFileObject(testFile));
+        Task<WorkingCopy> task = new Task<WorkingCopy>() {
+
+            public void run(WorkingCopy workingCopy) throws IOException {
+                workingCopy.toPhase(Phase.RESOLVED);
+                TreeMaker make = workingCopy.getTreeMaker();
+                TreePath tp = workingCopy.getTreeUtilities().pathFor(pos);
+                TypeElement testClass = workingCopy.getElements().getTypeElement("hierbas.del.litoral.Test");
+                VariableTree field = make.Variable(make.Modifiers(EnumSet.noneOf(Modifier.class)),
+                                                   "o",
+                                                   make.QualIdent("java.lang.Object"),
+                                                   make.MemberSelect(make.QualIdent(testClass), "this"));
+                ClassTree innerClass = make.Class(make.Modifiers(EnumSet.noneOf(Modifier.class)),
+                                                  testClass.getSimpleName(),
+                                                  List.of(),
+                                                  null,
+                                                  List.of(),
+                                                  List.of(),
+                                                  Collections.singletonList(field));
+                NewClassTree nct = make.NewClass(null, List.of(), make.QualIdent(testClass), List.of(), innerClass);
+                workingCopy.rewrite(tp.getLeaf(), nct);
             }
 
         };

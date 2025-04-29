@@ -171,8 +171,8 @@ public class ImportAnalysis2 {
         return imports;
     }
 
-    public void classEntered(ClassTree clazz) {
-        currentFQN.enterClass(clazz);
+    public void classEntered(ClassTree clazz, boolean isAnonymous) {
+        currentFQN.enterClass(clazz, isAnonymous);
 
         Set<Element> visible = new HashSet<Element>();
         String what = currentFQN.getFQN();

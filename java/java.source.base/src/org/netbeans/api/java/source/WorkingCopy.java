@@ -105,6 +105,7 @@ import org.openide.filesystems.FileUtil;
 import org.openide.util.NbBundle;
 import org.openide.util.BaseUtilities;
 import org.openide.util.Lookup;
+import org.openide.util.Pair;
 
 /**XXX: extends CompilationController now, finish method delegation
  *
@@ -763,7 +764,8 @@ public class WorkingCopy extends CompilationController {
                 @Override
                 public Void visitClass(ClassTree node, Void p) {
                     String parent = fqn.getFQN();
-                    fqn.enterClass(node);
+                    fqn.enterClass(node,
+                                   parentIsNewClass(getCurrentPath()));
                     overlay.registerClass(parent, fqn.getFQN(), node, rewriteTarget.contains(node));
                     super.visitClass(node, p);
                     fqn.leaveClass();
@@ -784,10 +786,13 @@ public class WorkingCopy extends CompilationController {
         
         boolean importsFilled = false;
         for (final TreePath path : pathsToRewrite) {
-            List<ClassTree> classes = new ArrayList<ClassTree>();
+            List<Pair<ClassTree, Boolean>> classes = new ArrayList<>();
 
             if (path.getParentPath() != null) {
-                for (Tree t : path.getParentPath()) {
+                TreePath currentPath = path.getParentPath();
+                while (currentPath != null) {
+                    Tree t = currentPath.getLeaf();
+
                     if (t.getKind() == Kind.COMPILATION_UNIT && !importsFilled) {
                         CompilationUnitTree cutt = (CompilationUnitTree) t;
                         ia.setCompilationUnit(cutt);
@@ -796,8 +801,10 @@ public class WorkingCopy extends CompilationController {
                         importsFilled = true;
                     }
                     if (TreeUtilities.CLASS_TREE_KINDS.contains(t.getKind())) {
-                        classes.add((ClassTree) t);
+                        classes.add(Pair.of((ClassTree) t, parentIsNewClass(currentPath)));
                     }
+
+                    currentPath = currentPath.getParentPath();
                 }
             } else if (path.getLeaf().getKind() == Kind.COMPILATION_UNIT && parent2Rewrites.get(path).size() == 1) { // XXX: not true if there are doc changes.
                 //short-circuit import-only changes:
@@ -819,9 +826,9 @@ public class WorkingCopy extends CompilationController {
 
             Collections.reverse(classes);
             
-            for (ClassTree ct : classes) {
-                ia.classEntered(ct);
-                ia.enterVisibleThroughClasses(ct);
+            for (Pair<ClassTree, Boolean> ct : classes) {
+                ia.classEntered(ct.first(), ct.second());
+                ia.enterVisibleThroughClasses(ct.first());
             }
             final Map<Tree, Tree> rewrites = parent2Rewrites.get(path);
             
@@ -895,7 +902,7 @@ public class WorkingCopy extends CompilationController {
             //System.err.println("brandNew=" + brandNew);
             new CommentReplicator(presentInResult.keySet()).process(diffContext.origUnit);
             addCommentsToContext(diffContext);
-            for (ClassTree ct : classes) {
+            for (Pair<ClassTree, Boolean> ct : classes) {
                 ia.classLeft();
             }
             
@@ -1301,11 +1308,12 @@ public class WorkingCopy extends CompilationController {
                 fqn.setCompilationUnit(t);
                 overlay.registerPackage(fqn.getFQN());
 
-                new ErrorAwareTreeScanner<Void, Void>() {
+                new ErrorAwareTreePathScanner<Void, Void>() {
                     @Override
                     public Void visitClass(ClassTree node, Void p) {
                         String parent = fqn.getFQN();
-                        fqn.enterClass(node);
+                        fqn.enterClass(node,
+                                       parentIsNewClass(getCurrentPath()));
                         overlay.registerClass(parent, fqn.getFQN(), node, true);
                         super.visitClass(node, p);
                         fqn.leaveClass();
@@ -1340,5 +1348,9 @@ public class WorkingCopy extends CompilationController {
         externalChanges.put(unitTree.getSourceFile(), unitTree);
         return;
     }
-    
+
+    private boolean parentIsNewClass(TreePath tp) {
+        return tp.getParentPath() != null &&
+               tp.getParentPath().getLeaf().getKind() == Kind.NEW_CLASS;
+    }
 }

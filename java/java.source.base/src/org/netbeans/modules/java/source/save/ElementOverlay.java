@@ -805,8 +805,8 @@ public class ElementOverlay {
         public void setCompilationUnit(CompilationUnitTree cut) {
             setPackageNameTree(cut.getPackageName());
         }
-        public void enterClass(ClassTree ct) {
-            if (ct.getSimpleName() == null || ct.getSimpleName().length() == 0 || anonymousCounter > 0) {
+        public void enterClass(ClassTree ct, boolean isAnonymous) {
+            if (ct.getSimpleName() == null || ct.getSimpleName().length() == 0 || anonymousCounter > 0 || isAnonymous) {
                 anonymousCounter++;
             } else {
                 if (fqn.length() > 0) fqn.append('.');

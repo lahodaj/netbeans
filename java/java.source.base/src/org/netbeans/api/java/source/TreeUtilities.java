@@ -1730,7 +1730,7 @@ public final class TreeUtilities {
         }
 
         @Override
-        public void classEntered(ClassTree clazz) {}
+        public void classEntered(ClassTree clazz, boolean isAnonymous) {}
 
         @Override
         public void enterVisibleThroughClasses(ClassTree clazz) {}

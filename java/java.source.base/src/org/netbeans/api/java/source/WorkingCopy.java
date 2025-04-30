@@ -484,35 +484,6 @@ public class WorkingCopy extends CompilationController {
         return ((JCTree.JCCompilationUnit) topLevel).sourcefile.getCharContent(true).toString();
     }
     
-    class Translator extends ImmutableTreeTranslator {
-        private Map<Tree, Tree> changeMap;
-
-        public Translator() {
-            super(WorkingCopy.this);
-        }
-
-        Tree translate(Tree tree, Map<Tree, Tree> changeMap) {
-            this.changeMap = new HashMap<Tree, Tree>(changeMap);
-            return translate(tree);
-        }
-
-        @Override
-        public Tree translate(Tree tree) {
-            assert changeMap != null;
-            if (tree == null) {
-                return null;
-            }
-            Tree repl = changeMap.remove(tree);
-            Tree newRepl;
-            if (repl != null) {
-                newRepl = translate(repl);
-            } else {
-                newRepl = super.translate(tree);
-            }
-            return newRepl;
-        }
-    }
-            
     private static boolean REWRITE_WHOLE_FILE = Boolean.getBoolean(WorkingCopy.class.getName() + ".rewrite-whole-file");
 
     private void addSyntheticTrees(DiffContext diffContext, Tree node) {
@@ -838,7 +809,7 @@ public class WorkingCopy extends CompilationController {
                 private final TreeVisitor<Tree, Void> duplicator = new TreeDuplicator(getContext());
 
                 @Override
-                public Tree translate(Tree tree) {
+                public Tree translate(Tree tree, Object p) {
                     if(docChanges.containsKey(tree)) {
                         Tree newTree = null;
                         if(!map.containsKey(tree)) {
@@ -870,9 +841,9 @@ public class WorkingCopy extends CompilationController {
 
                     Tree t;
                     if (translated != null) {
-                        t = translate(translated);
+                        t = translate(translated, p);
                     } else {
-                        t = super.translate(tree);
+                        t = super.translate(tree, p);
                     }
                     if (tree2Doc != null && tree != t && tree2Doc.containsKey(tree)) {
                         tree2Doc.put(t, tree2Doc.remove(tree));
@@ -896,7 +867,8 @@ public class WorkingCopy extends CompilationController {
             };
             Context c = impl.getJavacTask().getContext();
             itt.attach(c, ia, tree2Tag);
-            final Tree brandNew = itt.translate(path.getLeaf());
+            final Tree brandNew = itt.translate(path.getLeaf(),
+                                                path.getParentPath() != null ? path.getParentPath().getLeaf() : null);
 
             //tagging debug
             //System.err.println("brandNew=" + brandNew);

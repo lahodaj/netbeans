@@ -367,7 +367,6 @@ public class UnusedImportsTest extends NbTestCase {
                                         "import java.util.List;\n");
     }
 
-    //TODO: transitive(!!!)
     public void testModuleImport1() throws Exception {
         SourceUtilsTestUtil.setCompilerOptions(src, List.of("--enable-preview"));
         SourceUtilsTestUtil.setSourceLevel(src, "" + SourceVersion.latest().ordinal());

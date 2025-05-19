@@ -271,7 +271,6 @@ public class UnusedImports {
             }
             boolean assign = false;
             if (tree.isModule()) {
-                //TODO: avoid toString on trees:
                 String moduleName = tree.getQualifiedIdentifier().toString();
                 ModuleElement primary = info.getElements().getModuleElement(moduleName);
                 if (primary != null) {

@@ -156,7 +156,7 @@ public final class PrintSettings extends ContextSystemOption {
 
     public void setHeaderAlignment(int alignment) {
         PrintPreferences.setHeaderAlignment(toAlignment(alignment));
-        firePropertyChange(PROP_HEADER_ALIGNMENT, null, new Integer(alignment));
+        firePropertyChange(PROP_HEADER_ALIGNMENT, null, alignment);
     }
     
     private PrintPreferences.Alignment toAlignment(int alignment) {
@@ -194,7 +194,7 @@ public final class PrintSettings extends ContextSystemOption {
 
     public void setFooterAlignment(int alignment) {
         PrintPreferences.setFooterAlignment(toAlignment(alignment));
-        firePropertyChange(PROP_FOOTER_ALIGNMENT, null, new Integer(alignment));
+        firePropertyChange(PROP_FOOTER_ALIGNMENT, null, alignment);
     }
 
     /** Getter for lineAscentCorrection property. */
@@ -204,7 +204,7 @@ public final class PrintSettings extends ContextSystemOption {
 
     /** Setter for lineAscentCorrection property.
     * @param correction the correction
-    * @exception IllegalArgumentException if <tt>correction</tt> is less than 0.
+    * @exception IllegalArgumentException if <code>correction</code> is less than 0.
     */
     public void setLineAscentCorrection(float correction) {
         PrintPreferences.setLineAscentCorrection(correction);
@@ -244,11 +244,11 @@ public final class PrintSettings extends ContextSystemOption {
         @Override
         public void setAsText(String s) {
             if (s.equals(sLEFT)) {
-                setValue(new Integer(0));
+                setValue(0);
             } else if (s.equals(sCENTER)) {
-                setValue(new Integer(1));
+                setValue(1);
             } else {
-                setValue(new Integer(2));
+                setValue(2);
             }
         }
     }
@@ -261,14 +261,14 @@ public final class PrintSettings extends ContextSystemOption {
             return null;
         }
 
-        /* @return <tt>true</tt> */
+        /* @return <code>true</code> */
         @Override
         public boolean supportsCustomEditor() {
             return true;
         }
 
         /**
-        * @return <tt>null</tt> Shows pageDialog, however.
+        * @return <code>null</code> Shows pageDialog, however.
         */
         @Override
         public java.awt.Component getCustomEditor() {

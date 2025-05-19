@@ -205,7 +205,7 @@
                     <a href="@JDK@@JDKMODULE_JAVA_LOGGING@/java/util/logging/LogRecord.html">LogRecord</a>
                     (where the MSG_KEY is the string returned by <code>record.getMessage()</code>)
                     and the value is then going to be used for the 
-                    <a href="@org-openide-nodes@/org/openide/nodes/AbstractNode.html#setIconBaseWithExtension-java.lang.String-">
+                    <a href="@org-openide-nodes@/org/openide/nodes/AbstractNode.html#setIconBaseWithExtension(java.lang.String)">
                         Node
                     </a> representing the UI gesture.
                 </api>
@@ -820,13 +820,13 @@
                 Four common parameters are added always before sending logger info and two error 
                 parameters are added only if an exception rised.
                 
-                <ul title="common parameters">
+                <ul id="common_parameters">
                     <li>Operating system name, version and architecture</li>
                     <li>Virtual machine name and version</li>
                     <li>Application version and build number</li>
                     <li>User name</li>
                 </ul>
-                <ul title="error parameters">
+                <ul id="error_parameters">
                     <li>Error summary</li>
                     <li>User's comment to an error situation</li>
                 </ul>

@@ -15,6 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# https://infra.apache.org/github-actions-policy.html
+# actions:
+#  - github actions use the latest release within the locked major version
+#  - third party actions (geekyeggo/delete-artifact, test-summary/action and shivammathur/setup-ph) shall be locked to a hash
+#    - see https://github.com/apache/infrastructure-gha-allowlist-manager/blob/main/approved_patterns.yml
+#    - dependabot is active to keep them up to date
+#
+# this workflow can push the limit of the apache action runner policy, please use CI responsibly
+
 name: NetBeans
 
 on:
@@ -124,7 +133,7 @@ jobs:
     timeout-minutes: 40
     strategy:
       matrix:
-        java: [ '17', '21', '24-ea' ]
+        java: [ '17', '21', '24' ]
         exclude:
           - java: ${{ github.event_name == 'pull_request' && 'nothing' || '21' }}
       fail-fast: false
@@ -229,7 +238,7 @@ jobs:
         java: [ 17 ]
         include:
           - os: ubuntu-latest
-            java: 24-ea
+            java: 24
       fail-fast: false
     steps:
 
@@ -270,7 +279,7 @@ jobs:
         run: ant $OPTS -f platform/core.network test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: |
@@ -305,11 +314,11 @@ jobs:
           submodules: false
           show-progress: false
 
-      - name: Set up JDK 23 for scripts
+      - name: Set up JDK 24 for scripts
         if: ${{ github.event_name == 'pull_request' && !cancelled() }}
         uses: actions/setup-java@v4
         with:
-          java-version: 23
+          java-version: 24
           distribution: ${{ env.DEFAULT_JAVA_DISTRIBUTION }}
 
       - name: Check Commit Headers
@@ -429,19 +438,21 @@ jobs:
         run: ant -quiet -Dcluster.config=$CLUSTER_CONFIG test -Dtest.includes=NoTestsJustBuild
 
       # 13-14 min for javadoc; JDK version must be synced with nb-javac
-      - name: Set up JDK 23 for javadoc
+      - name: Set up JDK 24 for javadoc
         if: env.test_javadoc == 'true' && success()
         uses: actions/setup-java@v4
         with:
-          java-version: 23 
+          java-version: 24
           distribution: ${{ env.DEFAULT_JAVA_DISTRIBUTION }}
 
       - name: Build javadoc
         if: env.test_javadoc == 'true' && success()
-        run: ant $OPTS build-javadoc
+        run: |
+          export ANT_OPTS=-Djdk.xml.totalEntitySizeLimit=200000
+          ant $OPTS build-javadoc
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -822,7 +833,7 @@ jobs:
         run: ant $OPTS -f ide/xsl test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -837,7 +848,7 @@ jobs:
     timeout-minutes: 50
     strategy:
       matrix:
-        java: [ '17', '21', '24-ea' ]
+        java: [ '17', '21', '24' ]
         exclude:
           - java: ${{ github.event_name == 'pull_request' && 'nothing' || '21' }}
       fail-fast: false
@@ -945,7 +956,7 @@ jobs:
         run: ant $OPTS -f apisupport/apisupport.ant test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1108,7 +1119,7 @@ jobs:
         run: ant $OPTS -f platform/netbinox test -Dtest.config=stableBTD
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1246,7 +1257,7 @@ jobs:
         run: ant $OPTS -f platform/api.templates test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1429,7 +1440,7 @@ jobs:
         run: ant $OPTS -f java/javadoc test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1444,10 +1455,10 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        java: [ '17', '24-ea' ]
+        java: [ '17', '24' ]
         config: [ 'batch1', 'batch2' ]
         exclude:
-          - java: ${{ github.event_name == 'pull_request' && 'nothing' || '24-ea' }}
+          - java: ${{ github.event_name == 'pull_request' && 'nothing' || '24' }}
       fail-fast: false
     steps:
 
@@ -1470,6 +1481,10 @@ jobs:
       - name: Extract
         run: tar --zstd -xf build.tar.zst
 
+      - name: java.hints (unreliable tests)
+        if: ${{ (matrix.config == 'batch2') && success() }}
+        run: .github/retry.sh ant $OPTS -Dtest.config=unreliable -f java/java.hints test
+
       - name: java.hints ${{ matrix.config }}
         run: ant $OPTS -Dtest.config=${{ matrix.config }} -f java/java.hints test
 
@@ -1482,7 +1497,7 @@ jobs:
         run: ant $OPTS -f java/spi.java.hints test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1497,7 +1512,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        java: [ '17', '21', '24-ea' ]
+        java: [ '17', '21', '24' ]
         exclude:
           - java: ${{ github.event_name == 'pull_request' && 'nothing' || '21' }}
       fail-fast: false
@@ -1544,7 +1559,7 @@ jobs:
 #        run: ant $OPTS -f java/debugger.jpda.ui test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1589,7 +1604,7 @@ jobs:
         run: ant $OPTS -f profiler/profiler.oql test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1634,7 +1649,7 @@ jobs:
         run: ant $OPTS -f ide/csl.types test
 
       - name: ide/css.editor
-        run: ant $OPTS -f ide/css.editor test
+        run: .github/retry.sh ant $OPTS -f ide/css.editor test
 
       - name: ide/css.lib
         run: ant $OPTS -f ide/css.lib test
@@ -1670,7 +1685,7 @@ jobs:
         run: ant $OPTS -f webcommon/html.angular test-unit
 
       - name: webcommon/html.knockout
-        run: ant $OPTS -f webcommon/html.knockout test-unit
+        run: .github/retry.sh ant $OPTS -f webcommon/html.knockout test-unit
 
       - name: webcommon/javascript.bower
         run: ant $OPTS -f webcommon/javascript.bower test
@@ -1733,6 +1748,9 @@ jobs:
       - name: webcommon/javascript2.requirejs
         run: ant $OPTS -f webcommon/javascript2.requirejs test-unit
 
+      - name: webcommon/javascript2.vue
+        run: ant $OPTS -f webcommon/javascript2.vue test
+
       - name: webcommon/javascript2.sdoc
         run: ant $OPTS -f webcommon/javascript2.sdoc test
 
@@ -1764,7 +1782,7 @@ jobs:
         run: ant $OPTS -f webcommon/api.knockout test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1812,7 +1830,7 @@ jobs:
 #        run: ant $OPTS -f javafx/javafx2.project test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1865,7 +1883,7 @@ jobs:
 #        run: ant $OPTS -f groovy/groovy.kit test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1913,7 +1931,7 @@ jobs:
         run: ant $OPTS -f rust/rust.options test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -2157,7 +2175,7 @@ jobs:
         run: ant $OPTS -f enterprise/j2ee.dd.webservice test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -2240,7 +2258,7 @@ jobs:
           ant $OPTS -f ide/versioning test-qa-functional
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -2300,7 +2318,7 @@ jobs:
         run: .github/retry.sh ant $OPTS $OPTS_TEST -f ide/db.mysql test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -2347,7 +2365,7 @@ jobs:
       # linux specific setup
       - name: Setup PHP
         if: contains(matrix.os, 'ubuntu')
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@cf4cade2721270509d5b1c766ab3549210a39a2a # v2.33.0
         with:
           php-version: '8.3'
           tools: pecl
@@ -2458,7 +2476,7 @@ jobs:
         run: ant $OPTS -f php/spellchecker.bindings.php test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -2503,7 +2521,7 @@ jobs:
         run: .github/retry.sh ant $OPTS -f java/java.lsp.server test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -2569,7 +2587,7 @@ jobs:
         run: .github/retry.sh ant $OPTS -f java/debugger.jpda.truffle test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -2662,13 +2680,13 @@ jobs:
     steps:
 
       - name: Delete Workspace Artifact
-        uses: geekyeggo/delete-artifact@v5
+        uses: geekyeggo/delete-artifact@f275313e70c08f6120db482d7a6b98377786765b # v5.1.0
         with:
           name: build
           useGlob: false
 
       - name: Delete Dev Build Artifact
-        uses: geekyeggo/delete-artifact@v5
+        uses: geekyeggo/delete-artifact@f275313e70c08f6120db482d7a6b98377786765b # v5.1.0
         if: ${{ contains(github.event.pull_request.labels.*.name, 'ci:dev-build') && cancelled() }}
         with:
           name: dev-build_${{github.event.pull_request.number || github.run_id}}

@@ -60,7 +60,7 @@
         <compatibility binary="compatible" source="compatible" modification="yes" semantic="compatible"/>
         <description>
             <p>
-                Two new contants are added to <code>Constants</code>:
+                Two new constants are added to <code>Constants</code>:
                 <span><b>KEY_INLINE_VALUES</b>: the <code>Preferences</code> key for the inline value setting.</span>
                 <span><b>DEF_INLINE_VALUES</b>: the default value of the inline value setting.</span>
             </p>

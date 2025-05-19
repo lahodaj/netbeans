@@ -19,7 +19,7 @@
 package org.netbeans.api.lsp;
 
 /**
- * An expression whose value may be show inline while debugging.
+ * An expression whose value may be shown inline while debugging.
  *
  * @since 1.35
  */

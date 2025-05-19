@@ -27,8 +27,6 @@ import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
@@ -117,19 +115,6 @@ public class ComputeInlineValues {
         return result;
     }
 
-    public static final class InlineVariable {
-        public final int start;
-        public final int end;
-        public final int lineEnd;
-        public final String expression;
-
-        public InlineVariable(int start, int end, int lineEnd, String expression) {
-            this.start = start;
-            this.end = end;
-            this.lineEnd = lineEnd;
-            this.expression = expression;
-        }
-
-    }
+    public record InlineVariable(int start, int end, int lineEnd, String expression) {}
 
 }

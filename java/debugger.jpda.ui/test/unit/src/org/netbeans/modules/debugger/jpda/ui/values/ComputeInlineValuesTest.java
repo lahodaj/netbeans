@@ -136,14 +136,14 @@ public class ComputeInlineValuesTest extends NbTestCase {
         Collection<InlineVariable> computedVariables = ComputeInlineValues.computeVariables(info, stackLine, 0, new AtomicBoolean());
 
         for (InlineVariable var : computedVariables) {
-            String snippet = code.substring(var.start, var.end);
+            String snippet = code.substring(var.start(), var.end());
 
-            assertEquals(snippet, var.expression);
-            assertFalse(code.substring(var.end, var.lineEnd).contains("\n"));
-            assertEquals('\n', code.charAt(var.lineEnd));
+            assertEquals(snippet, var.expression());
+            assertFalse(code.substring(var.end(), var.lineEnd()).contains("\n"));
+            assertEquals('\n', code.charAt(var.lineEnd()));
 
-            if (!expectedSpans.remove("" + var.start + "-" + var.end)) {
-                throw new AssertionError("Returned span: " + var.start + "-" + var.end + " (" + snippet + "), but it is not among the expected spans.");
+            if (!expectedSpans.remove("" + var.start() + "-" + var.end())) {
+                throw new AssertionError("Returned span: " + var.start() + "-" + var.end() + " (" + snippet + "), but it is not among the expected spans.");
             }
         }
 

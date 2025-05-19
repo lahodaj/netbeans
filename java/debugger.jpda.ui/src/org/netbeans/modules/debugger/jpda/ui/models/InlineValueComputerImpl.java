@@ -75,7 +75,6 @@ import org.netbeans.spi.debugger.DebuggerServiceRegistration;
 import org.netbeans.spi.debugger.ui.Constants;
 import org.netbeans.spi.editor.highlighting.HighlightsLayer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
-import org.netbeans.spi.editor.highlighting.HighlightsSequence;
 import org.netbeans.spi.editor.highlighting.ZOrder;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.cookies.EditorCookie;
@@ -160,7 +159,6 @@ public class InlineValueComputerImpl implements InlineValueComputer, PreferenceC
         }
 
         if (newTask != null) {
-            //TODO: cancel any already running computation if the configuration is different:
             CountDownLatch computationDone = new CountDownLatch(1);
 
             newTask.addCancelCallback(computationDone::countDown);
@@ -199,7 +197,7 @@ public class InlineValueComputerImpl implements InlineValueComputer, PreferenceC
                         return ;
                     }
 
-                    Variable value = expression2Value.computeIfAbsent(v.expression, expr -> {
+                    Variable value = expression2Value.computeIfAbsent(v.expression(), expr -> {
                         try {
                             return debugger.evaluate(expr);
                         } catch (InvalidExpressionException ex) {
@@ -215,12 +213,12 @@ public class InlineValueComputerImpl implements InlineValueComputer, PreferenceC
                         } else {
                             valueText = value.getValue();
                         }
-                        line2Values.computeIfAbsent(v.lineEnd, __ -> new LinkedHashMap<>())
-                                   .putIfAbsent(v.expression, v.expression + " = " + valueText);
-                        String mergedValues = line2Values.get(v.lineEnd).values().stream().collect(Collectors.joining(", ", "  ", ""));
+                        line2Values.computeIfAbsent(v.lineEnd(), __ -> new LinkedHashMap<>())
+                                   .putIfAbsent(v.expression(), v.expression() + " = " + valueText);
+                        String mergedValues = line2Values.get(v.lineEnd()).values().stream().collect(Collectors.joining(", ", "  ", ""));
                         AttributeSet attrs = AttributesUtilities.createImmutable("virtual-text-prepend", mergedValues);
 
-                        runningBag.addHighlight(v.lineEnd, v.lineEnd + 1, attrs);
+                        runningBag.addHighlight(v.lineEnd(), v.lineEnd() + 1, attrs);
 
                         setHighlights(newTask, runningBag);
                     }

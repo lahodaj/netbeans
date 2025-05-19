@@ -46,7 +46,7 @@ public final class InlineValueProviderImpl implements InlineValuesProvider {
                     int stackLine = (int) cc.getCompilationUnit().getLineMap().getLineNumber(currentExecutionPosition);
                     int stackCol = (int) cc.getCompilationUnit().getLineMap().getColumnNumber(currentExecutionPosition);
                     for (ComputeInlineValues.InlineVariable var : ComputeInlineValues.computeVariables(cc, stackLine, stackCol, new AtomicBoolean())) {
-                        resultValues.add(InlineValue.createInlineVariable(new Range(var.start, var.end), var.expression));
+                        resultValues.add(InlineValue.createInlineVariable(new Range(var.start(), var.end()), var.expression()));
                     }
                 }, true);
             } catch (IOException ex) {

@@ -1092,7 +1092,7 @@ public final class ElementUtilities {
      * @param module the module for which the transitively exported packages should be computed.
      * @return the set of packages from the given module and its transitive dependencies
      *         that are exported to the current module
-     * @since 2.77
+     * @since 2.79
      */
     public @NonNull Set<PackageElement> transitivelyExportedPackages(@NonNull ModuleElement module) {
         Parameters.notNull("module", module);

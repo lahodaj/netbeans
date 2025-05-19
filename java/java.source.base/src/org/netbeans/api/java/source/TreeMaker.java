@@ -799,7 +799,7 @@ public final class TreeMaker {
      *
      * @param moduleName fully qualified identifier.
      * @see com.sun.source.tree.ImportTree
-     * @since 2.77
+     * @since 2.79
      */
     public ImportTree ImportModule(ExpressionTree moduleName) {
         return delegate.ImportModule(moduleName);

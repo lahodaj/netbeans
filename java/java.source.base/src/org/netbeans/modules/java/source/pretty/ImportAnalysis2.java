@@ -298,9 +298,6 @@ public class ImportAnalysis2 {
                                     Set<String> currentTypeClashingNames) {
         String simpleName = el.getSimpleName().toString();
 
-        if ("List".equals(simpleName)) {
-            System.err.println("");
-        }
         if (currentTypeClashingNames.contains(simpleName)) {
             //there's already a clash for this name, ignore
             return ;

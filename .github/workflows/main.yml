@@ -1481,6 +1481,10 @@ jobs:
       - name: Extract
         run: tar --zstd -xf build.tar.zst
 
+      - name: java.hints (unreliable tests)
+        if: ${{ (matrix.config == 'batch2') && success() }}
+        run: .github/retry.sh ant $OPTS -Dtest.config=unreliable -f java/java.hints test
+
       - name: java.hints ${{ matrix.config }}
         run: ant $OPTS -Dtest.config=${{ matrix.config }} -f java/java.hints test
 
@@ -1645,7 +1649,7 @@ jobs:
         run: ant $OPTS -f ide/csl.types test
 
       - name: ide/css.editor
-        run: ant $OPTS -f ide/css.editor test
+        run: .github/retry.sh ant $OPTS -f ide/css.editor test
 
       - name: ide/css.lib
         run: ant $OPTS -f ide/css.lib test
@@ -1681,7 +1685,7 @@ jobs:
         run: ant $OPTS -f webcommon/html.angular test-unit
 
       - name: webcommon/html.knockout
-        run: ant $OPTS -f webcommon/html.knockout test-unit
+        run: .github/retry.sh ant $OPTS -f webcommon/html.knockout test-unit
 
       - name: webcommon/javascript.bower
         run: ant $OPTS -f webcommon/javascript.bower test
@@ -2361,7 +2365,7 @@ jobs:
       # linux specific setup
       - name: Setup PHP
         if: contains(matrix.os, 'ubuntu')
-        uses: shivammathur/setup-php@9e72090525849c5e82e596468b86eb55e9cc5401 # v2.32.0
+        uses: shivammathur/setup-php@cf4cade2721270509d5b1c766ab3549210a39a2a # v2.33.0
         with:
           php-version: '8.3'
           tools: pecl

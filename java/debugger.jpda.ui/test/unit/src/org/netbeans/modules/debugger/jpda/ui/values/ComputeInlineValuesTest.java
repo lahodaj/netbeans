@@ -112,6 +112,22 @@ public class ComputeInlineValuesTest extends NbTestCase {
                                       """);
     }
 
+    public void testFields() throws Exception {
+        runCompileInlineVariablesTest("""
+                                      public class Test {
+                                          int /i1/ = 0;
+                                          |int j = /i1/;
+                                      }
+                                      """);
+    }
+
+    public void testClassNoCrash() throws Exception {
+        runCompileInlineVariablesTest("""
+                                      |public class Test {
+                                      }
+                                      """);
+    }
+
     private void runCompileInlineVariablesTest(String codeResultAndPos) throws Exception {
         FileObject source = FileUtil.createData(srcDir, "Test.java");
         int pos = codeResultAndPos.replace("/", "").indexOf("|");

@@ -27,6 +27,7 @@ import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
@@ -37,14 +38,14 @@ import org.netbeans.api.java.source.support.CancellableTreePathScanner;
 public class ComputeInlineValues {
 
     public static Collection<InlineVariable> computeVariables(CompilationInfo info, int stackLine, int stackCol, AtomicBoolean cancel) {
-        Collection<InlineVariable> result = new ArrayList<>();
         int donePos = (int) info.getCompilationUnit().getLineMap().getPosition(stackLine, stackCol);
         int upcomingPos = (int) info.getCompilationUnit().getLineMap().getStartPosition(stackLine + 1);
-        TreePath relevantPoint = info.getTreeUtilities().pathFor(donePos);
+        TreePath relevantPoint = info.getTreeUtilities().pathFor(donePos + 1);
         OUTER: while (relevantPoint != null) {
             Tree leaf = relevantPoint.getLeaf();
             switch (leaf.getKind()) {
-                case METHOD: case LAMBDA_EXPRESSION: break OUTER;
+                case ANNOTATION_TYPE, CLASS, ENUM, INTERFACE, RECORD:
+                case METHOD, LAMBDA_EXPRESSION: break OUTER;
                 case BLOCK:
                     if (relevantPoint.getParentPath() != null && TreeUtilities.CLASS_TREE_KINDS.contains(relevantPoint.getParentPath().getLeaf().getKind())) {
                         break OUTER;
@@ -52,10 +53,14 @@ public class ComputeInlineValues {
             }
             relevantPoint = relevantPoint.getParentPath();
         }
+        if (relevantPoint == null) {
+            return List.of();
+        }
+        Collection<InlineVariable> result = new ArrayList<>();
         LineMap lm = info.getCompilationUnit().getLineMap();
-        new CancellableTreePathScanner<Void, Void>(cancel) {
+        new CancellableTreePathScanner<Void, Tree>(cancel) {
             @Override
-            public Void visitVariable(VariableTree node, Void p) {
+            public Void visitVariable(VariableTree node, Tree relevantPointTree) {
                 int end = (int) info.getTrees().getSourcePositions().getEndPosition(info.getCompilationUnit(), node);
                 if (end < donePos) {
                     int[] span = info.getTreeUtilities().findNameSpan(node);
@@ -66,11 +71,11 @@ public class ComputeInlineValues {
                         result.add(new InlineVariable(span[0], span[1], lineEnd, node.getName().toString()));
                     }
                 }
-                return super.visitVariable(node, p);
+                return super.visitVariable(node, relevantPointTree);
             }
 
             @Override
-            public Void visitIdentifier(IdentifierTree node, Void p) {
+            public Void visitIdentifier(IdentifierTree node, Tree relevantPointTree) {
                 Element el = info.getTrees().getElement(getCurrentPath());
 
                 if (el != null && el.getKind().isVariable() &&
@@ -85,21 +90,24 @@ public class ComputeInlineValues {
                     }
                 }
 
-                return super.visitIdentifier(node, p);
+                return super.visitIdentifier(node, relevantPointTree);
             }
 
             @Override
-            public Void visitClass(ClassTree node, Void p) {
+            public Void visitClass(ClassTree node, Tree relevantPointTree) {
+                if (node == relevantPointTree) {
+                    return super.visitClass(node, relevantPointTree);
+                }
                 return null;
             }
 
             @Override
-            public Void visitLambdaExpression(LambdaExpressionTree node, Void p) {
+            public Void visitLambdaExpression(LambdaExpressionTree node, Tree relevantPointTree) {
                 return null;
             }
 
             @Override
-            public Void scan(Tree tree, Void p) {
+            public Void scan(Tree tree, Tree relevantPointTree) {
                 if (tree != null) {
                     int start = (int) info.getTrees().getSourcePositions().getStartPosition(info.getCompilationUnit(), tree);
 
@@ -107,10 +115,10 @@ public class ComputeInlineValues {
                         return null;
                     }
                 }
-                return super.scan(tree, p);
+                return super.scan(tree, relevantPointTree);
             }
 
-        }.scan(relevantPoint, null);
+        }.scan(relevantPoint, relevantPoint.getLeaf());
 
         return result;
     }

@@ -70,7 +70,6 @@ import org.netbeans.modules.debugger.jpda.jdi.VMDisconnectedExceptionWrapper;
 import org.netbeans.modules.debugger.jpda.ui.values.ComputeInlineValues;
 import org.netbeans.modules.debugger.jpda.ui.values.ComputeInlineValues.InlineVariable;
 import org.netbeans.modules.parsing.spi.TaskIndexingMode;
-import org.netbeans.spi.debugger.ContextProvider;
 import org.netbeans.spi.debugger.DebuggerServiceRegistration;
 import org.netbeans.spi.debugger.ui.Constants;
 import org.netbeans.spi.editor.highlighting.HighlightsLayer;
@@ -88,8 +87,7 @@ import org.openide.util.lookup.ServiceProvider;
 import org.openide.util.lookup.ServiceProviders;
 
 
-@DebuggerServiceRegistration(path="netbeans-JPDASession/inlineValue", types=InlineValueComputer.class)
-public class InlineValueComputerImpl implements InlineValueComputer, PreferenceChangeListener, PropertyChangeListener {
+public class InlineValueComputerImpl implements PreferenceChangeListener, PropertyChangeListener {
 
     private static final Logger LOG = Logger.getLogger(InlineValueComputerImpl.class.getName());
     private static final RequestProcessor EVALUATOR = new RequestProcessor(InlineValueComputerImpl.class.getName(), 1, false, false);
@@ -98,8 +96,8 @@ public class InlineValueComputerImpl implements InlineValueComputer, PreferenceC
     private final Preferences prefs;
     private TaskDescription currentTask;
 
-    public InlineValueComputerImpl(ContextProvider contextProvider) {
-        debugger = (JPDADebuggerImpl) contextProvider.lookupFirst(null, JPDADebugger.class);
+    private InlineValueComputerImpl(Session session) {
+        debugger = (JPDADebuggerImpl) session.lookupFirst(null, JPDADebugger.class);
         debugger.addPropertyChangeListener(this);
         prefs = MimeLookup.getLookup("text/x-java").lookup(Preferences.class);
         prefs.addPreferenceChangeListener(WeakListeners.create(PreferenceChangeListener.class, this, prefs));
@@ -185,7 +183,7 @@ public class InlineValueComputerImpl implements InlineValueComputer, PreferenceC
 
                 Collection<InlineVariable> variables = values.get();
 
-                if (values == null) {
+                if (variables == null) {
                     return ;
                 }
 
@@ -256,13 +254,7 @@ public class InlineValueComputerImpl implements InlineValueComputer, PreferenceC
                     } else {
                         Exceptions.printStackTrace(t);
                     }
-                } catch (NoSuchMethodException ex) {
-                    Exceptions.printStackTrace(ex);
-                } catch (SecurityException ex) {
-                    Exceptions.printStackTrace(ex);
-                } catch (IllegalAccessException ex) {
-                    Exceptions.printStackTrace(ex);
-                } catch (IllegalArgumentException ex) {
+                } catch (ReflectiveOperationException ex) {
                     Exceptions.printStackTrace(ex);
                 }
             }
@@ -276,10 +268,7 @@ public class InlineValueComputerImpl implements InlineValueComputer, PreferenceC
                 // Not a supported operation (e.g. J2ME, see #45543)
                 // Or missing context or any other reason
                 Logger.getLogger(VariablesFormatterFilter.class.getName()).fine("getToStringValue() "+ex.getLocalizedMessage());
-                if ( (ex.getTargetException () != null) &&
-                     (ex.getTargetException () instanceof
-                       UnsupportedOperationException)
-                ) {
+                if (ex.getTargetException () instanceof UnsupportedOperationException) {
                     // PATCH for J2ME. see 45543
                     return ov.getValue();
                 }
@@ -314,8 +303,7 @@ public class InlineValueComputerImpl implements InlineValueComputer, PreferenceC
     public static final class Init extends DebuggerManagerAdapter {
         @Override
         public void sessionAdded(Session session) {
-            for (InlineValueComputer v : session.lookup("inlineValue", InlineValueComputer.class)) {
-            }
+            new InlineValueComputerImpl(session);
         }
     }
 

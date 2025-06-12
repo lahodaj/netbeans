@@ -208,6 +208,8 @@ public final class NbLaunchRequestHandler {
             filePath = projectFilePath;
         }
         boolean preferProjActions = true; // True when we prefer project actions to the current (main) file actions.
+        Object preferProj = launchArguments.get("project");
+        if(preferProj instanceof Boolean) preferProjActions = (Boolean) preferProj;
         FileObject file = null;
         File nativeImageFile = null;
         if (!isNative) {

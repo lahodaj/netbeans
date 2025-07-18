@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- You may freely edit this file. See harness/README in the NetBeans platform -->
+<!-- for some information on what you could do (e.g. targets to override). -->
+<!-- If you delete this file and reopen the project it will be recreated. -->
+<project name="org.openjdk.compute.disabled.modules" default="netbeans" basedir=".">
+    <property name="nbplatform.default.dest.dir" location="${netbeans.dir}" />
+    <property name="netbeans.default.dest.dir" location="${netbeans.dir}" />
+    <property name="nbplatform.default.harness.dir" location="${nbplatform.default.dest.dir}/harness" />
+    <property name="nbplatform.active.dir" location="${netbeans.default.dest.dir}" />
+    <description>Builds, tests, and runs the project org.openjdk.compute.disabled.modules.</description>
+    <import file="nbproject/build-impl.xml"/>
+    <!--TODO: baseline-extension should be optional:-->
+    <target name="generate-disabled-modules">
+        <antcall target="run" inheritAll="false" inheritRefs="false">
+            <param name="run.args.extra" value="--compute-disabled-modules=${target.properties} --root-modules=${root.modules} --baseline-extension=${baseline.extension} --nosplash" />
+        </antcall>
+    </target>
+</project>

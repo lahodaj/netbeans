@@ -120,3 +120,4 @@ derby.log
 
 # idea
 .idea
+/java/java.lsp.server/utils/compute.disabled.modules/build/

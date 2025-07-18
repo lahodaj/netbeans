@@ -245,9 +245,10 @@
             </pathfileset>
         </pathconvert>
 
+        <property name="zip.disabled.modules" value="${disabled.modules}" />
         <selector id="zip.platform.included.files">
             <custom classpath="${harness.dir}/tasks.jar" classname="org.netbeans.nbbuild.ModuleSelector">
-                <param name="excludeModules" value="${disabled.modules}"/>
+                <param name="excludeModules" value="${zip.disabled.modules}"/>
                 <!-- XXX inc/exc clusters -->
                 <param name="includeClusters" value="${enabled.clusters}"/>
                 <param name="excludeClusters" value="${disabled.clusters}"/>

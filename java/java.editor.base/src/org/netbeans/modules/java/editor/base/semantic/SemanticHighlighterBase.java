@@ -91,46 +91,14 @@ import org.openide.util.Pair;
  *
  * @author Jan Lahoda
  */
-public abstract class SemanticHighlighterBase extends JavaParserResultTask {
+@SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
+public abstract class SemanticHighlighterBase extends JavaParserResultTask<Result> {
 
     public static final String JAVA_INLINE_HINT_PARAMETER_NAME = "javaInlineHintParameterName"; //NOI18N
     public static final String JAVA_INLINE_HINT_CHAINED_TYPES = "javaInlineHintChainedTypes"; //NOI18N
     public static final String JAVA_INLINE_HINT_VAR_TYPE = "javaInlineHintVarType"; //NOI18N
 
-    private static final Map<String, Boolean> DEFAULT_VALUES;
-
-    static {
-        Map<String, Boolean> defaultValuesBuilder = new HashMap<>();
-        defaultValuesBuilder.put(JAVA_INLINE_HINT_PARAMETER_NAME, true);
-        defaultValuesBuilder.put(JAVA_INLINE_HINT_CHAINED_TYPES, false);
-        defaultValuesBuilder.put(JAVA_INLINE_HINT_VAR_TYPE, false);
-        DEFAULT_VALUES = Collections.unmodifiableMap(defaultValuesBuilder);
-    }
-
-    private static boolean javaInlineHintParameterName;
-    private static boolean javaInlineHintChainedTypes;
-    private static boolean javaInlineHintVarType;
-
-    private static boolean isJavaInlineHintParameterName() {
-        return javaInlineHintParameterName;
-    }
-
-    private static boolean isJavaInlineHintChainedTypes() {
-        return javaInlineHintChainedTypes;
-    }
-
-    private static boolean isJavaInlineHintVarType() {
-        return javaInlineHintVarType;
-    }
-
-    private static void updateFromPreferences() {
-        Preferences preferences = NbPreferences.root().node("/org/netbeans/modules/java/editor/InlineHints/default");
-        javaInlineHintParameterName = preferences.getBoolean(JAVA_INLINE_HINT_PARAMETER_NAME, DEFAULT_VALUES.get(JAVA_INLINE_HINT_PARAMETER_NAME));
-        javaInlineHintChainedTypes = preferences.getBoolean(JAVA_INLINE_HINT_CHAINED_TYPES, DEFAULT_VALUES.get(JAVA_INLINE_HINT_CHAINED_TYPES));
-        javaInlineHintVarType = preferences.getBoolean(JAVA_INLINE_HINT_VAR_TYPE, DEFAULT_VALUES.get(JAVA_INLINE_HINT_VAR_TYPE));
-    }
-
-    private AtomicBoolean cancel = new AtomicBoolean();
+    private final AtomicBoolean cancel = new AtomicBoolean();
 
     protected SemanticHighlighterBase() {
         super(Phase.RESOLVED, TaskIndexingMode.ALLOWED_DURING_SCAN);
@@ -161,11 +129,8 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
         }
 
         final boolean[] tokenSequenceNull =  new boolean[1];
-        doc.render(new Runnable() {
-            @Override
-            public void run() {
-                tokenSequenceNull[0] = (TokenHierarchy.get(doc).tokenSequence() == null);
-            }
+        doc.render(() -> {
+            tokenSequenceNull[0] = (TokenHierarchy.get(doc).tokenSequence() == null);
         });
         return !tokenSequenceNull[0];
     }
@@ -189,9 +154,11 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
     protected abstract boolean process(CompilationInfo info, final Document doc);
     
     protected boolean process(CompilationInfo info, final Document doc, ErrorDescriptionSetter setter) {
-        updateFromPreferences();
+        return process(info, doc, Settings.getDefault(), setter);
+    }
 
-        DetectorVisitor v = new DetectorVisitor(info, doc, cancel);
+    protected boolean process(CompilationInfo info, final Document doc, Settings settings, ErrorDescriptionSetter setter) {
+        DetectorVisitor v = new DetectorVisitor(info, doc, settings, cancel);
         
         Map<Token, Coloring> newColoring = new IdentityHashMap<>();
 
@@ -228,7 +195,7 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
         
         Map<Element, List<UnusedDescription>> element2Unused = UnusedDetector.findUnused(info, () -> cancel.get()) //XXX: unnecessarily ugly
                                                                              .stream()
-                                                                             .collect(Collectors.groupingBy(ud -> ud.unusedElement));
+                                                                             .collect(Collectors.groupingBy(ud -> ud.unusedElement()));
         for (Map.Entry<Element, List<Use>> entry : v.type2Uses.entrySet()) {
             if (cancel.get())
                 return true;
@@ -296,17 +263,7 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
                LOCAL_VARIABLES.contains(el.getKind());
     }
 
-    private static class Use {
-        private boolean declaration;
-        private TreePath     tree;
-        private Collection<ColoringAttributes> spec;
-        
-        public Use(boolean declaration, TreePath tree, Collection<ColoringAttributes> spec) {
-            this.declaration = declaration;
-            this.tree = tree;
-            this.spec = spec;
-        }
-        
+    private record Use(boolean declaration, TreePath tree, Collection<ColoringAttributes> spec) {
         @Override
         public String toString() {
             return "Use: " + spec;
@@ -315,25 +272,25 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
     
     private static class DetectorVisitor extends CancellableTreePathScanner<Void, Void> {
         
-        private org.netbeans.api.java.source.CompilationInfo info;
-        private Document doc;
+        private final CompilationInfo info;
+        private final Settings settings;
         private Map<Element, List<Use>> type2Uses;        
         private Map<Tree, List<Token>> tree2Tokens;
         private List<Token> contextKeywords;
         private List<Pair<int[], Coloring>> extraColoring;
         private Map<Integer, String> preText;
-        private TokenList tl;
+        private final TokenList tl;
         private long memberSelectBypass = -1;        
-        private SourcePositions sourcePositions;
+        private final SourcePositions sourcePositions;
         private ExecutableElement recursionDetector;
         
-        private DetectorVisitor(org.netbeans.api.java.source.CompilationInfo info, final Document doc, AtomicBoolean cancel) {
+        private DetectorVisitor(CompilationInfo info, Document doc, Settings settings, AtomicBoolean cancel) {
             super(cancel);
             
             this.info = info;
-            this.doc  = doc;
-            type2Uses = new HashMap<Element, List<Use>>();
-            tree2Tokens = new IdentityHashMap<Tree, List<Token>>();
+            this.settings = settings;
+            type2Uses = new HashMap<>();
+            tree2Tokens = new IdentityHashMap<>();
             contextKeywords = new ArrayList<>();
             extraColoring = new ArrayList<>();
             preText = new HashMap<>();
@@ -341,7 +298,6 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
             tl = new TokenList(info, doc, cancel);
             
             this.sourcePositions = info.getTrees().getSourcePositions();
-//            this.pos = pos;
         }
         
         private void firstIdentifier(String name) {
@@ -430,7 +386,7 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
         }
         
         private Collection<ColoringAttributes> getMethodColoring(ExecutableElement mdecl) {
-            Collection<ColoringAttributes> c = new ArrayList<ColoringAttributes>();
+            Collection<ColoringAttributes> c = new ArrayList<>();
             
             addModifiers(mdecl, c);
             
@@ -443,7 +399,7 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
         }
         
         private Collection<ColoringAttributes> getVariableColoring(Element decl) {
-            Collection<ColoringAttributes> c = new ArrayList<ColoringAttributes>();
+            Collection<ColoringAttributes> c = new ArrayList<>();
             
             addModifiers(decl, c);
             
@@ -528,38 +484,32 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
                 c = getVariableColoring(decl);
             }
             
-            if (decl instanceof ExecutableElement) {
-                c = getMethodColoring((ExecutableElement) decl);
+            if (decl instanceof ExecutableElement exec) {
+                c = getMethodColoring(exec);
             }
             
             if (decl.getKind() == ElementKind.MODULE) {
-                c = new ArrayList<ColoringAttributes>();
+                c = new ArrayList<>();
                 c.add(ColoringAttributes.MODULE);
             }
 
             if (isDeclType) {
-                c = new ArrayList<ColoringAttributes>();
-                
+                c = new ArrayList<>();
                 addModifiers(decl, c);
                 
                 switch (decl.getKind()) {
-                    case CLASS: c.add(ColoringAttributes.CLASS); break;
-                    case INTERFACE: c.add(ColoringAttributes.INTERFACE); break;
-                    case ANNOTATION_TYPE: c.add(ColoringAttributes.ANNOTATION_TYPE); break;
-                    case ENUM: c.add(ColoringAttributes.ENUM); break;
-                    default:
-                        if (decl.getKind().name().contentEquals("RECORD")) {
-                            c.add(ColoringAttributes.RECORD);
-                        }
-                        break;
+                    case CLASS -> c.add(ColoringAttributes.CLASS);
+                    case INTERFACE -> c.add(ColoringAttributes.INTERFACE);
+                    case ANNOTATION_TYPE -> c.add(ColoringAttributes.ANNOTATION_TYPE);
+                    case ENUM -> c.add(ColoringAttributes.ENUM);
+                    case RECORD -> c.add(ColoringAttributes.RECORD);
                 }
             }                       
             
             if (declaration) {
                 if (c == null) {
-                    c = new ArrayList<ColoringAttributes>();
+                    c = new ArrayList<>();
                 }
-                
                 c.add(ColoringAttributes.DECLARATION);
             }
             
@@ -574,15 +524,8 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
         }
         
         private void addUse(Element decl, boolean declaration, TreePath t, Collection<ColoringAttributes> c) {
-            List<Use> uses = type2Uses.get(decl);
-            
-            if (uses == null) {
-                type2Uses.put(decl, uses = new ArrayList<Use>());
-            }
-            
-            Use u = new Use(declaration, t, c);
-            
-            uses.add(u);
+            type2Uses.computeIfAbsent(decl, k -> new ArrayList<>())
+                     .add(new Use(declaration, t, c));
         }
 
         @Override
@@ -705,6 +648,7 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
 
         @Override
         public Void visitCase(CaseTree node, Void p) {
+            int restartIndex = tl.index();
             tl.moveToOffset(sourcePositions.getStartPosition(info.getCompilationUnit(), node));
             List<? extends CaseLabelTree> labels = node.getLabels();
             for (CaseLabelTree labelTree : labels) {
@@ -717,6 +661,7 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
                     }
                 }
             }
+            tl.resetToIndex(restartIndex);
             return super.visitCase(node, p);
         }
 
@@ -787,7 +732,7 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
         }
 
         private void addChainedTypes(TreePath current) {
-            if(! isJavaInlineHintChainedTypes()) {
+            if (!settings.javaInlineHintChainedTypes) {
                 return;
             }
             List<TreePath> chain = new ArrayList<>(); //TODO: avoid creating an instance if possible!
@@ -963,7 +908,7 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
             
             tl.moveNext();
             
-            if (info.getTreeUtilities().isVarType(getCurrentPath()) && isJavaInlineHintVarType()) {
+            if (info.getTreeUtilities().isVarType(getCurrentPath()) && settings.javaInlineHintVarType) {
                 int afterName = tl.offset();
                 TypeMirror type = info.getTrees().getTypeMirror(new TreePath(getCurrentPath(), tree.getType()));
 
@@ -1022,7 +967,7 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
             //XXX:????
             scan(tree.getTypeParameters(), null);
             if (record) {
-                scan(tree.getMembers().stream().filter(m -> isRecordComponent(m)).collect(Collectors.toList()), null);
+                scan(tree.getMembers().stream().filter(m -> isRecordComponent(m)).toList(), null);
             }
             scan(tree.getExtendsClause(), null);
             scan(tree.getImplementsClause(), null);
@@ -1044,7 +989,7 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
             recursionDetector = null;
             
             if (record) {
-                scan(tree.getMembers().stream().filter(m -> !isRecordComponent(m)).collect(Collectors.toList()), null);
+                scan(tree.getMembers().stream().filter(m -> !isRecordComponent(m)).toList(), null);
             } else {
                 scan(tree.getMembers(), null);
             }
@@ -1084,7 +1029,7 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
                 String tokenText = t.text().toString();
                 String[] lines = tokenText.split("\n");
                 int indent = Arrays.stream(lines, 1, lines.length)
-                                   .filter(l -> !l.trim().isEmpty())
+                                   .filter(l -> !l.isBlank())
                                    .mapToInt(this::leadingIndent)
                                    .min()
                                    .orElse(0);
@@ -1109,7 +1054,7 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
 
         @Override
         public Void scan(Tree tree, Void p) {
-            if (tree != null && "YIELD".equals(tree.getKind().name())) {
+            if (tree != null && tree.getKind() == Kind.YIELD) {
                 tl.moveToOffset(sourcePositions.getStartPosition(info.getCompilationUnit(), tree));
                 Token t = firstIdentifierToken("yield"); //NOI18N
                 if (t != null) {
@@ -1156,7 +1101,7 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
         }
 
         private void addParameterInlineHint(Tree tree) {
-            if(! isJavaInlineHintParameterName()) {
+            if (!settings.javaInlineHintParameterName) {
                 return;
             }
             TreePath pp = getCurrentPath().getParentPath();
@@ -1197,5 +1142,22 @@ public abstract class SemanticHighlighterBase extends JavaParserResultTask {
         
         public void setHighlights(Document doc, Collection<Pair<int[], Coloring>> highlights, Map<int[], String> preText);
         public void setColorings(Document doc, Map<Token, Coloring> colorings);
-    }    
+    }
+
+    public record Settings(boolean javaInlineHintParameterName, boolean javaInlineHintChainedTypes, boolean javaInlineHintVarType) {
+
+        private static final Map<String, Boolean> DEFAULT_VALUES = Map.of(
+                JAVA_INLINE_HINT_PARAMETER_NAME, true,
+                JAVA_INLINE_HINT_CHAINED_TYPES, false,
+                JAVA_INLINE_HINT_VAR_TYPE, false
+        );
+
+        public static Settings getDefault() {
+            Preferences preferences = NbPreferences.root().node("/org/netbeans/modules/java/editor/InlineHints/default");
+            return new Settings(preferences.getBoolean(JAVA_INLINE_HINT_PARAMETER_NAME, DEFAULT_VALUES.get(JAVA_INLINE_HINT_PARAMETER_NAME)),
+                                preferences.getBoolean(JAVA_INLINE_HINT_CHAINED_TYPES, DEFAULT_VALUES.get(JAVA_INLINE_HINT_CHAINED_TYPES)),
+                                preferences.getBoolean(JAVA_INLINE_HINT_VAR_TYPE, DEFAULT_VALUES.get(JAVA_INLINE_HINT_VAR_TYPE)));
+        }
+
+    }
 }

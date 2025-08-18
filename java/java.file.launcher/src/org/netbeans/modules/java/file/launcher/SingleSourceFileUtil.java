@@ -30,6 +30,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import org.netbeans.api.java.platform.JavaPlatform;
 import org.netbeans.api.java.platform.JavaPlatformManager;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.modules.java.file.launcher.queries.MultiSourceRootProvider;
@@ -41,6 +42,7 @@ import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
 import org.openide.util.ChangeSupport;
 import org.openide.util.Lookup;
+import org.openide.util.NbPreferences;
 
 /**
  *
@@ -49,6 +51,7 @@ import org.openide.util.Lookup;
 public final class SingleSourceFileUtil {
     public static final Logger LOG = Logger.getLogger(SingleSourceFileUtil.class.getPackage().getName());
 
+    // TODO this checks the runtime JDK of NB!
     public static int findJavaVersion() throws NumberFormatException {
         // JEP-330 is supported only on JDK-11 and above.
         String javaVersion = System.getProperty("java.specification.version"); //NOI18N
@@ -59,8 +62,14 @@ public final class SingleSourceFileUtil {
         return version;
     }
 
+    public static final String GLOBAL_VM_OPTIONS = "java_file_launcher_global_vm_options"; //NOI18N
+    public static final String GLOBAL_STOP_AND_RUN_OPTION = "java_file_launcher_global_stop_and_run_option"; //NOI18N
+
+    // synced with JavaNode
     public static final String FILE_ARGUMENTS = "single_file_run_arguments"; //NOI18N
+    public static final String FILE_JDK = "single_file_run_jdk"; //NOI18N
     public static final String FILE_VM_OPTIONS = "single_file_vm_options"; //NOI18N
+    public static final String FILE_REGISTER_ROOT = "register_root"; //NOI18N
 
     public static FileObject getJavaFileWithoutProjectFromLookup(Lookup lookup) {
         for (DataObject dObj : lookup.lookupAll(DataObject.class)) {
@@ -101,8 +110,8 @@ public final class SingleSourceFileUtil {
             return false;
         }
     }
-    public static Process compileJavaSource(FileObject fileObject) {
-        FileObject javac = JavaPlatformManager.getDefault().getDefaultPlatform().findTool("javac"); //NOI18N
+    public static Process compileJavaSource(FileObject fileObject, JavaPlatform jdk) {
+        FileObject javac = jdk.findTool("javac"); //NOI18N
         File javacFile = FileUtil.toFile(javac);
         String javacPath = javacFile.getAbsolutePath();
         List<String> compileCommandList = new ArrayList<>();
@@ -112,6 +121,10 @@ public final class SingleSourceFileUtil {
         String vmOptions = compilerVmOptionsObj != null ? ((String) compilerVmOptionsObj).trim() : ""; // NOI18N
         if (!vmOptions.isEmpty()) {
             compileCommandList.addAll(Arrays.asList(vmOptions.split(" "))); //NOI18N
+        }
+        String globalVmOptions = NbPreferences.forModule(JavaPlatformManager.class).get(GLOBAL_VM_OPTIONS, "").trim(); // NOI18N
+        if (!globalVmOptions.isEmpty()) {
+            compileCommandList.addAll(Arrays.asList(globalVmOptions.split(" "))); //NOI18N
         }
         compileCommandList.add(fileObject.getPath());
         ProcessBuilder compileProcessBuilder = new ProcessBuilder(compileCommandList);
@@ -148,6 +161,10 @@ public final class SingleSourceFileUtil {
 
     public static List<String> parseLine(String line, URI workingDirectory) {
         return PARSER.doParse(line, workingDirectory);
+    }
+
+    public static boolean isTrue(Object value) {
+        return value instanceof Boolean b && b;
     }
 
     private static final LineParser PARSER = new LineParser();
@@ -212,6 +229,10 @@ public final class SingleSourceFileUtil {
 
         public URI getWorkDirectory() {
             return delegate.getWorkDirectory();
+        }
+
+        public boolean registerRoot() {
+            return delegate.registerRoot();
         }
 
         @Override

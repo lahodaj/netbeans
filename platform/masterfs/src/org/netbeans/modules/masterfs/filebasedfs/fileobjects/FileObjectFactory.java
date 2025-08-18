@@ -51,7 +51,6 @@ import org.openide.filesystems.FileUtil;
 import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
 import org.openide.util.BaseUtilities;
-import org.openide.util.WeakSet;
 
 /**
  * @author Radek Matous
@@ -243,11 +242,6 @@ public final class FileObjectFactory {
         return true;
     }
 
-    private Integer initRealExists(int initTouch) {
-        final Integer retval = new Integer(initTouch);
-        return retval;
-    }
-
     private void printWarning(File file) {
         StringBuilder sb = new StringBuilder("WARNING(please REPORT):  Externally ");
         sb.append(file.exists() ? "created " : "deleted "); //NOI18N
@@ -263,7 +257,7 @@ public final class FileObjectFactory {
     private BaseFileObj issueIfExist(File file, Caller caller, final FileObject parent, FileNaming child, int initTouch, boolean asyncFire, boolean onlyExisting) {
         boolean exist = false;
         BaseFileObj foForFile = null;
-        Integer realExists = initRealExists(initTouch);
+        Integer realExists = initTouch;
         final FileChangedManager fcb = FileChangedManager.getInstance();
 
         //use cached info as much as possible + do refresh if something is wrong
@@ -501,7 +495,7 @@ public final class FileObjectFactory {
         final Set<BaseFileObj> all2Refresh;
         allIBaseLock.writeLock().lock();
         try {
-            all2Refresh = new WeakSet<BaseFileObj>(allIBaseFileObjects.size() * 3 + 11);
+            all2Refresh = Collections.newSetFromMap(new WeakHashMap<>(allIBaseFileObjects.size() * 3 + 11));
             final Iterator<Object> it = allIBaseFileObjects.values().iterator();
             while (it.hasNext()) {
                 final Object obj = it.next();

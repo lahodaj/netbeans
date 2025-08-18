@@ -21,8 +21,12 @@ package org.netbeans.modules.java;
 
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
+import java.awt.Component;
 import org.netbeans.api.java.source.support.ErrorAwareTreeScanner;
 import java.awt.Image;
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyEditor;
+import java.beans.PropertyEditorSupport;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -37,24 +41,27 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HexFormat;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Stream;
 import javax.lang.model.element.Modifier;
+import javax.swing.DefaultComboBoxModel;
+import javax.swing.JComboBox;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import org.netbeans.api.annotations.common.CheckForNull;
 import org.netbeans.api.annotations.common.NonNull;
 import org.netbeans.api.annotations.common.NullAllowed;
 import org.netbeans.api.java.classpath.ClassPath;
+import org.netbeans.api.java.platform.JavaPlatformManager;
 import org.netbeans.api.java.source.CompilationController;
 import org.netbeans.api.java.source.JavaSource;
-import org.netbeans.api.java.source.ModificationResult;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
 import org.netbeans.api.queries.FileBuiltQuery;
@@ -63,14 +70,11 @@ import org.netbeans.modules.classfile.Access;
 import org.netbeans.modules.classfile.ClassFile;
 import org.netbeans.modules.classfile.InvalidClassFormatException;
 import org.netbeans.modules.java.source.usages.ExecutableFilesIndex;
-import org.netbeans.modules.parsing.api.ResultIterator;
-import org.netbeans.modules.parsing.api.Source;
-import org.netbeans.modules.parsing.api.UserTask;
-import org.netbeans.modules.parsing.spi.ParseException;
 import org.netbeans.spi.java.loaders.RenameHandler;
 import org.openide.filesystems.*;
 import org.openide.loaders.DataNode;
 import org.openide.loaders.DataObject;
+import org.openide.modules.SpecificationVersion;
 import org.openide.nodes.Children;
 import org.openide.nodes.Node;
 import org.openide.nodes.PropertySupport;
@@ -78,6 +82,7 @@ import org.openide.nodes.Sheet;
 import org.openide.util.Exceptions;
 import org.openide.util.ImageUtilities;
 import org.openide.util.Lookup;
+import org.openide.util.NbPreferences;
 import org.openide.util.RequestProcessor;
 import org.openide.util.Utilities;
 import org.openide.util.WeakListeners;
@@ -96,15 +101,21 @@ public final class JavaNode extends DataNode implements ChangeListener {
     private static final long serialVersionUID = -7396485743899766258L;
 
     private static final String JAVA_ICON_BASE = "org/netbeans/modules/java/resources/class.png"; // NOI18N
+    private static final String JAVA_ICON_BASE_SVG = "org/netbeans/modules/java/resources/class.svg"; // NOI18N
     private static final String CLASS_ICON_BASE = "org/netbeans/modules/java/resources/clazz.gif"; // NOI18N
+    private static final String CLASS_ICON_BASE_SVG = "org/netbeans/modules/java/resources/clazz.svg"; // NOI18N
     private static final String ABSTRACT_CLASS_ICON_BASE = "org/netbeans/modules/java/resources/abstract_class_file.png"; //NOI18N
     private static final String INTERFACE_ICON_BASE = "org/netbeans/modules/java/resources/interface_file.png"; //NOI18N
     private static final String ENUM_ICON_BASE = "org/netbeans/modules/java/resources/enum_file.png";   //NOI18N
     private static final String ANNOTATION_ICON_BASE = "org/netbeans/modules/java/resources/annotation_file.png";   //NOI18N
     private static final String EXECUTABLE_BADGE_URL = "org/netbeans/modules/java/resources/executable-badge.png";  //NOI18N
     private static final String NEEDS_COMPILE_BADGE_URL = "org/netbeans/modules/java/resources/needs-compile.png";  //NOI18N
+    // synced with org.netbeans.modules.java.file.launcher.SingleSourceFileUtil
+    private static final String GLOBAL_VM_OPTIONS = "java_file_launcher_global_vm_options"; //NOI18N
     private static final String FILE_ARGUMENTS = "single_file_run_arguments"; //NOI18N
+    private static final String FILE_JDK = "single_file_run_jdk"; //NOI18N
     private static final String FILE_VM_OPTIONS = "single_file_vm_options"; //NOI18N
+    private static final String FILE_REGISTER_ROOT = "register_root"; //NOI18N
 
     private static final Map<String,Image> IMAGE_CACHE = new ConcurrentHashMap<>();
     private static final boolean ALWAYS_PREFFER_COMPUTED_ICON = Boolean.getBoolean("JavaNode.prefferComputedIcon"); //NOI18N
@@ -232,72 +243,18 @@ public final class JavaNode extends DataNode implements ChangeListener {
         DataObject dObj = super.getDataObject();
         // If any of the parent folders is a project, user won't have the option to specify these attributes to the java files.
         if (parentProject == null) {
-            Node.Property arguments = new PropertySupport.ReadWrite<String> (
-                    "runFileArguments", // NOI18N
-                    String.class,
-                    "Arguments",
-                    "Arguments passed to the main method while running the file."
-                ) {
-                    @Override
-                    public String getValue () {
-                        Object arguments = dObj.getPrimaryFile().getAttribute(FILE_ARGUMENTS);
-                        return arguments != null ? (String) arguments : "";
-                    }
-
-                    @Override
-                    public void setValue (String o) {
-                        try {
-                            dObj.getPrimaryFile().setAttribute(FILE_ARGUMENTS, o);
-                        } catch (IOException ex) {
-                            LOG.log(
-                                    Level.WARNING,
-                                    "Java File does not exist : {0}", //NOI18N
-                                    dObj.getPrimaryFile().getName());
-                        }
-                    }
-            };
-            Node.Property vmOptions = new PropertySupport.ReadWrite<String> (
-                    "runFileVMOptions", // NOI18N
-                    String.class,
-                    "VM Options",
-                    "VM Options to be considered while running the file."
-                ) {
-                    @Override
-                    public String getValue () {
-                        Object vmOptions = dObj.getPrimaryFile().getAttribute(FILE_VM_OPTIONS);
-                        return vmOptions != null ? (String) vmOptions : "";
-                    }
-
-                    @Override
-                    public void setValue(String o) {
-                        try {
-                            dObj.getPrimaryFile().setAttribute(FILE_VM_OPTIONS, o);
-                            Source s = Source.create(dObj.getPrimaryFile());
-                            ModificationResult result = ModificationResult.runModificationTask(List.of(s), new UserTask() {
-
-                                @Override
-                                public void run(ResultIterator resultIterator) {
-                                }
-                            });
-                            result.commit();
-                        } catch (IOException | ParseException ex) {
-                            LOG.log(
-                                    Level.WARNING,
-                                    "Java File does not exist : {0}", //NOI18N
-                                    dObj.getPrimaryFile().getName());
-                        }
-                }
-            };
             Sheet.Set ss = new Sheet.Set();
             ss.setName("runFileArguments"); // NOI18N
-            ss.setDisplayName(getMessage(JavaNode.class, "LBL_JavaNode_without_project_run"));
+            ss.setDisplayName(getMessage(JavaNode.class, "LBL_JavaNode_without_project_run")); // NOI18N
             ss.setShortDescription("Run the file's source code.");
-            ss.put (arguments);
-            ss.put (vmOptions);
+            ss.put(new JavaFileBooleanAttributeProperty(dObj, FILE_REGISTER_ROOT, "registerRoot", "singlefile_registerRoot")); // NOI18N
+            ss.put(new RunFileJDKProperty(dObj));
+            ss.put(new JavaFileAttributeProperty(dObj, FILE_ARGUMENTS, "runFileArguments", "singlefile_arguments")); // NOI18N
+            ss.put(new JavaFileAttributeProperty(dObj, FILE_VM_OPTIONS, "runFileVMOptions", "singlefile_options")); // NOI18N
+            ss.put(new JavaFileGlobalOptionsProperty());
             sheet.put(ss);
         }
-        
-        
+
         @SuppressWarnings("LocalVariableHidesMemberVariable")
         PropertySet[] propertySets = sheet.toArray();
         
@@ -429,6 +386,160 @@ public final class JavaNode extends DataNode implements ChangeListener {
         }
     }
 
+    private static final class RunFileJDKProperty extends PropertySupport.ReadWrite<String> {
+
+        private final PropertyEditorSupport jdkPicker = new JDKPicker();
+        private final DataObject dObj;
+
+        public RunFileJDKProperty(DataObject dObj) {
+            super("runFileJDK", String.class, // NOI18N
+                  getMessage(JavaNode.class, "PROP_JavaNode_singlefile_jdk"), // NOI18N
+                  getMessage(JavaNode.class, "HINT_JavaNode_singlefile_jdk")); // NOI18N
+            this.dObj = dObj;
+        }
+
+        @Override
+        public String getValue() {
+            return dObj.getPrimaryFile().getAttribute(FILE_JDK) instanceof String jdk ? jdk : "";
+        }
+
+        @Override
+        public void setValue(String text) {
+            try {
+                dObj.getPrimaryFile().setAttribute(FILE_JDK, text);
+            } catch (IOException ex) {
+                LOG.log(Level.WARNING, "Java File does not exist : {0}", dObj.getPrimaryFile().getName()); //NOI18N
+            }
+        }
+
+        @Override
+        public PropertyEditor getPropertyEditor() {
+            return jdkPicker;
+        }
+
+        // inline combobox for jdk property
+        private static final class JDKPicker extends PropertyEditorSupport {
+
+            private final JComboBox jdkCombo = new JComboBox();
+            private final PropertyChangeListener modelUpdater = e -> initModel();
+            private String[] jdks;
+
+            public JDKPicker() {
+                initModel();
+                jdkCombo.addActionListener(e -> super.setValue(jdkCombo.getSelectedItem()));
+                JavaPlatformManager jdkman = JavaPlatformManager.getDefault();
+                jdkman.addPropertyChangeListener(WeakListeners.propertyChange(modelUpdater, jdkman));
+            }
+
+            private void initModel() {
+                jdks = Stream.of(JavaPlatformManager.getDefault().getInstalledPlatforms())
+                             .filter(jdk -> isCompatible(jdk.getSpecification().getVersion()))
+                             .map(jdk -> jdk.getDisplayName())
+                             .sorted(Comparator.reverseOrder())
+                             .toArray(String[]::new);
+                jdkCombo.setModel(new DefaultComboBoxModel(jdks));
+            }
+
+            private static boolean isCompatible(SpecificationVersion jdkVerison) {
+                try {
+                    return Integer.parseInt(jdkVerison.toString()) >= 11;
+                } catch (NumberFormatException ignore) {}
+                return false;
+            }
+
+            @Override
+            public void setAsText(String text) throws IllegalArgumentException {
+                jdkCombo.setSelectedItem(text);
+            }
+
+            @Override
+            public void setValue(Object value) {
+                jdkCombo.setSelectedItem(value);
+                super.setValue(value);
+            }
+
+            @Override
+            @SuppressWarnings("ReturnOfCollectionOrArrayField")
+            public String[] getTags() {
+                return jdks;
+            }
+
+            @Override
+            public Component getCustomEditor() {
+                return jdkCombo;
+            }
+
+        }
+
+    }
+
+    // editable file attribute
+    private static final class JavaFileBooleanAttributeProperty extends PropertySupport.ReadWrite<Boolean> {
+
+        private final String attribute;
+        private final DataObject dObj;
+
+        public JavaFileBooleanAttributeProperty(DataObject dObj, String attribute, String name, String msgKeyPart) {
+            super(name, Boolean.class, getMessage(JavaNode.class, "PROP_JavaNode_" + msgKeyPart), getMessage(JavaNode.class, "HINT_JavaNode_" + msgKeyPart)); // NOI18N
+            this.dObj = dObj;
+            this.attribute = attribute;
+        }
+
+        @Override
+        public Boolean getValue() {
+            return dObj.getPrimaryFile().getAttribute(attribute) instanceof Boolean val ? val : false;
+        }
+
+        @Override
+        public void setValue(Boolean o) {
+            try {
+                dObj.getPrimaryFile().setAttribute(attribute, o);
+            } catch (IOException ex) {
+                LOG.log(Level.WARNING, "Java File does not exist : {0}", dObj.getPrimaryFile().getName()); //NOI18N
+            }
+        }
+    }
+
+    // editable file attribute
+    private static final class JavaFileAttributeProperty extends PropertySupport.ReadWrite<String> {
+
+        private final String attribute;
+        private final DataObject dObj;
+
+        public JavaFileAttributeProperty(DataObject dObj, String attribute, String name, String msgKeyPart) {
+            super(name, String.class, getMessage(JavaNode.class, "PROP_JavaNode_" + msgKeyPart), getMessage(JavaNode.class, "HINT_JavaNode_" + msgKeyPart)); // NOI18N
+            this.dObj = dObj;
+            this.attribute = attribute;
+        }
+
+        @Override
+        public String getValue() {
+            return dObj.getPrimaryFile().getAttribute(attribute) instanceof String val ? val : "";
+        }
+
+        @Override
+        public void setValue(String o) {
+            try {
+                dObj.getPrimaryFile().setAttribute(attribute, o);
+            } catch (IOException ex) {
+                LOG.log(Level.WARNING, "Java File does not exist : {0}", dObj.getPrimaryFile().getName()); //NOI18N
+            }
+        }
+    }
+
+    // read-only global VM options
+    private static final class JavaFileGlobalOptionsProperty extends PropertySupport.ReadOnly<String> {
+
+        public JavaFileGlobalOptionsProperty() {
+            super("runFileGlobalOptions", String.class, getMessage(JavaNode.class, "PROP_JavaNode_singlefile_global_options"), getMessage(JavaNode.class, "HINT_JavaNode_singlefile_global_options")); // NOI18N
+        }
+
+        @Override
+        public String getValue() {
+            return NbPreferences.forModule(JavaPlatformManager.class).get(GLOBAL_VM_OPTIONS, "").trim();
+        }
+    }
+
     @Override
     public void stateChanged(ChangeEvent e) {
         WORKER.post(new BuildStatusTask(this));
@@ -457,7 +568,9 @@ public final class JavaNode extends DataNode implements ChangeListener {
             final Object attrValue = parent.getProperty("url", null);   //NOI18N
             if (attrValue instanceof URL) {
                 final String url = attrValue.toString();
-                if (!(isJavaSource ? url.endsWith(JAVA_ICON_BASE) : url.endsWith(CLASS_ICON_BASE))) {
+                if (!(url.endsWith(isJavaSource ? JAVA_ICON_BASE : CLASS_ICON_BASE) ||
+                    url.endsWith(isJavaSource ? JAVA_ICON_BASE_SVG : CLASS_ICON_BASE_SVG)))
+                {
                     return parent;
                 }
             }

@@ -209,7 +209,6 @@
                 </test-type>
             </test-dependencies>
             <friend-packages>
-                <friend>org.javeleon.netbeans</friend>
                 <friend>org.netbeans.modules.groovy.support</friend>
                 <friend>org.netbeans.modules.hudson.maven</friend>
                 <friend>org.netbeans.modules.licensechanger</friend>
@@ -226,7 +225,6 @@
                 <friend>org.netbeans.modules.maven.persistence</friend>
                 <friend>org.netbeans.modules.maven.refactoring</friend>
                 <friend>org.netbeans.modules.maven.repository</friend>
-                <friend>org.netbeans.modules.maven.refactoring</friend>
                 <friend>org.netbeans.modules.selenium.maven</friend>
                 <friend>org.netbeans.modules.selenium2.maven</friend>
                 <friend>org.netbeans.modules.testng.maven</friend>

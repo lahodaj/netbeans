@@ -36,6 +36,18 @@
 	"contributes": {
 		"languages": [
 			{
+				"id": "java",
+				"extensions": [
+					".java",
+					".jav"
+				],
+				"aliases": [
+					"Java",
+					"java"
+				],
+				"configuration": "./language-configuration.json"
+			},
+			{
 				"id": "javascript",
 				"mimetypes": [
 					"text/javascript",
@@ -78,7 +90,7 @@
 				},
 				{
 					"id": "cloud.assets",
-					"name": "Cloud Assets",
+					"name": "Oracle Cloud Assets",
 					"when": "nbJavaLSReady"
 				},
 				{
@@ -115,8 +127,17 @@
 						"null"
 					],
 					"default": null,
-					"description": "Specifies JDK for the Apache NetBeans Language Server",
-					"scope": "machine"
+					"description": "Specifies the JDK on which the Apache NetBeans Language Server is run",
+					"scope": "machine-overridable"
+				},
+				"netbeans.project.jdkhome": {
+					"type": [
+						"string",
+						"null"
+					],
+					"default": null,
+					"description": "Specifies the JDK on which user's project will be run. Defaults to the value of netbeans.jdkhome",
+					"scope": "machine-overridable"
 				},
 				"netbeans.verbose": {
 					"type": "boolean",
@@ -166,22 +187,10 @@
 					"default": 100,
 					"description": "Timeout (in milliseconds) for loading Javadoc in code completion (-1 for unlimited)"
 				},
-				"netbeans.format.codeFormatter": {
-					"type": "string",
-					"enum": [
-						"NetBeans",
-						"Eclipse",
-						"Google",
-						"Spring"
-					],
-					"enumDescriptions": [
-						"Internal NetBeans Code Formatter",
-						"Eclipse Code Formatter",
-						"Goolge Code Formatter",
-						"Spring Code Formatter"
-					],
-					"description": "Code formatter to use",
-					"default": "NetBeans"
+				"netbeans.completion.warning.time": {
+					"type": "integer",
+					"default": 10000,
+					"description": "When code completion takes longer than this specified time (in milliseconds), there will be a warning produced (-1 to disable)"
 				},
 				"netbeans.format.settingsPath": {
 					"type": "string",
@@ -221,6 +230,31 @@
 					"default": 999,
 					"minimum": 1
 				},
+				"netbeans.java.completion.commit.chars": {
+					"type": "array",
+					"default": [
+						".",
+						","
+					],
+					"description": "Specifies the characters that trigger accepting a code completion suggestion. Defaults to '.' and ','. For example, to accept suggestions when typing a dot (.), set this to [\".\"]"
+				},
+				"netbeans.guides.notified": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"ocid": {
+								"format": "string"
+							},
+							"actionType": {
+								"format": "string"
+							}
+						}
+					},
+					"default": null,
+					"description": "Specifies the OCIDs of resources for which guides are already shown",
+					"scope": "machine-overridable"
+				},
 				"java+.runConfig.arguments": {
 					"type": "string",
 					"default": "",
@@ -240,6 +274,24 @@
 					"type": "string",
 					"default": "",
 					"description": "Working directory"
+				},
+				"netbeans.inlay.enabled": {
+					"description": "Enable or disable various inline hints.",
+					"type": "array",
+					"default": [],
+					"items": {
+						"type": "string",
+						"enum": [
+							"chained",
+							"parameter",
+							"var"
+						],
+						"markdownEnumDescriptions": [
+							"show return types of chained methods",
+							"show parameter names",
+							"show types of `var` variables"
+						]
+					}
 				}
 			}
 		},
@@ -266,7 +318,7 @@
 						"properties": {
 							"mainClass": {
 								"type": "string",
-								"description": "Absolute path to the program main class.",
+								"markdownDescription": "Main class specification. Supported formats:\n - an absolute path\n - a path relative to any of the workspace folders\n - a fully qualified name of a class",
 								"default": "${file}"
 							},
 							"classPaths": {
@@ -296,8 +348,13 @@
 							"vmArgs": {
 								"type": [
 									"string",
+									"array",
 									"null"
 								],
+								"items": {
+									"type": "string",
+									"description": "Single argument to the VM"
+								},
 								"description": "Arguments for the Java VM",
 								"default": null
 							},
@@ -474,6 +531,37 @@
 				"title": "Copy OCID"
 			},
 			{
+				"command": "nbls.cloud.publicIp.copy",
+				"title": "Copy the public IP address"
+			},
+			{
+				"command": "nbls.cloud.openConsole",
+				"title": "Open in OCI Console"
+			},
+			{
+				"command": "nbls.cloud.openInBrowser",
+				"title": "Open in Browser"
+			},
+			{
+				"command": "nbls.cloud.imageUrl.copy",
+				"title": "Copy pull command"
+			},
+			{
+				"command": "nbls.cloud.computeInstance.ssh",
+				"title": "Start SSH session",
+				"icon": "$(terminal)"
+			},
+			{
+				"command": "nbls.cloud.container.docker",
+				"title": "Run in Compute Instance",
+				"icon": "$(play)"
+			},
+			{
+				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.RunInClusterAction",
+				"title": "Run in Cluster",
+				"icon": "$(play)"
+			},
+			{
 				"command": "nbls.workspace.compile",
 				"title": "Compile Workspace",
 				"category": "Java"
@@ -521,6 +609,11 @@
 				"icon": "$(add)"
 			},
 			{
+				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.adm.ShowInBrowserAction",
+				"title": "Open In Browser",
+				"icon": "$(link-external)"
+			},
+			{
 				"command": "nbls.db.add.connection",
 				"title": "Add JDBC Database Connection"
 			},
@@ -548,23 +641,57 @@
 			},
 			{
 				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddToProject",
-				"title": "Add To Project",
+				"title": "Add to Oracle Cloud Assets",
 				"icon": "$(add)"
 			},
 			{
+				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.SetReferenceName",
+				"title": "Set a Reference Name",
+				"icon": "$(edit)"
+			},
+			{
+				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.SetClusterNamespace",
+				"title": "Set a Cluster Namespace",
+				"icon": "$(edit)"
+			},
+			{
+				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.PortForwardAction",
+				"title": "Start port forwarding",
+				"icon": "$(arrow-small-right)"
+			},
+			{
+				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.ShowPodLogsAction",
+				"title": "Show pod log",
+				"icon": "$(list-flat)"
+			},
+			{
+				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.StopPortForwardAction",
+				"title": "Stop Port Forward",
+				"icon": "$(stop-circle)"
+			},
+			{
 				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.RemoveFromProject",
-				"title": "Remove From Project",
+				"title": "Remove from Oracle Cloud Assets",
 				"icon": "$(remove)"
 			},
 			{
 				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddSuggestedItemAction",
-				"title": "Add To Project",
+				"title": "Add Suggested to Oracle Cloud Assets",
 				"icon": "$(add)"
 			},
 			{
 				"command": "nbls.cloud.assets.refresh",
-				"title": "Refresh Cloud Assets",
+				"title": "Refresh Oracle Cloud Assets",
 				"icon": "$(refresh)"
+			},
+			{
+				"command": "nbls.project.buildPushImage",
+				"title": "Build and Push container image",
+				"icon": "$(live-share)"
+			},
+			{
+				"command": "nbls.cloud.assets.buildPushNativeImage",
+				"title": "Build and Push Native Image container image"
 			},
 			{
 				"command": "cloud.assets.policy.create",
@@ -582,13 +709,24 @@
 				"icon": "$(add)"
 			},
 			{
+				"command": "nbls.cloud.assets.configmap.devops.upload",
+				"title": "Add Cloud Assets to ConfigMap whithin an OCI DevOps project",
+				"icon": "$(add)"
+			},
+			{
+				"command": "nbls.cloud.assets.configmap.upload",
+				"title": "Add Cloud Assets to ConfigMap whithin OKE cluster",
+				"icon": "$(add)"
+			},
+			{
 				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.CloudRefresh",
 				"title": "Refresh",
 				"icon": "$(refresh)"
 			},
 			{
 				"command": "nbls:Edit:org.openide.actions.DeleteAction",
-				"title": "Delete"
+				"title": "Delete",
+				"icon": "$(trash)"
 			},
 			{
 				"command": "nbls.project.run",
@@ -648,8 +786,8 @@
 				"title": "Open Service Console"
 			},
 			{
-				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddDbConnectionToVault",
-				"title": "Add to OCI Vault"
+				"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddSecretsToVault",
+				"title": "Add Sensitive Data to OCI Vault"
 			},
 			{
 				"command": "nbls.select.editor.projects",
@@ -764,6 +902,38 @@
 					"when": "false"
 				},
 				{
+					"command": "nbls.cloud.publicIp.copy",
+					"when": "false"
+				},
+				{
+					"command": "nbls.cloud.openConsole",
+					"when": "false"
+				},
+				{
+					"command": "nbls.cloud.openInBrowser",
+					"when": "false"
+				},
+				{
+					"command": "nbls.cloud.imageUrl.copy",
+					"when": "false"
+				},
+				{
+					"command": "nbls.cloud.computeInstance.ssh",
+					"when": "false"
+				},
+				{
+					"command": "nbls.cloud.container.docker",
+					"when": "false"
+				},
+				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.RunInClusterAction",
+					"when": "false"
+				},
+				{
+					"command": "nbls:Edit:org.openide.actions.DeleteAction",
+					"when": "false"
+				},
+				{
 					"command": "nbls:Database:netbeans.db.explorer.action.Connect",
 					"when": "false"
 				},
@@ -780,11 +950,35 @@
 					"when": "false"
 				},
 				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.adm.ShowInBrowserAction",
+					"when": "false"
+				},
+				{
 					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddRepository",
 					"when": "false"
 				},
 				{
 					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddToProject",
+					"when": "false"
+				},
+				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.SetReferenceName",
+					"when": "false"
+				},
+				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.SetClusterNamespace",
+					"when": "false"
+				},
+				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.PortForwardAction",
+					"when": "false"
+				},
+				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.ShowPodLogsAction",
+					"when": "false"
+				},
+				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.StopPortForwardAction",
 					"when": "false"
 				},
 				{
@@ -820,7 +1014,7 @@
 					"when": "false"
 				},
 				{
-					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddDbConnectionToVault",
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddSecretsToVault",
 					"when": "false"
 				},
 				{
@@ -964,9 +1158,9 @@
 					"group": "oci@300"
 				},
 				{
-					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddDbConnectionToVault",
-					"when": "viewItem =~ /class:org.netbeans.api.db.explorer.DatabaseConnection/",
-					"group": "oci@400"
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddSecretsToVault",
+					"when": "viewItem =~ /class:oracle.vault.VaultItem/",
+					"group": "oci@200"
 				},
 				{
 					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.CreateAutonomousDBAction",
@@ -975,8 +1169,58 @@
 				},
 				{
 					"command": "nbls.cloud.ocid.copy",
-					"when": "viewItem =~ /class:oracle.items.OCIItem/",
+					"when": "viewItem =~ /ocid:.*/",
 					"group": "oci@1000"
+				},
+				{
+					"command": "nbls.cloud.publicIp.copy",
+					"when": "viewItem =~ /publicIp:.*/ && viewItem =~ /^(?!.*imageUrl:).*/",
+					"group": "instance@1500"
+				},
+				{
+					"command": "nbls.cloud.openConsole",
+					"when": "viewItem =~ /consoleUrl:.*/",
+					"group": "oci@2000"
+				},
+				{
+					"command": "nbls.cloud.openInBrowser",
+					"when": "viewItem =~ /portForward:.*/",
+					"group": "oci@2000"
+				},
+				{
+					"command": "nbls.cloud.imageUrl.copy",
+					"when": "viewItem =~ /imageUrl:.*/",
+					"group": "oci@1000"
+				},
+				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.adm.ShowInBrowserAction",
+					"when": "viewItem =~ /class:oracle.developer.MetricsItem/",
+					"group": "inline@10"
+				},
+				{
+					"command": "nbls.cloud.computeInstance.ssh",
+					"when": "viewItem =~ /publicIp:.*/ && viewItem =~ /^(?!.*imageUrl:).*/",
+					"group": "inline@10"
+				},
+				{
+					"command": "nbls.cloud.container.docker",
+					"when": "viewItem =~ /publicIp:.*/ && viewItem =~ /imageUrl:.*/",
+					"group": "inline@10"
+				},
+				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.RunInClusterAction",
+					"when": "viewItem =~ /clusterName:.*/ && viewItem =~ /imageUrl:.*/",
+					"group": "inline@10"
+				},
+				{
+					"command": "nbls.project.buildPushImage",
+					"when": "viewItem =~ /class:oracle.developer.ContainerRepositoryItem/",
+					"group": "inline@9"
+				},
+				{
+					"command": "nbls.cloud.assets.buildPushNativeImage",
+					"when": "viewItem =~ /class:oracle.developer.ContainerRepositoryItem/",
+					"group": "container@1000"
 				},
 				{
 					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddRepository",
@@ -986,16 +1230,41 @@
 				{
 					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.CreateBuildRun",
 					"when": "viewItem =~ /class:oracle.devops.BuildPipelineItem/",
-					"group": "inline@12"
+					"group": "container@12"
 				},
 				{
 					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.AddToProject",
-					"when": "viewItem =~ /class:oracle/ && view != cloud.assets",
+					"when": "viewItem =~ /(ComputeInstanceItem|ClusterItem|BucketItem|DatabaseItem|VaultItem|ContainerRepositoryItem|MetricsNamespaceItem)/ && view != cloud.assets",
+					"group": "inline@14"
+				},
+				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.SetReferenceName",
+					"when": "viewItem =~ /cap:refName/ && view == cloud.assets",
+					"group": "inline@14"
+				},
+				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.SetClusterNamespace",
+					"when": "viewItem =~ /clusterNamespace:.*/ && view == cloud.assets",
+					"group": "inline@14"
+				},
+				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.PortForwardAction",
+					"when": "viewItem =~ /class:oracle.assets.k8s.PodItem/",
+					"group": "inline@14"
+				},
+				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.ShowPodLogsAction",
+					"when": "viewItem =~ /class:oracle.assets.k8s.PodItem/",
+					"group": "inline@14"
+				},
+				{
+					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.StopPortForwardAction",
+					"when": "viewItem =~ /class:oracle.assets.k8s.PortForwardItem/",
 					"group": "inline@14"
 				},
 				{
 					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.RemoveFromProject",
-					"when": "viewItem =~ /^(?!.*Suggested).*/ && view == cloud.assets",
+					"when": "viewItem =~ /^(?!.*(Suggested|ContainerTagItem|PodItem|PortForwardItem)).*/ && view == cloud.assets",
 					"group": "inline@17"
 				},
 				{
@@ -1005,13 +1274,18 @@
 				},
 				{
 					"command": "nbls:Tools:org.netbeans.modules.cloud.oracle.actions.CloudRefresh",
-					"when": "viewItem =~ /class:oracle/ && view != cloud.assets",
+					"when": "viewItem =~ /^(?!.*(ContainerTagItem|Suggested|PortForwardItem)).*class:oracle.*$/",
 					"group": "inline@13"
 				},
 				{
 					"command": "nbls.workspace.configureRunSettings",
 					"when": "view == run-config && viewItem == configureRunSettings",
 					"group": "inline@1"
+				},
+				{
+					"command": "nbls:Edit:org.openide.actions.DeleteAction",
+					"when": "viewItem =~ /lifecycleState:ACTIVE*/ || viewItem =~ /ContainerTagItem/",
+					"group": "inline@10"
 				}
 			]
 		},
@@ -1099,12 +1373,36 @@
 				"codeicon": "archive"
 			},
 			{
+				"uriExpression": "nbres:/org/netbeans/modules/cloud/oracle/resources/metrics.svg",
+				"codeicon": "graph-line"
+			},
+			{
+				"uriExpression": "nbres:/org/netbeans/modules/cloud/oracle/resources/metrics_namespace.svg",
+				"codeicon": "symbol-namespace"
+			},
+			{
 				"uriExpression": "nbres:/org/netbeans/modules/cloud/oracle/resources/computeinstance.svg",
 				"codeicon": "server-environment"
 			},
 			{
+				"uriExpression": "nbres:/org/netbeans/modules/cloud/oracle/resources/containerrepository.svg",
+				"codeicon": "briefcase"
+			},
+			{
+				"uriExpression": "nbres:/org/netbeans/modules/cloud/oracle/resources/containertag.svg",
+				"codeicon": "tag"
+			},
+			{
 				"uriExpression": "nbres:/org/netbeans/modules/cloud/oracle/resources/cluster.svg",
 				"codeicon": "compass"
+			},
+			{
+				"uriExpression": "nbres:/org/netbeans/modules/cloud/oracle/resources/pod.svg",
+				"codeicon": "vm"
+			},
+			{
+				"uriExpression": "nbres:/org/netbeans/modules/cloud/oracle/resources/port_forward.svg",
+				"codeicon": "arrow-small-right"
 			},
 			{
 				"uriExpression": "nbres:/org/netbeans/modules/cloud/oracle/resources/vault.svg",
@@ -1223,7 +1521,7 @@
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
-		"compile": "tsc -p ./; node ./esbuild.js",
+		"compile": "tsc -p ./ && node ./esbuild.js",
 		"watch": "tsc -watch -p ./ | node ./esbuild.js --watch",
 		"test": "node ./out/test/runTest.js",
 		"nbcode": "node ./out/nbcode.js",
@@ -1237,8 +1535,9 @@
 		"@types/ps-node": "^0.1.0",
 		"@types/vscode": "^1.76.0",
 		"@types/vscode-webview": "^1.57.1",
+		"@types/xml2js": "^0.4.14",
 		"@vscode/codicons": "0.0.29",
-		"esbuild": "^0.16.17",
+		"esbuild": "^0.25.0",
 		"glob": "^7.1.6",
 		"mocha": "^9.1.2",
 		"ps-node": "^0.1.6",
@@ -1248,9 +1547,11 @@
 	"dependencies": {
 		"@vscode/debugadapter": "1.55.1",
 		"@vscode/webview-ui-toolkit": "^1.2.2",
+		"handlebars": "^4.7.8",
 		"jdk-utils": "^0.4.4",
 		"jsonc-parser": "3.0.0",
-		"vscode-languageclient": "8.0.1"
+		"vscode-languageclient": "8.0.1",
+		"xml2js": "^0.6.2"
 	},
 	"__metadata": {
 		"id": "66c7d7dc-934c-499b-94af-5375e8234fdd",

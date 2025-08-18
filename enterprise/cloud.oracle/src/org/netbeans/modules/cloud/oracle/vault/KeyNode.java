@@ -25,7 +25,6 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.netbeans.modules.cloud.oracle.ChildrenProvider;
 import org.netbeans.modules.cloud.oracle.NodeProvider;
-import org.netbeans.modules.cloud.oracle.OCIManager;
 import org.netbeans.modules.cloud.oracle.OCINode;
 import org.netbeans.modules.cloud.oracle.items.OCID;
 import org.openide.nodes.Children;
@@ -63,7 +62,7 @@ public class KeyNode extends OCINode {
             Vault v = Vault.builder()
                     .compartmentId(vault.getCompartmentId())
                     .id(vault.getKey().getValue())
-                    .managementEndpoint(vault.managementEndpoint)
+                    .managementEndpoint(vault.getManagementEndpoint())
                     .build();
             KmsManagementClient client = KmsManagementClient.builder()
                     .vault(v)
@@ -73,13 +72,19 @@ public class KeyNode extends OCINode {
                     .limit(88)
                     .build();
 
+            String tenancyId = session.getTenancy().isPresent() ? session.getTenancy().get().getKey().getValue() : null;
+            String regionCode = session.getRegion().getRegionCode();
+
             return client.listKeys(listKeysRequest)
                     .getItems()
                     .stream()
                     .map(d -> new KeyItem(
-                    OCID.of(d.getId(), "Vault/Key"), //NOI18N
+                            OCID.of(d.getId(), "Vault/Key"), //NOI18N
                             d.getCompartmentId(),
-                    d.getDisplayName())
+                            d.getDisplayName(),
+                            vault.getKey().getValue(),
+                            tenancyId,
+                            regionCode)
                     )
                     .collect(Collectors.toList());
         };

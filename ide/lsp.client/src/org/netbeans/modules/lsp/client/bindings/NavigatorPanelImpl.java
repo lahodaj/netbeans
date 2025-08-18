@@ -18,63 +18,55 @@
  */
 package org.netbeans.modules.lsp.client.bindings;
 
-import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
-import javax.swing.JComponent;
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
 import org.eclipse.lsp4j.DocumentSymbol;
+import org.eclipse.lsp4j.DocumentSymbolOptions;
 import org.eclipse.lsp4j.DocumentSymbolParams;
+import org.eclipse.lsp4j.InitializeResult;
 import org.eclipse.lsp4j.Range;
+import org.eclipse.lsp4j.ServerCapabilities;
 import org.eclipse.lsp4j.SymbolInformation;
 import org.eclipse.lsp4j.TextDocumentIdentifier;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.netbeans.modules.lsp.client.LSPBindings;
 import org.netbeans.modules.lsp.client.LSPBindings.BackgroundTask;
 import org.netbeans.modules.lsp.client.Utils;
-import org.netbeans.spi.navigator.NavigatorPanel;
-import org.openide.explorer.ExplorerManager;
-import org.openide.explorer.view.BeanTreeView;
 import org.openide.filesystems.FileObject;
 import org.openide.nodes.AbstractNode;
 import org.openide.nodes.Children;
 import org.openide.nodes.Node;
-import org.openide.util.Lookup;
-import org.openide.util.LookupEvent;
-import org.openide.util.LookupListener;
-import org.openide.util.NbBundle.Messages;
 
 /**
  *
  * @author lahvac
  */
 public class NavigatorPanelImpl extends AbstractNavigatorPanel<Either<SymbolInformation, DocumentSymbol>> implements BackgroundTask {
-    static final NavigatorPanelImpl INSTANCE = new NavigatorPanelImpl();
 
-    public NavigatorPanelImpl() {
+    public NavigatorPanelImpl(LSPBindings bindings) {
+        setDisplayName(bindings);
     }
 
     @Override
     void addBackgroundTask(FileObject fo) {
-        LSPBindings.removeBackgroundTask(fo, this);
+        LSPBindings.addBackgroundTask(fo, this);
     }
 
     @Override
     void removeBackgroundTask(FileObject fo) {
-        LSPBindings.addBackgroundTask(fo, this);
+        LSPBindings.removeBackgroundTask(fo, this);
     }
 
     @Override
     public void run(LSPBindings bindings, FileObject file) {
         if (isCurrentFile(file)) {
+            setDisplayName(bindings);
+
             try {
                 String uri = Utils.toURI(file);
                 List<Either<SymbolInformation, DocumentSymbol>> symbols = bindings.getTextDocumentService().documentSymbol(new DocumentSymbolParams(new TextDocumentIdentifier(uri))).get();
@@ -96,6 +88,15 @@ public class NavigatorPanelImpl extends AbstractNavigatorPanel<Either<SymbolInfo
     @Override
     protected Node[] createNodes(FileObject currentFile, Either<SymbolInformation, DocumentSymbol> sym) {
         return new Node[] {new NodeImpl(Utils.toURI(currentFile), sym)};
+    }
+
+    private void setDisplayName(LSPBindings bindings) {
+        InitializeResult initResult = bindings.getInitResult();
+        ServerCapabilities capa = initResult.getCapabilities();
+        Either<Boolean, DocumentSymbolOptions> symbolProvider = capa != null ? capa.getDocumentSymbolProvider() : null;
+        String displayName = symbolProvider != null && symbolProvider.isRight() ? symbolProvider.getRight().getLabel() : null;
+
+        setDisplayName(displayName);
     }
 
     private static final class NodeImpl extends AbstractNode {
@@ -151,6 +152,7 @@ public class NavigatorPanelImpl extends AbstractNavigatorPanel<Either<SymbolInfo
                 this.open = createOpenAction(symbol.getLeft().getLocation().getUri(), symbol.getLeft().getLocation().getRange());
             } else {
                 setDisplayName(symbol.getRight().getName());
+                setShortDescription(symbol.getRight().getDetail());
                 setIconBaseWithExtension(Icons.getSymbolIconBase(symbol.getRight().getKind()));
                 this.open = createOpenAction(currentFileUri, symbol.getRight().getRange());
             }
@@ -159,6 +161,7 @@ public class NavigatorPanelImpl extends AbstractNavigatorPanel<Either<SymbolInfo
         public NodeImpl(String currentFileUri, DocumentSymbol symbol) {
             super(createChildren(currentFileUri, symbol));
             setDisplayName(symbol.getName());
+            setShortDescription(symbol.getDetail());
             setIconBaseWithExtension(Icons.getSymbolIconBase(symbol.getKind()));
             this.open = createOpenAction(currentFileUri, symbol.getRange());
         }

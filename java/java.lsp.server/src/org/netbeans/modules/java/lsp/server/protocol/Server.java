@@ -45,10 +45,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import com.google.gson.InstanceCreator;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import java.util.prefs.Preferences;
 import java.util.LinkedHashSet;
 import java.util.Objects;
-import java.util.WeakHashMap;
 import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -65,11 +65,13 @@ import org.eclipse.lsp4j.ExecuteCommandOptions;
 import org.eclipse.lsp4j.FoldingRangeProviderOptions;
 import org.eclipse.lsp4j.InitializeParams;
 import org.eclipse.lsp4j.InitializeResult;
+import org.eclipse.lsp4j.InlayHintRegistrationOptions;
 import org.eclipse.lsp4j.MessageActionItem;
 import org.eclipse.lsp4j.MessageParams;
 import org.eclipse.lsp4j.MessageType;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.RenameOptions;
+import org.eclipse.lsp4j.SaveOptions;
 import org.eclipse.lsp4j.SemanticTokensCapabilities;
 import org.eclipse.lsp4j.SemanticTokensParams;
 import org.eclipse.lsp4j.ServerCapabilities;
@@ -159,7 +161,13 @@ import org.openide.util.lookup.ProxyLookup;
  */
 public final class Server {
     private static final Logger LOG = Logger.getLogger(Server.class.getName());
-
+    /**
+     * Special logger that logs LSP in/out messages.
+     */
+    private static final Logger LSP_LOG = Logger.getLogger("org.netbeans.modules.java.lsp.server.lsptrace"); // NOI18N
+    private static final LspServerTelemetryManager LSP_SERVER_TELEMETRY = new LspServerTelemetryManager();
+    private static final ErrorsNotifier ERR_NOTIFIER = new ErrorsNotifier();
+    
     private Server() {
     }
 
@@ -181,7 +189,8 @@ public final class Server {
         ((LanguageClientAware) server).connect(remote);
         msgProcessor.attachClient(server.client);
         Future<Void> runningServer = serverLauncher.startListening();
-        LSPServerTelemetryFactory.getDefault().connect(server.client, runningServer);
+        LSP_SERVER_TELEMETRY.connect(server.client, runningServer);
+        ERR_NOTIFIER.connect(server, runningServer);
         return new NbLspServer(server, runningServer);
     }
     
@@ -263,7 +272,17 @@ public final class Server {
             // PENDING: allow for message consumer wrappers to be registered to add pre/post processing for
             // the request plus build the request's default Lookup contents.
             if (!(delegate instanceof Endpoint)) {
-                return delegate; 
+                return new MessageConsumer() {
+                    @Override
+                    public void consume(Message msg) throws MessageIssueException, JsonRpcException {
+                        if (LSP_LOG.isLoggable(Level.FINEST)) {
+                            LSP_LOG.log(Level.FINEST, "OUT: {0}", 
+                                    msg.toString().replace("\n", "\n\t"));
+                        }
+                        delegate.consume(msg);
+                    }
+                
+                };
             }
             return new MessageConsumer() {
                 @Override
@@ -272,6 +291,10 @@ public final class Server {
                     ProxyLookup ll = new ProxyLookup(new AbstractLookup(ic), sessionLookup);
                     final OperationContext ctx;
 
+                    if (LSP_LOG.isLoggable(Level.FINEST)) {
+                        LSP_LOG.log(Level.FINEST, "IN : {0}", 
+                                msg.toString().replace("\n", "\n\t"));
+                    }
                     // Intercept client REQUESTS; take the progress token from them, if it is
                     // attached.
                     Runnable r;
@@ -382,6 +405,7 @@ public final class Server {
 
         private static final String NETBEANS_FORMAT = "format";
         private static final String NETBEANS_JAVA_IMPORTS = "java.imports";
+        private static final String NETBEANS_PROJECT_JDKHOME = "project.jdkhome";
         private static final String NETBEANS_JAVA_HINTS = "hints";
 
         // change to a greater throughput if the initialization waits on more processes than just (serialized) project open.
@@ -769,6 +793,8 @@ public final class Server {
                         }
                     }
                     f.complete(candidateMapping);
+                    List<FileObject> workspaceClientFolders = workspaceService.getClientWorkspaceFolders();
+                    LSP_SERVER_TELEMETRY.sendWorkspaceInfo(client, workspaceClientFolders, openedProjects, System.currentTimeMillis() - t);
                     LOG.log(Level.INFO, "{0} projects opened in {1}ms", new Object[] { prjsRequested.length, (System.currentTimeMillis() - t) });
                 } else {
                     LOG.log(Level.FINER, "{0}: Collecting projects to prime from: {1}", new Object[]{id, Arrays.asList(additionalProjects)});
@@ -842,6 +868,9 @@ public final class Server {
                 textDocumentSyncOptions.setChange(TextDocumentSyncKind.Incremental);
                 textDocumentSyncOptions.setOpenClose(true);
                 textDocumentSyncOptions.setWillSaveWaitUntil(true);
+                // TODO: we now do not request to send saved contents, but in case of client side applied text edits, it could be cool to 
+                // receive the current document contents at a savepoint.
+                textDocumentSyncOptions.setSave(new SaveOptions(false));
                 capabilities.setTextDocumentSync(textDocumentSyncOptions);
                 CompletionOptions completionOptions = new CompletionOptions();
                 completionOptions.setResolveProvider(true);
@@ -863,6 +892,7 @@ public final class Server {
                 capabilities.setDocumentFormattingProvider(true);
                 capabilities.setDocumentRangeFormattingProvider(true);
                 capabilities.setReferencesProvider(true);
+                capabilities.setInlineValueProvider(true);
 
                 CallHierarchyRegistrationOptions chOpts = new CallHierarchyRegistrationOptions();
                 chOpts.setWorkDoneProgress(true);
@@ -908,6 +938,7 @@ public final class Server {
                 capabilities.setRenameProvider(renOpt);
                 FoldingRangeProviderOptions foldingOptions = new FoldingRangeProviderOptions();
                 capabilities.setFoldingRangeProvider(foldingOptions);
+                capabilities.setInlayHintProvider(true);
                 textDocumentService.init(init.getCapabilities(), capabilities);
 
                 // register for workspace changess
@@ -1020,6 +1051,7 @@ public final class Server {
         private void initializeOptions() {
             getWorkspaceProjects().thenAccept(projects -> {
                 ConfigurationItem item = new ConfigurationItem();
+                // PENDING: what about doing just one roundtrip to the client- we may request multiple ConfiguratonItems in one message ?
                 item.setSection(client.getNbCodeCapabilities().getConfigurationPrefix() + NETBEANS_JAVA_HINTS);
                 client.configuration(new ConfigurationParams(Collections.singletonList(item))).thenAccept(c -> {
                     if (c != null && !c.isEmpty() && c.get(0) instanceof JsonObject) {
@@ -1029,6 +1061,16 @@ public final class Server {
                         textDocumentService.hintsSettingsRead = true;
                         textDocumentService.reRunDiagnostics();
                     }
+                });
+                item.setSection(client.getNbCodeCapabilities().getConfigurationPrefix() + NETBEANS_PROJECT_JDKHOME);
+                client.configuration(new ConfigurationParams(Collections.singletonList(item))).thenAccept(c -> {
+                    JsonPrimitive newProjectJDKHomePath = null;
+
+                    if (c != null && !c.isEmpty() && c.get(0) instanceof JsonPrimitive) {
+                        newProjectJDKHomePath = (JsonPrimitive) c.get(0);
+                    } else {
+                    }
+                    textDocumentService.updateProjectJDKHome(newProjectJDKHomePath);
                 });
                 if (projects != null && projects.length > 0) {
                     FileObject fo = projects[0].getProjectDirectory();
@@ -1319,6 +1361,30 @@ public final class Server {
             logWarning(Arrays.asList(documentUris));
             return CompletableFuture.completedFuture(false);
         }
+
+        @Override
+        public CompletableFuture<Void> writeOutput(OutputMessage lm) {
+            logWarning(lm.message);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletableFuture<Void> showOutput(String outputName) {
+            logWarning("Show output: " + outputName); //NOI18N
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletableFuture<Void> closeOutput(String outputName) {
+            logWarning("Close output: " + outputName); //NOI18N
+            return CompletableFuture.completedFuture(null);
+        }
+        
+        @Override
+        public CompletableFuture<Void> resetOutput(String outputName) {
+            logWarning("Reset output: " + outputName); //NOI18N
+            return CompletableFuture.completedFuture(null);
+        }
     };
 
 
@@ -1366,11 +1432,10 @@ public final class Server {
         }
     }
 
-    public static class LSPServerTelemetryFactory extends CustomIndexerFactory {
+    public static class CustomIndexerTelemetryFactory extends CustomIndexerFactory {
 
-        private static LSPServerTelemetryFactory INSTANCE;
+        private static CustomIndexerTelemetryFactory INSTANCE;
 
-        private final WeakHashMap<LanguageClient, Future<Void>> clients = new WeakHashMap<>();
         private final CustomIndexer noOp = new CustomIndexer() {
             @Override
             protected void index(Iterable<? extends Indexable> files, Context context) {
@@ -1378,49 +1443,26 @@ public final class Server {
         };
 
         @MimeRegistration(mimeType="", service=CustomIndexerFactory.class)
-        public static LSPServerTelemetryFactory getDefault() {
+        public static CustomIndexerTelemetryFactory getDefault() {
             if (INSTANCE == null) {
-                INSTANCE = new LSPServerTelemetryFactory();
+                INSTANCE = new CustomIndexerTelemetryFactory();
             }
             return INSTANCE;
         }
 
-        private LSPServerTelemetryFactory() {
-        }
-
-        public synchronized void connect(LanguageClient client, Future<Void> future) {
-            clients.put(client, future);
+        private CustomIndexerTelemetryFactory() {
         }
 
         @Override
         public synchronized boolean scanStarted(Context context) {
-            Set<LanguageClient> toRemove = new HashSet<>();
-            for (Map.Entry<LanguageClient, Future<Void>> entry : clients.entrySet()) {
-                if (entry.getValue().isDone()) {
-                    toRemove.add(entry.getKey());
-                } else {
-                    entry.getKey().telemetryEvent("nbls.scanStarted");
-                }
-            }
-            for (LanguageClient lc : toRemove) {
-                clients.remove(lc);
-            }
-            return true;
+            LSP_SERVER_TELEMETRY.sendTelemetry(new TelemetryEvent(MessageType.Info.toString(), LSP_SERVER_TELEMETRY.SCAN_START_EVT, "nbls.scanStarted")); 
+	    return true;
         }
 
         @Override
         public synchronized void scanFinished(Context context) {
-            Set<LanguageClient> toRemove = new HashSet<>();
-            for (Map.Entry<LanguageClient, Future<Void>> entry : clients.entrySet()) {
-                if (entry.getValue().isDone()) {
-                    toRemove.add(entry.getKey());
-                } else {
-                    entry.getKey().telemetryEvent("nbls.scanFinished");
-                }
-            }
-            for (LanguageClient lc : toRemove) {
-                clients.remove(lc);
-            }
+            LSP_SERVER_TELEMETRY.sendTelemetry(new TelemetryEvent(MessageType.Info.toString(),LSP_SERVER_TELEMETRY.SCAN_END_EVT,"nbls.scanFinished"));
+            ERR_NOTIFIER.notifyErrors(context.getRootURI());
         }
 
         @Override
@@ -1433,7 +1475,7 @@ public final class Server {
 
         @Override
         public String getIndexerName() {
-            return "LSPServerTelemetry";
+            return "CustomIndexerTelemetryFactory";
         }
 
         @Override

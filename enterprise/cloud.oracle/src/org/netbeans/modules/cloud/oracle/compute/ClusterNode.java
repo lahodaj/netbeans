@@ -18,7 +18,8 @@
  */
 package org.netbeans.modules.cloud.oracle.compute;
 
-import com.oracle.bmc.containerengine.ContainerEngineClient;
+import org.netbeans.modules.cloud.oracle.assets.k8s.ClusterItem;
+import org.netbeans.modules.cloud.oracle.assets.k8s.PodChildFactory;
 import com.oracle.bmc.containerengine.requests.ListClustersRequest;
 import com.oracle.bmc.core.model.Instance;
 import java.util.stream.Collectors;
@@ -27,8 +28,10 @@ import org.netbeans.modules.cloud.oracle.NodeProvider;
 import org.netbeans.modules.cloud.oracle.OCINode;
 import org.netbeans.modules.cloud.oracle.compartment.CompartmentItem;
 import org.netbeans.modules.cloud.oracle.items.OCID;
-import org.openide.nodes.Children;
 import org.openide.util.NbBundle;
+
+import com.oracle.bmc.containerengine.ContainerEngineClient;
+
 
 /**
  *
@@ -41,7 +44,7 @@ public class ClusterNode extends OCINode {
     private static final String CLUSTER_ICON = "org/netbeans/modules/cloud/oracle/resources/cluster.svg"; // NOI18N
 
     public ClusterNode(ClusterItem cluster) {
-        super(cluster, Children.LEAF);
+        super(cluster, new PodChildFactory(cluster));
         setName(cluster.getName());
         setDisplayName(cluster.getName());
         setIconBaseWithExtension(CLUSTER_ICON);
@@ -67,16 +70,23 @@ public class ClusterNode extends OCINode {
                     .limit(88)
                     .build();
 
+            String tenancyId = session.getTenancy().isPresent() ?
+                    session.getTenancy().get().getKey().getValue() : null;
+            String regionCode = session.getRegion().getRegionCode();
+
             return client.listClusters(listClustersRequest)
                     .getItems()
                     .stream()
                     .filter(c -> !c.getLifecycleState().equals(Instance.LifecycleState.Terminated))
                     .map(d -> new ClusterItem(
-                        OCID.of(d.getId(), "Cluster"), //NOI18N
+                            OCID.of(d.getId(), "Cluster"), //NOI18N
                             compartmentId.getKey().getValue(),
-                        d.getName()
+                            d.getName(),
+                            tenancyId,
+                            regionCode
                     ))
                     .collect(Collectors.toList());
         };
     }
+    
 }

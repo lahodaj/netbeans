@@ -61,12 +61,12 @@ jobs:
   source:
 
     name: Package Sources
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
           submodules: false
@@ -96,7 +96,7 @@ jobs:
   build-linux:
 
     name: Build with MinGW
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: source
 
     steps:
@@ -105,7 +105,7 @@ jobs:
         run: sudo apt install mingw-w64 mingw-w64-tools
 
       - name: Download sources
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: launcher-external-sources
 
@@ -160,7 +160,7 @@ jobs:
   build-zip-with-build-artifacts:
 
     name: Package Binaries
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     # Only run when the platform specific builds are finished
     needs: [build-linux]
@@ -171,7 +171,7 @@ jobs:
       run: mkdir -p myfiles/
 
     - name: Download artifacts from predecessor jobs
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         path: myfiles/
 

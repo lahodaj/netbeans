@@ -33,10 +33,7 @@ import org.testng.annotations.Test;
  */
 public class AdminFactoryTest extends CommandTest {
 
-    ////////////////////////////////////////////////////////////////////////////
     // Test methods                                                           //
-    ////////////////////////////////////////////////////////////////////////////
-
     /**
      * Test factory functionality for GlassFish v. 2.
      * <p/>
@@ -168,7 +165,7 @@ public class AdminFactoryTest extends CommandTest {
     }
     
     /**
-     * Test factory functionality for GlassFish v. 7.0.14
+     * Test factory functionality for GlassFish v. 7.0.24
      * <p/>
      * Factory should initialize REST {@code Runner} and point it to
      * provided {@code Command} instance.
@@ -176,7 +173,7 @@ public class AdminFactoryTest extends CommandTest {
     @Test
     public void testGetInstanceforVersionGF7() {
         GlassFishServerEntity srv = new GlassFishServerEntity();
-        srv.setVersion(GlassFishVersion.GF_7_0_14);
+        srv.setVersion(GlassFishVersion.GF_7_0_24);
         AdminFactory af = AdminFactory.getInstance(srv.getVersion());
         assertTrue(af instanceof AdminFactoryRest);
         Command cmd = new CommandVersion();

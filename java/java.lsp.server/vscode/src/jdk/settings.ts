@@ -21,6 +21,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as process from 'process';
 import * as jdk from './jdk';
+import { MINIMAL_JDK_VERSION } from '../extension';
 
 
 export abstract class Setting {
@@ -48,16 +49,29 @@ export abstract class Setting {
     // Configure this setting for the specific JDK
     abstract setJdk(jdk: jdk.Java, scope: vscode.ConfigurationTarget): Promise<boolean>;
 
+    async acceptJdk(jdk: jdk.Java) : Promise<boolean> {
+        return true;
+    }
 }
 
 class JavaSetting extends Setting {
 
     readonly supportsWorkspaceScope: boolean;
+    readonly minVersion : number | undefined;
     private java: jdk.Java | null | undefined;
 
-    constructor(name: string, property: string, supportsWorkspaceScope: boolean = true) {
+    constructor(name: string, property: string, minVersion? : number, supportsWorkspaceScope: boolean = true) {
         super(name, property);
+        this.minVersion = minVersion;
         this.supportsWorkspaceScope = supportsWorkspaceScope;
+    }
+
+    async acceptJdk(jdk: jdk.Java) : Promise<boolean> {
+        if (!this.minVersion) {
+            return true;
+        }
+        let v = await jdk.getVersion();
+        return !v?.major || v.major >= this.minVersion;
     }
 
     protected getJavaHome(): string | undefined {
@@ -73,7 +87,11 @@ class JavaSetting extends Setting {
     }
 
     getSetting(): string {
-        return this.property;
+        if (this.minVersion) {
+            return `${this.property} (requires JDK ${this.minVersion}+)`;
+        } else {
+            return this.property;
+        }
     }
 
     getCurrent(): string | undefined {
@@ -306,7 +324,7 @@ class ProjectJavaSettings extends Setting {
                         name: version,
                         path: jdk.javaHome
                     });
-                }
+                    }
             }
             try {
                 await vscode.workspace.getConfiguration().update(this.property, definitions, scope);
@@ -324,8 +342,15 @@ const NBLS_EXTENSION_ID = 'asf.apache-netbeans-java';
 const NBLS_SETTINGS_NAME = 'Language Server by Apache NetBeans';
 const NBLS_SETTINGS_PROPERTY = 'netbeans.jdkhome';
 function nblsSetting(): Setting {
-    return new JavaSetting(NBLS_SETTINGS_NAME, NBLS_SETTINGS_PROPERTY, false);
+    return new JavaSetting(NBLS_SETTINGS_NAME, NBLS_SETTINGS_PROPERTY, MINIMAL_JDK_VERSION, true);
 }
+
+const NBLS_SETTINGS_PROJECT_NAME = 'Language Server by Apache NetBeans - Java Runtime for Projects';
+const NBLS_SETTINGS_PROJECT_PROPERTY = 'netbeans.project.jdkhome';
+function nblsProjectSetting(): Setting {
+    return new JavaSetting(NBLS_SETTINGS_PROJECT_NAME, NBLS_SETTINGS_PROJECT_PROPERTY, undefined, true);
+}
+
 
 const JDTLS_EXTENSION_ID = 'redhat.java';
 const JDTLS_SETTINGS_NAME = 'Language Server by RedHat';
@@ -334,7 +359,7 @@ function jdtlsSetting(): Setting {
     return new JavaSetting(JDTLS_SETTINGS_NAME, JDTLS_SETTINGS_PROPERTY);
 }
 
-const PROJECTS_SETTINGS_NAME = 'Java Runtime for Projects';
+const PROJECTS_SETTINGS_NAME = 'Language Server by RedHat - Java Runtime for Projects';
 const PROJECTS_SETTINGS_PROPERTY = 'java.configuration.runtimes';
 export function projectsSettings(): Setting {
     return new ProjectJavaSettings(PROJECTS_SETTINGS_NAME, PROJECTS_SETTINGS_PROPERTY);
@@ -364,6 +389,7 @@ export function getAvailable(): Setting[] {
 
     if (vscode.extensions.getExtension(NBLS_EXTENSION_ID)) {
         settings.push(nblsSetting());
+        settings.push(nblsProjectSetting());
     }
 
     if (vscode.extensions.getExtension(JDTLS_EXTENSION_ID)) {

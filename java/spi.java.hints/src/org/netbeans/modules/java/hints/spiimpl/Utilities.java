@@ -63,7 +63,6 @@ import com.sun.tools.javac.comp.Todo;
 import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.parser.JavacParser;
 import com.sun.tools.javac.parser.Lexer;
-import com.sun.tools.javac.parser.Parser;
 import com.sun.tools.javac.parser.ParserFactory;
 import com.sun.tools.javac.parser.Scanner;
 import com.sun.tools.javac.parser.ScannerFactory;
@@ -257,22 +256,17 @@ public class Utilities {
     }
 
     public static boolean isPureMemberSelect(Tree mst, boolean allowVariables) {
-        switch (mst.getKind()) {
-            case IDENTIFIER: return allowVariables || ((IdentifierTree) mst).getName().charAt(0) != '$';
-            case MEMBER_SELECT: return isPureMemberSelect(((MemberSelectTree) mst).getExpression(), allowVariables);
-            default: return false;
-        }
+        return switch (mst.getKind()) {
+            case IDENTIFIER -> allowVariables || ((IdentifierTree) mst).getName().charAt(0) != '$';
+            case MEMBER_SELECT -> isPureMemberSelect(((MemberSelectTree) mst).getExpression(), allowVariables);
+            default -> false;
+        };
     }
 
     public static Map<String, Collection<HintDescription>> sortOutHints(Iterable<? extends HintDescription> hints, Map<String, Collection<HintDescription>> output) {
         for (HintDescription d : hints) {
-            Collection<HintDescription> h = output.get(d.getMetadata().displayName);
-
-            if (h == null) {
-                output.put(d.getMetadata().displayName, h = new LinkedList<>());
-            }
-
-            h.add(d);
+            output.computeIfAbsent(d.getMetadata().displayName, k -> new LinkedList<>())
+                  .add(d);
         }
 
         return output;
@@ -288,7 +282,7 @@ public class Utilities {
             }
         }
 
-        result.addAll(listClassPathHints(Collections.<ClassPath>emptySet(), cps));
+        result.addAll(listClassPathHints(Set.of(), cps));
 
         return result;
     }
@@ -311,9 +305,9 @@ public class Utilities {
 
         Set<ClassPath> cps = new HashSet<>(sourceCPs);
 
-        cps.add(ClassPathSupport.createClassPath(roots.toArray(new FileObject[0])));
+        cps.add(ClassPathSupport.createClassPath(roots.toArray(FileObject[]::new)));
 
-        ClassPath cp = ClassPathSupport.createProxyClassPath(cps.toArray(new ClassPath[0]));
+        ClassPath cp = ClassPathSupport.createProxyClassPath(cps.toArray(ClassPath[]::new));
 
         for (ClassPathBasedHintProvider p : Lookup.getDefault().lookupAll(ClassPathBasedHintProvider.class)) {
             result.addAll(p.computeHints(cp, new AtomicBoolean()));
@@ -350,6 +344,7 @@ public class Utilities {
         return parseAndAttribute(info, jti, pattern, scope, new SourcePositions[1], errors);
     }
 
+    @SuppressWarnings("NestedAssignment")
     private static Tree parseAndAttribute(CompilationInfo info, JavacTaskImpl jti, String pattern, Scope scope, SourcePositions[] sourcePositions, Collection<Diagnostic<? extends JavaFileObject>> errors) {
         Context c = jti.getContext();
         JavaCompiler.instance(c); //force reasonable initialization order
@@ -506,7 +501,7 @@ public class Utilities {
                 newMembers.add(make.ExpressionStatement(make.Identifier("$$1$")));
                 newMembers.addAll(members.subList(syntheticOffset, members.size()));
 
-                patternTree = make.Class(mt, "$", Collections.<TypeParameterTree>emptyList(), null, Collections.<Tree>emptyList(), newMembers);
+                patternTree = make.Class(mt, "$", List.of(), null, List.of(), List.of(), newMembers);
             } else {
                 patternTree = members.get(0 + syntheticOffset);
             }
@@ -548,7 +543,7 @@ public class Utilities {
     }
 
     private static boolean isStatement(String pattern) {
-        return pattern.trim().endsWith(";");
+        return pattern.stripTrailing().endsWith(";");
     }
 
     private static boolean isErrorTree(Tree t) {
@@ -577,7 +572,7 @@ public class Utilities {
             throw new IllegalArgumentException();
         JavaCompiler compiler = JavaCompiler.instance(context);
         JavaFileObject prev = compiler.log.useSource(new DummyJFO());
-        Log.DiagnosticHandler discardHandler = new Log.DiscardDiagnosticHandler(compiler.log) {
+        Log.DiagnosticHandler discardHandler = compiler.log.new DiscardDiagnosticHandler() {
             @Override
             public void report(JCDiagnostic diag) {
                 errors.add(diag);
@@ -585,16 +580,14 @@ public class Utilities {
         };
         try {
             CharBuffer buf = CharBuffer.wrap((stmt+"\u0000").toCharArray(), 0, stmt.length());
-            ParserFactory factory = ParserFactory.instance(context);
+            NBParserFactory factory = (NBParserFactory) ParserFactory.instance(context);
             ScannerFactory scannerFactory = ScannerFactory.instance(context);
             Names names = Names.instance(context);
-            Parser parser = new JackpotJavacParser(context, (NBParserFactory) factory, scannerFactory.newScanner(buf, false), false, false, CancelService.instance(context), names);
-            if (parser instanceof JavacParser) {
-                if (pos != null)
-                    pos[0] = new ParserSourcePositions((JavacParser)parser);
-                return parser.parseStatement();
+            JavacParser parser = new JackpotJavacParser(context, factory, scannerFactory.newScanner(buf, false), false, false, CancelService.instance(context), names);
+            if (pos != null) {
+                pos[0] = new ParserSourcePositions(parser);
             }
-            return null;
+            return parser.parseStatement();
         } finally {
             compiler.log.useSource(prev);
             compiler.log.popDiagnosticHandler(discardHandler);
@@ -606,7 +599,7 @@ public class Utilities {
             throw new IllegalArgumentException();
         JavaCompiler compiler = JavaCompiler.instance(context);
         JavaFileObject prev = compiler.log.useSource(new DummyJFO());
-        Log.DiagnosticHandler discardHandler = new Log.DiscardDiagnosticHandler(compiler.log) {
+        Log.DiagnosticHandler discardHandler = compiler.log.new DiscardDiagnosticHandler() {
             @Override
             public void report(JCDiagnostic diag) {
                 errors.add(diag);
@@ -614,19 +607,18 @@ public class Utilities {
         };
         try {
             CharBuffer buf = CharBuffer.wrap((expr+"\u0000").toCharArray(), 0, expr.length());
-            ParserFactory factory = ParserFactory.instance(context);
+            NBParserFactory factory = (NBParserFactory) ParserFactory.instance(context);
             ScannerFactory scannerFactory = ScannerFactory.instance(context);
             Names names = Names.instance(context);
             Scanner scanner = scannerFactory.newScanner(buf, false);
-            Parser parser = new JackpotJavacParser(context, (NBParserFactory) factory, scanner, false, false, CancelService.instance(context), names);
-            if (parser instanceof JavacParser) {
-                if (pos != null)
-                    pos[0] = new ParserSourcePositions((JavacParser)parser);
-                JCExpression result = parser.parseExpression();
+            JavacParser parser = new JackpotJavacParser(context, factory, scanner, false, false, CancelService.instance(context), names);
+            if (pos != null) {
+                pos[0] = new ParserSourcePositions(parser);
+            }
+            JCExpression result = parser.parseExpression();
 
-                if (!onlyFullInput || scanner.token().kind == TokenKind.EOF) {
-                    return result;
-                }
+            if (!onlyFullInput || scanner.token().kind == TokenKind.EOF) {
+                return result;
             }
             return null;
         } finally {
@@ -638,7 +630,7 @@ public class Utilities {
     private static TypeMirror attributeTree(JavacTaskImpl jti, Tree tree, Scope scope, final List<Diagnostic<? extends JavaFileObject>> errors) {
         Log log = Log.instance(jti.getContext());
         JavaFileObject prev = log.useSource(new DummyJFO());
-        Log.DiagnosticHandler discardHandler = new Log.DiscardDiagnosticHandler(log) {
+        Log.DiagnosticHandler discardHandler = log.new DiscardDiagnosticHandler() {
             @Override
             public void report(JCDiagnostic diag) {
                 errors.add(diag);
@@ -705,7 +697,7 @@ public class Utilities {
     private static long inc;
 
     public static Scope constructScope(CompilationInfo info, Map<String, TypeMirror> constraints) {
-        return constructScope(info, constraints, Collections.<String>emptyList());
+        return constructScope(info, constraints, List.of());
     }
 
     public static Scope constructScope(CompilationInfo info, Map<String, TypeMirror> constraints, Iterable<? extends String> auxiliaryImports) {
@@ -751,7 +743,7 @@ public class Utilities {
         Annotate annotate = Annotate.instance(context);
         Names names = Names.instance(context);
         Symtab syms = Symtab.instance(context);
-        Log.DiagnosticHandler discardHandler = new Log.DiscardDiagnosticHandler(compiler.log);
+        Log.DiagnosticHandler discardHandler = log.new DiscardDiagnosticHandler();
 
         JavaFileObject jfo = FileObjects.memoryFileObject("$", "$", new File("/tmp/$$scopeclass$constraints$" + count + ".java").toURI(), System.currentTimeMillis(), clazz.toString());
 
@@ -822,42 +814,7 @@ public class Utilities {
 
     }
 
-    private static final class ScopeDescription {
-        private final Map<String, TypeMirror> constraints;
-        private final Iterable<? extends String> auxiliaryImports;
-
-        public ScopeDescription(Map<String, TypeMirror> constraints, Iterable<? extends String> auxiliaryImports) {
-            this.constraints = constraints;
-            this.auxiliaryImports = auxiliaryImports;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            final ScopeDescription other = (ScopeDescription) obj;
-            if (this.constraints != other.constraints && (this.constraints == null || !this.constraints.equals(other.constraints))) {
-                return false;
-            }
-            if (this.auxiliaryImports != other.auxiliaryImports && (this.auxiliaryImports == null || !this.auxiliaryImports.equals(other.auxiliaryImports))) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            int hash = 7;
-            hash = 47 * hash + (this.constraints != null ? this.constraints.hashCode() : 0);
-            hash = 47 * hash + (this.auxiliaryImports != null ? this.auxiliaryImports.hashCode() : 0);
-            return hash;
-        }
-
-    }
+    private record ScopeDescription(Map<String, TypeMirror> constraints, Iterable<? extends String> auxiliaryImports) {}
 
 //    private static Scope constructScope2(CompilationInfo info, Map<String, TypeMirror> constraints) {
 //        JavacScope s = (JavacScope) info.getTrees().getScope(new TreePath(info.getCompilationUnit()));
@@ -909,15 +866,9 @@ public class Utilities {
             Tree leaf = path.getLeaf();
 
             switch (leaf.getKind()) {
-                case METHOD:
-                    handleSuppressWarnings(info, path, ((MethodTree) leaf).getModifiers(), keys);
-                    break;
-                case CLASS:
-                    handleSuppressWarnings(info, path, ((ClassTree) leaf).getModifiers(), keys);
-                    break;
-                case VARIABLE:
-                    handleSuppressWarnings(info, path, ((VariableTree) leaf).getModifiers(), keys);
-                    break;
+                case METHOD -> handleSuppressWarnings(info, path, ((MethodTree) leaf).getModifiers(), keys);
+                case CLASS -> handleSuppressWarnings(info, path, ((ClassTree) leaf).getModifiers(), keys);
+                case VARIABLE -> handleSuppressWarnings(info, path, ((VariableTree) leaf).getModifiers(), keys);
             }
 
             path = path.getParentPath();
@@ -1037,7 +988,8 @@ public class Utilities {
 
         itt.attach(c, new NoImports(c), null);
 
-        return itt.translate(original.getLeaf());
+        return itt.translate(original.getLeaf(),
+                             original.getParentPath() != null ? original.getParentPath().getLeaf() : null);
     }
 
     public static Tree generalizePattern(CompilationInfo info, TreePath original, int firstStatement, int lastStatement) {
@@ -1145,15 +1097,10 @@ public class Utilities {
             if (el.getModifiers().contains(Modifier.PRIVATE)) {
                 return true;
             }
-
-            switch (el.getKind()) {
-                case LOCAL_VARIABLE:
-                case EXCEPTION_PARAMETER:
-                case PARAMETER:
-                    return true;
-            }
-
-            return false;
+            return switch (el.getKind()) {
+                case LOCAL_VARIABLE, EXCEPTION_PARAMETER, PARAMETER -> true;
+                default -> false;
+            };
         }
 
         @Override
@@ -1188,7 +1135,7 @@ public class Utilities {
                 return null;
             }
 
-            NewClassTree nue = make.NewClass(node.getEnclosingExpression(), Collections.<ExpressionTree>singletonList(make.Identifier("$" + currentVariableIndex++ + "$")), make.Identifier("$" + currentVariableIndex++), Collections.<ExpressionTree>singletonList(make.Identifier("$" + currentVariableIndex++ + "$")), null);
+            NewClassTree nue = make.NewClass(node.getEnclosingExpression(), List.of(make.Identifier("$" + currentVariableIndex++ + "$")), make.Identifier("$" + currentVariableIndex++), List.of(make.Identifier("$" + currentVariableIndex++ + "$")), null);
 
             tree2Variable.put(node, nue);
 
@@ -1207,14 +1154,14 @@ public class Utilities {
         }
 
         @Override
-        public Tree translate(Tree tree) {
+        public Tree translate(Tree tree, Object p) {
             Tree var = tree2Variable.remove(tree);
 
             if (var != null) {
-                return super.translate(var);
+                return super.translate(var, p);
             }
 
-            return super.translate(tree);
+            return super.translate(tree, p);
         }
 
     }
@@ -1226,7 +1173,7 @@ public class Utilities {
         }
 
         @Override
-        public void classEntered(ClassTree clazz) {}
+        public void classEntered(ClassTree clazz, boolean isAnonymous) {}
 
         @Override
         public void enterVisibleThroughClasses(ClassTree clazz) {}
@@ -1247,7 +1194,7 @@ public class Utilities {
 
         @Override
         public Set<? extends Element> getImports() {
-            return Collections.emptySet();
+            return Set.of();
         }
 
         @Override
@@ -1578,15 +1525,7 @@ public class Utilities {
         return wildcardTreeName.toString().startsWith("$$");
     }
 
-    private static final class OffsetSourcePositions implements SourcePositions {
-
-        private final SourcePositions delegate;
-        private final long offset;
-
-        public OffsetSourcePositions(SourcePositions delegate, long offset) {
-            this.delegate = delegate;
-            this.offset = offset;
-        }
+    private record OffsetSourcePositions(SourcePositions delegate, long offset) implements SourcePositions {
 
         @Override
         public long getStartPosition(CompilationUnitTree cut, Tree tree) {
@@ -1600,16 +1539,8 @@ public class Utilities {
 
     }
 
-    private static final class OffsetDiagnostic<S> implements Diagnostic<S> {
-        private final Diagnostic<? extends S> delegate;
-        private final SourcePositions sp;
-        private final long offset;
-
-        public OffsetDiagnostic(Diagnostic<? extends S> delegate, SourcePositions sp, long offset) {
-            this.delegate = delegate;
-            this.sp = sp;
-            this.offset = offset;
-        }
+    private record OffsetDiagnostic<S>(
+            Diagnostic<? extends S> delegate, SourcePositions sp, long offset) implements Diagnostic<S> {
 
         @Override
         public Diagnostic.Kind getKind() {
@@ -1633,9 +1564,7 @@ public class Utilities {
 
         @Override
         public long getEndPosition() {
-            if (delegate instanceof JCDiagnostic) {
-                JCDiagnostic dImpl = (JCDiagnostic) delegate;
-                
+            if (delegate instanceof JCDiagnostic dImpl) {
                 return dImpl.getDiagnosticPosition().getEndPosition(new EndPosTable() {
                     @Override public int getEndPos(JCTree tree) {
                         return (int) sp.getEndPosition(null, tree);
@@ -1673,13 +1602,7 @@ public class Utilities {
 
     }
 
-    private static class ParserSourcePositions implements SourcePositions {
-
-        private final JavacParser parser;
-
-        private ParserSourcePositions(JavacParser parser) {
-            this.parser = parser;
-        }
+    private record ParserSourcePositions(JavacParser parser) implements SourcePositions {
 
         @Override
         public long getStartPosition(CompilationUnitTree file, Tree tree) {

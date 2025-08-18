@@ -20,10 +20,12 @@ package org.netbeans.modules.java.file.launcher.queries;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Writer;
 import java.net.URI;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.event.ChangeListener;
@@ -254,14 +256,96 @@ public class MultiSourceRootProviderTest extends NbTestCase {
             supportedFile = Files.createTempFile("dummy", ".java").toFile();
             FileObject realFileSource = FileUtil.createData(supportedFile);
             FileObject inMemorySource = FileUtil.createMemoryFileSystem().getRoot().createData("Ahoj.java");
+            MultiSourceRootProvider provider = new MultiSourceRootProvider();
 
-            assertFalse(MultiSourceRootProvider.isSupportedFile(inMemorySource));
-            assertTrue(MultiSourceRootProvider.isSupportedFile(realFileSource));
+            assertFalse(provider.isSupportedFile(inMemorySource));
+            assertTrue(provider.isSupportedFile(realFileSource));
         } finally {
             if(supportedFile != null && supportedFile.exists()) {
                 supportedFile.delete();
             }
         }
+    }
+
+    public void testMultiSourceRootProviderRespondsForKnownFolders() throws IOException {
+        File wd = getWorkDir();
+        File testDir = new File(wd, "test");
+        File packDir = new File(testDir, "pack");
+        File testFile = new File(packDir, "Test.java");
+
+        packDir.mkdirs();
+
+        try (Writer w = Files.newBufferedWriter(testFile.toPath())) {
+            w.write("package pack;");
+        }
+
+        testResult.setOptions("");
+        testResult.setWorkDirectory(testDir.toURI());
+
+        MultiSourceRootProvider provider = new MultiSourceRootProvider();
+
+        //before recongizing testDir is a multi-source file root:
+        assertNull(provider.findClassPath(FileUtil.toFileObject(wd), ClassPath.SOURCE));
+        assertNull(provider.findClassPath(FileUtil.toFileObject(testDir), ClassPath.SOURCE));
+        assertNull(provider.findClassPath(FileUtil.toFileObject(packDir), ClassPath.SOURCE));
+
+        //recognize the source file as a multi-source file:
+        ClassPath cp = provider.findClassPath(FileUtil.toFileObject(testFile), ClassPath.SOURCE);
+
+        assertNotNull(cp);
+
+        //check properties:
+        assertNull(provider.findClassPath(FileUtil.toFileObject(wd), ClassPath.SOURCE));
+        assertNull(provider.findClassPath(FileUtil.toFileObject(testDir), ClassPath.SOURCE));
+        assertNull(provider.findClassPath(FileUtil.toFileObject(packDir), ClassPath.SOURCE));
+
+        testResult.setRegisterRoot(true);
+
+        assertNull(provider.findClassPath(FileUtil.toFileObject(wd), ClassPath.SOURCE));
+        assertSame(cp, provider.findClassPath(FileUtil.toFileObject(testDir), ClassPath.SOURCE));
+        assertSame(cp, provider.findClassPath(FileUtil.toFileObject(packDir), ClassPath.SOURCE));
+    }
+
+    public void testExpandClassPath() throws Exception {
+        FileObject wd = FileUtil.toFileObject(getWorkDir());
+        FileObject test = FileUtil.createData(wd, "src/pack/Test1.java");
+        FileObject libsDir = FileUtil.createFolder(wd, "libs");
+        FileObject lib1Jar = FileUtil.createData(libsDir, "lib1.jar");
+        FileObject lib2Jar = FileUtil.createData(libsDir, "lib2.jar");
+        FileObject lib3Dir = FileUtil.createFolder(libsDir, "lib3");
+        FileObject lib4Zip = FileUtil.createData(libsDir, "lib4.zip");
+
+        TestUtilities.copyStringToFile(test, "package pack;");
+
+        testResult.setOptions("--class-path " + FileUtil.getRelativePath(wd, libsDir) + "/*");
+        testResult.setWorkDirectory(FileUtil.toFileObject(getWorkDir()).toURI());
+
+        MultiSourceRootProvider provider = new MultiSourceRootProvider();
+        ClassPath compileCP = provider.findClassPath(test, ClassPath.COMPILE);
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar))),
+                     new HashSet<>(Arrays.asList(compileCP.getRoots())));
+
+        lib4Zip.delete();
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar))),
+                     new HashSet<>(Arrays.asList(compileCP.getRoots())));
+
+        FileObject lib5Jar = FileUtil.createData(libsDir, "lib5.jar");
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib1Jar),
+                                                 FileUtil.getArchiveRoot(lib2Jar),
+                                                 FileUtil.getArchiveRoot(lib5Jar))),
+                     new HashSet<>(Arrays.asList(compileCP.getRoots())));
+
+        lib1Jar.delete();
+
+        assertEquals(new HashSet<>(Arrays.asList(FileUtil.getArchiveRoot(lib2Jar),
+                                                 FileUtil.getArchiveRoot(lib5Jar))),
+                     new HashSet<>(Arrays.asList(compileCP.getRoots())));
+
     }
 
     @Override
@@ -294,6 +378,7 @@ public class MultiSourceRootProviderTest extends NbTestCase {
         private final ChangeSupport cs = new ChangeSupport(this);
         private final AtomicReference<String> options = new AtomicReference<>();
         private final AtomicReference<URI> workdir = new AtomicReference<>();
+        private final AtomicBoolean registerRoot = new AtomicBoolean();
 
         public TestResultImpl() {
         }
@@ -315,6 +400,16 @@ public class MultiSourceRootProviderTest extends NbTestCase {
 
         public void setWorkDirectory(URI workdir) {
             this.workdir.set(workdir);
+            cs.fireChange();
+        }
+
+        @Override
+        public boolean registerRoot() {
+            return registerRoot.get();
+        }
+
+        public void setRegisterRoot(boolean registerRoot) {
+            this.registerRoot.set(registerRoot);
             cs.fireChange();
         }
 

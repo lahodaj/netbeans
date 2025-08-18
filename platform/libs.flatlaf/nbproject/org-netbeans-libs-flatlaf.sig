@@ -1,5 +1,5 @@
 #Signature file v4.1
-#Version 1.18
+#Version 1.21
 
 CLSS public abstract interface com.formdev.flatlaf.FlatClientProperties
 fld public final static java.lang.String BUTTON_TYPE = "JButton.buttonType"
@@ -12,7 +12,13 @@ fld public final static java.lang.String BUTTON_TYPE_TOOLBAR_BUTTON = "toolBarBu
 fld public final static java.lang.String COMPONENT_FOCUS_OWNER = "JComponent.focusOwner"
 fld public final static java.lang.String COMPONENT_ROUND_RECT = "JComponent.roundRect"
 fld public final static java.lang.String COMPONENT_TITLE_BAR_CAPTION = "JComponent.titleBarCaption"
+fld public final static java.lang.String FULL_WINDOW_CONTENT = "FlatLaf.fullWindowContent"
+fld public final static java.lang.String FULL_WINDOW_CONTENT_BUTTONS_BOUNDS = "FlatLaf.fullWindowContent.buttonsBounds"
+fld public final static java.lang.String FULL_WINDOW_CONTENT_BUTTONS_PLACEHOLDER = "FlatLaf.fullWindowContent.buttonsPlaceholder"
 fld public final static java.lang.String GLASS_PANE_FULL_HEIGHT = "JRootPane.glassPaneFullHeight"
+fld public final static java.lang.String MACOS_WINDOW_BUTTONS_SPACING = "FlatLaf.macOS.windowButtonsSpacing"
+fld public final static java.lang.String MACOS_WINDOW_BUTTONS_SPACING_LARGE = "large"
+fld public final static java.lang.String MACOS_WINDOW_BUTTONS_SPACING_MEDIUM = "medium"
 fld public final static java.lang.String MENU_BAR_EMBEDDED = "JRootPane.menuBarEmbedded"
 fld public final static java.lang.String MINIMUM_HEIGHT = "JComponent.minimumHeight"
 fld public final static java.lang.String MINIMUM_WIDTH = "JComponent.minimumWidth"
@@ -94,6 +100,7 @@ fld public final static java.lang.String TEXT_FIELD_TRAILING_COMPONENT = "JTextF
 fld public final static java.lang.String TEXT_FIELD_TRAILING_ICON = "JTextField.trailingIcon"
 fld public final static java.lang.String TITLE_BAR_BACKGROUND = "JRootPane.titleBarBackground"
 fld public final static java.lang.String TITLE_BAR_FOREGROUND = "JRootPane.titleBarForeground"
+fld public final static java.lang.String TITLE_BAR_HEIGHT = "JRootPane.titleBarHeight"
 fld public final static java.lang.String TITLE_BAR_SHOW_CLOSE = "JRootPane.titleBarShowClose"
 fld public final static java.lang.String TITLE_BAR_SHOW_ICON = "JRootPane.titleBarShowIcon"
 fld public final static java.lang.String TITLE_BAR_SHOW_ICONIFFY = "JRootPane.titleBarShowIconify"
@@ -217,6 +224,7 @@ meth public static java.util.Map<java.lang.String,java.lang.Class<?>> getStyleab
 meth public static java.util.Map<java.lang.String,java.lang.String> getGlobalExtraDefaults()
 meth public static java.util.function.Function<java.lang.String,java.awt.Color> getSystemColorGetter()
 meth public static javax.swing.UIDefaults$ActiveValue createActiveFontValue(float)
+meth public static void disableWindowsD3Donscreen()
 meth public static void hideMnemonics()
 meth public static void initIconColors(javax.swing.UIDefaults,boolean)
 meth public static void installLafInfo(java.lang.String,java.lang.Class<? extends javax.swing.LookAndFeel>)
@@ -290,6 +298,8 @@ fld public final static java.lang.String UPDATE_UI_ON_SYSTEM_FONT_CHANGE = "flat
 fld public final static java.lang.String USE_JETBRAINS_CUSTOM_DECORATIONS = "flatlaf.useJetBrainsCustomDecorations"
  anno 0 java.lang.Deprecated()
 fld public final static java.lang.String USE_NATIVE_LIBRARY = "flatlaf.useNativeLibrary"
+fld public final static java.lang.String USE_ROUNDED_POPUP_BORDER = "flatlaf.useRoundedPopupBorder"
+fld public final static java.lang.String USE_SUB_MENU_SAFE_TRIANGLE = "flatlaf.useSubMenuSafeTriangle"
 fld public final static java.lang.String USE_TEXT_Y_CORRECTION = "flatlaf.useTextYCorrection"
 fld public final static java.lang.String USE_UBUNTU_FONT = "flatlaf.useUbuntuFont"
 fld public final static java.lang.String USE_WINDOW_DECORATIONS = "flatlaf.useWindowDecorations"
@@ -623,15 +633,32 @@ hfds alpha,hsl,rgb
 
 CLSS public com.formdev.flatlaf.util.HiDPIUtils
 cons public init()
+innr public abstract interface static DirtyRegionCallback
 innr public abstract interface static Painter
+innr public static HiDPIRepaintManager
 meth public static float computeTextYCorrection(java.awt.Graphics2D)
 meth public static java.awt.Graphics2D createGraphicsTextYCorrection(java.awt.Graphics2D)
+meth public static void addDirtyRegion(javax.swing.JComponent,int,int,int,int,com.formdev.flatlaf.util.HiDPIUtils$DirtyRegionCallback)
 meth public static void drawStringUnderlineCharAtWithYCorrection(javax.swing.JComponent,java.awt.Graphics2D,java.lang.String,int,int,int)
 meth public static void drawStringWithYCorrection(javax.swing.JComponent,java.awt.Graphics2D,java.lang.String,int,int)
+meth public static void installHiDPIRepaintManager()
 meth public static void paintAtScale1x(java.awt.Graphics2D,int,int,int,int,com.formdev.flatlaf.util.HiDPIUtils$Painter)
 meth public static void paintAtScale1x(java.awt.Graphics2D,javax.swing.JComponent,com.formdev.flatlaf.util.HiDPIUtils$Painter)
+meth public static void repaint(java.awt.Component)
+meth public static void repaint(java.awt.Component,int,int,int,int)
+meth public static void repaint(java.awt.Component,java.awt.Rectangle)
 supr java.lang.Object
 hfds CORRECTION_INTER,CORRECTION_OPEN_SANS,CORRECTION_SEGOE_UI,CORRECTION_TAHOMA,SCALE_FACTORS,useDebugScaleFactor,useTextYCorrection
+
+CLSS public abstract interface static com.formdev.flatlaf.util.HiDPIUtils$DirtyRegionCallback
+ outer com.formdev.flatlaf.util.HiDPIUtils
+meth public abstract void addDirtyRegion(javax.swing.JComponent,int,int,int,int)
+
+CLSS public static com.formdev.flatlaf.util.HiDPIUtils$HiDPIRepaintManager
+ outer com.formdev.flatlaf.util.HiDPIUtils
+cons public init()
+meth public void addDirtyRegion(javax.swing.JComponent,int,int,int,int)
+supr javax.swing.RepaintManager
 
 CLSS public abstract interface static com.formdev.flatlaf.util.HiDPIUtils$Painter
  outer com.formdev.flatlaf.util.HiDPIUtils
@@ -1129,6 +1156,31 @@ meth public static void uninstallBorder(javax.swing.JComponent)
 meth public void initialize()
 meth public void provideErrorFeedback(java.awt.Component)
 meth public void uninitialize()
+supr java.lang.Object
+
+CLSS public javax.swing.RepaintManager
+cons public init()
+meth public boolean isCompletelyDirty(javax.swing.JComponent)
+meth public boolean isDoubleBufferingEnabled()
+meth public java.awt.Dimension getDoubleBufferMaximumSize()
+meth public java.awt.Image getOffscreenBuffer(java.awt.Component,int,int)
+meth public java.awt.Image getVolatileOffscreenBuffer(java.awt.Component,int,int)
+meth public java.awt.Rectangle getDirtyRegion(javax.swing.JComponent)
+meth public java.lang.String toString()
+meth public static javax.swing.RepaintManager currentManager(java.awt.Component)
+meth public static javax.swing.RepaintManager currentManager(javax.swing.JComponent)
+meth public static void setCurrentManager(javax.swing.RepaintManager)
+meth public void addDirtyRegion(java.applet.Applet,int,int,int,int)
+meth public void addDirtyRegion(java.awt.Window,int,int,int,int)
+meth public void addDirtyRegion(javax.swing.JComponent,int,int,int,int)
+meth public void addInvalidComponent(javax.swing.JComponent)
+meth public void markCompletelyClean(javax.swing.JComponent)
+meth public void markCompletelyDirty(javax.swing.JComponent)
+meth public void paintDirtyRegions()
+meth public void removeInvalidComponent(javax.swing.JComponent)
+meth public void setDoubleBufferMaximumSize(java.awt.Dimension)
+meth public void setDoubleBufferingEnabled(boolean)
+meth public void validateInvalidComponents()
 supr java.lang.Object
 
 CLSS public abstract javax.swing.border.AbstractBorder

@@ -1,5 +1,5 @@
 #Signature file v4.1
-#Version 2.19
+#Version 2.22
 
 CLSS public abstract interface com.sun.jna.AltCallingConvention
 
@@ -274,7 +274,7 @@ fld public final static int POINTER_SIZE
 fld public final static int SIZE_T_SIZE
 fld public final static int WCHAR_SIZE
 fld public final static java.lang.String DEFAULT_ENCODING
-fld public final static java.lang.String VERSION = "5.14.0"
+fld public final static java.lang.String VERSION = "5.17.0"
 fld public final static java.lang.String VERSION_NATIVE = "7.0.0"
 fld public final static java.nio.charset.Charset DEFAULT_CHARSET
 innr public abstract interface static ffi_callback

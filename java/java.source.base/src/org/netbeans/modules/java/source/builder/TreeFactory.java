@@ -32,6 +32,7 @@ import com.sun.source.doctree.IndexTree;
 import com.sun.source.doctree.InheritDocTree;
 import com.sun.source.doctree.LinkTree;
 import com.sun.source.doctree.ParamTree;
+import com.sun.source.doctree.RawTextTree;
 import com.sun.source.doctree.ReferenceTree;
 import com.sun.source.doctree.SeeTree;
 import com.sun.source.doctree.SerialDataTree;
@@ -61,6 +62,8 @@ import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.jvm.ClassReader;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.model.JavacTypes;
+import com.sun.tools.javac.parser.Tokens.Comment;
+import com.sun.tools.javac.parser.Tokens.Comment.CommentStyle;
 import com.sun.tools.javac.tree.DCTree.DCReference;
 import com.sun.tools.javac.tree.DocTreeMaker;
 import com.sun.tools.javac.tree.JCTree;
@@ -71,6 +74,7 @@ import com.sun.tools.javac.util.ListBuffer;
 import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
 import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.JCDiagnostic;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -222,12 +226,6 @@ public class TreeFactory {
         return make.at(NOPOS).PatternCaseLabel((JCPattern) pat);
     }
 
-    public StringTemplateTree StringTemplate(ExpressionTree processor, List<String> fragments, List<? extends ExpressionTree> expressions) {
-        return make.at(NOPOS).StringTemplate((JCExpression) processor,
-                                             fragments.stream().collect(com.sun.tools.javac.util.List.collector()),
-                                             expressions.stream().map(expr -> (JCExpression) expr).collect(com.sun.tools.javac.util.List.collector()));
-    }
-
     public AnyPatternTree AnyPattern() {
         return make.at(NOPOS).AnyPattern();
     }
@@ -280,6 +278,7 @@ public class TreeFactory {
                      List<? extends TypeParameterTree> typeParameters,
                      Tree extendsClause,
                      List<? extends Tree> implementsClauses,
+                     List<? extends Tree> permitsClauses,
                      List<? extends Tree> memberDecls) 
     {
         ListBuffer<JCTypeParameter> typarams = new ListBuffer<JCTypeParameter>();
@@ -288,6 +287,9 @@ public class TreeFactory {
         ListBuffer<JCExpression> impls = new ListBuffer<JCExpression>();
         for (Tree t : implementsClauses)
             impls.append((JCExpression)t);
+        ListBuffer<JCExpression> permits = new ListBuffer<JCExpression>();
+        for (Tree t : permitsClauses)
+            permits.append((JCExpression)t);
         ListBuffer<JCTree> defs = new ListBuffer<JCTree>();
         for (Tree t : memberDecls)
             defs.append((JCTree)t);
@@ -296,6 +298,7 @@ public class TreeFactory {
                              typarams.toList(),
                              (JCExpression)extendsClause,
                              impls.toList(),
+                             permits.toList(),
                              defs.toList());
         
     }
@@ -304,17 +307,18 @@ public class TreeFactory {
                      CharSequence simpleName,
                      List<? extends TypeParameterTree> typeParameters,
                      List<? extends Tree> extendsClauses,
+                     List<? extends Tree> permitsClauses,
                      List<? extends Tree> memberDecls) 
     {
         long flags = getBitFlags(modifiers.getFlags()) | Flags.INTERFACE;
-        return Class(flags, (com.sun.tools.javac.util.List<JCAnnotation>) modifiers.getAnnotations(), simpleName, typeParameters, null, extendsClauses, memberDecls);
+        return Class(flags, (com.sun.tools.javac.util.List<JCAnnotation>) modifiers.getAnnotations(), simpleName, typeParameters, null, extendsClauses, permitsClauses, memberDecls);
     }
 
     public ClassTree AnnotationType(ModifiersTree modifiers, 
              CharSequence simpleName,
              List<? extends Tree> memberDecls) {
         long flags = getBitFlags(modifiers.getFlags()) | Flags.ANNOTATION;
-        return Class(flags, (com.sun.tools.javac.util.List<JCAnnotation>) modifiers.getAnnotations(), simpleName, Collections.<TypeParameterTree>emptyList(), null, Collections.<ExpressionTree>emptyList(), memberDecls);
+        return Class(flags, (com.sun.tools.javac.util.List<JCAnnotation>) modifiers.getAnnotations(), simpleName, Collections.<TypeParameterTree>emptyList(), null, Collections.<ExpressionTree>emptyList(), Collections.emptyList(), memberDecls);
     }
     
     public ClassTree Enum(ModifiersTree modifiers, 
@@ -322,7 +326,7 @@ public class TreeFactory {
              List<? extends Tree> implementsClauses,
              List<? extends Tree> memberDecls) {
         long flags = getBitFlags(modifiers.getFlags()) | Flags.ENUM;
-        return Class(flags, (com.sun.tools.javac.util.List<JCAnnotation>) modifiers.getAnnotations(), simpleName, Collections.<TypeParameterTree>emptyList(), null, implementsClauses, memberDecls);
+        return Class(flags, (com.sun.tools.javac.util.List<JCAnnotation>) modifiers.getAnnotations(), simpleName, Collections.<TypeParameterTree>emptyList(), null, implementsClauses, Collections.emptyList(), memberDecls);
     }
     
     public CompilationUnitTree CompilationUnit(PackageTree packageDecl,
@@ -489,6 +493,10 @@ public class TreeFactory {
         return make.at(NOPOS).Import((JCFieldAccess)qualid, importStatic);
     }
     
+    public ImportTree ImportModule(Tree moduleName) {
+        return make.at(NOPOS).ModuleImport((JCExpression) moduleName);
+    }
+
     public InstanceOfTree InstanceOf(ExpressionTree expression, Tree type) {
         return make.at(NOPOS).TypeTest((JCExpression)expression, (JCTree)type);
     }
@@ -651,6 +659,8 @@ public class TreeFactory {
                 case NATIVE: flags |= Flags.NATIVE; break;
                 case STRICTFP: flags |= Flags.STRICTFP; break;
                 case DEFAULT: flags |= Flags.DEFAULT; break;
+                case SEALED: flags |= Flags.SEALED; break;
+                case NON_SEALED: flags |= Flags.NON_SEALED; break;
                 default:
                     throw new AssertionError("Unknown Modifier: " + mod); //NOI18N
             }
@@ -931,6 +941,15 @@ public class TreeFactory {
                            (JCExpression)type, (JCExpression)initializer);
     }
     
+    public VariableTree RecordComponent(ModifiersTree modifiers,
+                          CharSequence name,
+                          Tree type) {
+        JCModifiers augmentedModifiers = (JCModifiers) Modifiers(modifiers.getFlags(), modifiers.getAnnotations());
+
+        augmentedModifiers.flags |= Flags.RECORD;
+
+        return Variable(augmentedModifiers, name, type, null);
+    }
     public Tree BindingPattern(CharSequence name,
                                Tree type) {
         try {
@@ -971,7 +990,7 @@ public class TreeFactory {
         return make.at(NOPOS).Wildcard(tbk, (JCExpression)type);
     }
     
-    ////////////////////////////////////// makers modification suggested by Tom
+    // makers modification suggested by Tom
     
     // AnnotationTree
     public AnnotationTree addAnnotationAttrValue(AnnotationTree annotation, ExpressionTree attrValue) {
@@ -1097,6 +1116,7 @@ public class TreeFactory {
             clazz.getTypeParameters(),
             clazz.getExtendsClause(),
             (List<ExpressionTree>) clazz.getImplementsClause(),
+            clazz.getPermitsClause(),
             c(clazz.getMembers(), index, member, op)
         );
         return copy;
@@ -1125,6 +1145,7 @@ public class TreeFactory {
             c(clazz.getTypeParameters(), index, typeParameter, op),
             clazz.getExtendsClause(),
             (List<ExpressionTree>) clazz.getImplementsClause(),
+            clazz.getPermitsClause(),
             clazz.getMembers()
         );
         return copy;
@@ -1153,6 +1174,7 @@ public class TreeFactory {
             clazz.getTypeParameters(),
             clazz.getExtendsClause(),
             c((List<ExpressionTree>) clazz.getImplementsClause(), index, implementsClause, op), // todo: cast!
+            clazz.getPermitsClause(),
             clazz.getMembers()
         );
         return copy;
@@ -1746,6 +1768,7 @@ public class TreeFactory {
                      List<? extends TypeParameterTree> typeParameters,
                      Tree extendsClause,
                      List<? extends Tree> implementsClauses,
+                     List<? extends Tree> permitsClauses,
                      List<? extends Tree> memberDecls) {
         ListBuffer<JCTypeParameter> typarams = new ListBuffer<JCTypeParameter>();
         for (TypeParameterTree t : typeParameters)
@@ -1753,6 +1776,9 @@ public class TreeFactory {
         ListBuffer<JCExpression> impls = new ListBuffer<JCExpression>();
         for (Tree t : implementsClauses)
             impls.append((JCExpression)t);
+        ListBuffer<JCExpression> permits = new ListBuffer<JCExpression>();
+        for (Tree t : permitsClauses)
+            permits.append((JCExpression)t);
         ListBuffer<JCTree> defs = new ListBuffer<JCTree>();
         for (Tree t : memberDecls)
             defs.append((JCTree)t);
@@ -1761,12 +1787,13 @@ public class TreeFactory {
                              typarams.toList(),
                              (JCExpression)extendsClause,
                              impls.toList(),
+                             permits.toList(),
                              defs.toList());
         
     }
     
     private long getBitFlags(Set<Modifier> modifiers) {
-        int flags  = 0;
+        long flags  = 0;
         for (Modifier modifier : modifiers) {
             switch (modifier) {
                 case PUBLIC:       flags |= PUBLIC; break;
@@ -1780,8 +1807,10 @@ public class TreeFactory {
                 case SYNCHRONIZED: flags |= SYNCHRONIZED; break;
                 case NATIVE:       flags |= NATIVE; break;
                 case STRICTFP:     flags |= STRICTFP; break;
+                case SEALED:       flags |= SEALED; break;
+                case NON_SEALED:   flags |= NON_SEALED; break;
                 default:
-                    break;
+                    throw new IllegalStateException("Unknown modifier: " + modifier);
             }
         }
         return flags;
@@ -1803,9 +1832,17 @@ public class TreeFactory {
     }
     
     public DocCommentTree DocComment(List<? extends DocTree> fullBody, List<? extends DocTree> tags) {
-        return docMake.at(NOPOS).newDocCommentTree(fullBody, tags);
+        return DocComment(HTML_JAVADOC_COMMENT, fullBody, tags);
+    }
+
+    public DocCommentTree MarkdownDocComment(List<? extends DocTree> fullBody, List<? extends DocTree> tags) {
+        return DocComment(MARKDOWN_JAVADOC_COMMENT, fullBody, tags);
     }
     
+    private DocCommentTree DocComment(Comment comment, List<? extends DocTree> fullBody, List<? extends DocTree> tags) {
+        return docMake.at(NOPOS).newDocCommentTree(comment, fullBody, tags, Collections.emptyList(), Collections.emptyList());
+    }
+
     public DocTree Snippet(List<? extends DocTree> attributes, TextTree text){
         try {
             return (DocTree) docMake.getClass().getMethod("newSnippetTree", List.class, TextTree.class).invoke(docMake.at(NOPOS), attributes, text);
@@ -1815,10 +1852,18 @@ public class TreeFactory {
     }
     
     public DocCommentTree DocComment(List<? extends DocTree> firstSentence, List<? extends DocTree> body, List<? extends DocTree> tags) {
+        return DocComment(HTML_JAVADOC_COMMENT, firstSentence, body, tags);
+    }
+
+    public DocCommentTree MarkdownDocComment(List<? extends DocTree> firstSentence, List<? extends DocTree> body, List<? extends DocTree> tags) {
+        return DocComment(MARKDOWN_JAVADOC_COMMENT, firstSentence, body, tags);
+    }
+
+    private DocCommentTree DocComment(Comment comment, List<? extends DocTree> firstSentence, List<? extends DocTree> body, List<? extends DocTree> tags) {
         final ArrayList<DocTree> fullBody = new ArrayList<>(firstSentence.size() + body.size());
         fullBody.addAll(firstSentence);
         fullBody.addAll(body);                
-        return docMake.at(NOPOS).newDocCommentTree(fullBody, tags);
+        return docMake.at(NOPOS).newDocCommentTree(comment, fullBody, tags, Collections.emptyList(), Collections.emptyList());
     }
     
     public com.sun.source.doctree.ErroneousTree Erroneous(String text, DiagnosticSource diagSource, String code, Object... args) {
@@ -1899,6 +1944,10 @@ public class TreeFactory {
     public VersionTree Version(List<? extends DocTree> text) {
         return docMake.at(NOPOS).newVersionTree(text);
     }
+
+    public RawTextTree RawText(String text) {
+        return docMake.at(NOPOS).newRawTextTree(DocTree.Kind.MARKDOWN, text);
+    }
     
     public com.sun.source.doctree.LiteralTree Code(TextTree text) {
         return docMake.at(NOPOS).newCodeTree(text);
@@ -1954,9 +2003,6 @@ public class TreeFactory {
                 }
                 paramTypesParam = lbl.toList();
             }
-            for (Constructor cc : DCReference.class.getDeclaredConstructors()) {
-                System.err.println("cc: " + cc);
-            }
             Constructor<DCReference> c = DCReference.class.getDeclaredConstructor(String.class, JCExpression.class, JCTree.class, javax.lang.model.element.Name.class, List.class);
             c.setAccessible(true);
             DCReference result = c.newInstance("", (JCTree.JCExpression) qualExpr, qualExpr == null ? null : ((JCTree.JCExpression) qualExpr).getTree(), member != null ? (com.sun.tools.javac.util.Name) names.fromString(member.toString()) : null, paramTypesParam);
@@ -1990,5 +2036,48 @@ public class TreeFactory {
     @SuppressWarnings("unchecked")
     private <T extends Throwable> RuntimeException throwAny(Throwable t) throws T {
         throw (T) t;
+    }
+
+    private static final Comment HTML_JAVADOC_COMMENT = new CommentImpl(CommentStyle.JAVADOC_BLOCK);
+    private static final Comment MARKDOWN_JAVADOC_COMMENT = new CommentImpl(CommentStyle.JAVADOC_LINE);
+
+    private static class CommentImpl implements Comment {
+
+        private final CommentStyle style;
+
+        public CommentImpl(CommentStyle style) {
+            this.style = style;
+        }
+
+        @Override
+        public String getText() {
+            return "";
+        }
+
+        @Override
+        public JCDiagnostic.DiagnosticPosition getPos() {
+            return null;
+        }
+
+        @Override
+        public int getSourcePos(int index) {
+            return -1;
+        }
+
+        @Override
+        public CommentStyle getStyle() {
+            return style;
+        }
+
+        @Override
+        public boolean isDeprecated() {
+            return false;
+        }
+
+        @Override
+        public Comment stripIndent() {
+            throw new UnsupportedOperationException("Not supported yet.");
+        }
+        
     }
 }

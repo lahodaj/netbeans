@@ -1867,7 +1867,7 @@ public class ETable extends JTable {
         }
     }
     
-    /**
+    /*
      * Adjusts selected rows when sorting changes.
      *
     protected final void adjustSelectedRows(int[] oldSortingPermutation, int[] oldInverseSortingPermutation,
@@ -2073,7 +2073,7 @@ public class ETable extends JTable {
                 s = convertValueToString(val);
             }   
             if ((s != null) && (s.toUpperCase().indexOf(prefix.toUpperCase()))!= -1   ) {
-                results.add(new Integer(startIndex));
+                results.add(startIndex);
             
                 // initialize prefix
                 if (maxPrefix == null) {

@@ -20,15 +20,16 @@
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
+import org.apache.maven.search.api.Record;
 import org.apache.maven.search.api.SearchRequest;
 import org.apache.maven.search.backend.smo.SmoSearchBackend;
 import org.apache.maven.search.backend.smo.SmoSearchBackendFactory;
 import org.apache.maven.artifact.versioning.ComparableVersion;
 
-import static java.util.FormatProcessor.FMT;
 import static org.apache.maven.search.api.MAVEN.ARTIFACT_ID;
 import static org.apache.maven.search.api.MAVEN.CLASSIFIER;
 import static org.apache.maven.search.api.MAVEN.GROUP_ID;
@@ -39,7 +40,9 @@ import static org.apache.maven.search.api.request.FieldQuery.fieldQuery;
 /**
  * Scans for binaries-list files and checks if newer versions of the declared dependencies exist.
  * 
- * <pre>org.apache.maven.indexer:search-backend-smo</pre> must be in classpath.
+ * dependencies:
+ * <pre>org.apache.maven.indexer:search-backend-smo</pre>
+ * <pre>org.apache.maven:maven-artifact</pre>
  * 
  * @author mbien
  */
@@ -49,7 +52,7 @@ public class BinariesListUpdates {
     private static final LongAdder checks = new LongAdder();
     private static final LongAdder skips = new LongAdder();
 
-    // java --enable-preview --source 22 --class-path "lib/*" BinariesListUpdates.java /path/to/netbeans/project
+    // java --class-path "lib/*" BinariesListUpdates.java /path/to/netbeans/project
     public static void main(String[] args) throws IOException, InterruptedException {
 
         if (args.length != 1 || Files.notExists(Path.of(args[0]).resolve("README.md"))) {
@@ -68,7 +71,7 @@ public class BinariesListUpdates {
             });
         }
 
-        System.out.println(STR."checked \{checks.sum()} dependencies, found \{updates.sum()} updates, skipped \{skips.sum()}." );
+        System.out.println("checked " + checks.sum() + " dependencies, found " + updates.sum() + " updates, skipped " + skips.sum() + "." );
     }
 
     private static void checkDependencies(Path path, SmoSearchBackend backend) throws IOException, InterruptedException {
@@ -98,7 +101,7 @@ public class BinariesListUpdates {
                             gac = String.join(":", gid, aid, classifier);
                         }
                         if (latest != null && !version.equals(latest)) {
-                            System.out.println(FMT."    %-50s\{gac} \{version} -> \{latest}");
+                            System.out.printf("    %-50s %s -> %s\n", gac, version, latest);
                             updates.increment();
                         }
                     } catch (IOException | InterruptedException ex) {
@@ -128,10 +131,22 @@ public class BinariesListUpdates {
     private static String queryLatestVersion(SmoSearchBackend backend, SearchRequest request) throws IOException, InterruptedException {
         requests.acquire();
         try {
-            return backend.search(request).getPage().stream()
+            List<Record> results;
+            try {
+                results = backend.search(request).getPage();
+            } catch (IOException ex) {
+                System.out.println("received exception: '" + ex.getMessage() + "', retry in 10s");
+                Thread.sleep(10_000);
+                try {
+                    results = backend.search(request).getPage();
+                } catch(IOException ignore) {
+                    throw ex;
+                }
+            }
+            return results.stream()
                     .map(r -> r.getValue(VERSION))
                     .filter(v -> !v.contains("alpha") && !v.contains("beta"))
-                    .filter(v -> !v.contains("M") && !v.contains("m") && !v.contains("B") && !v.contains("b") && !v.contains("ea"))
+                    .filter(v -> !v.contains("M") && !v.contains("m") && !v.contains("B") && !v.contains("b") && !v.contains("ea") && !v.contains("RC"))
                     .limit(5)
                     .max((v1, v2) -> new ComparableVersion(v1).compareTo(new ComparableVersion(v2)))
                     .orElse(null);

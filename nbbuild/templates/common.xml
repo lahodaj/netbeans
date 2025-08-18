@@ -80,10 +80,10 @@
         <tstamp>
             <format property="module.build.started.time" pattern="yyyy-MM-dd'T'HH:mm:ss.SSSZ"/>
         </tstamp>
-        <condition property="asm.jar" value="${nbplatform.active.dir}/platform/core/asm-9.7.jar">
-            <available file="${nbplatform.active.dir}/platform/core/asm-9.7.jar"/>
+        <condition property="asm.jar" value="${nbplatform.active.dir}/platform/core/asm-9.8.jar">
+            <available file="${nbplatform.active.dir}/platform/core/asm-9.8.jar"/>
         </condition>
-        <property name="asm.jar" location="${platform/libs.asm.dir}/core/asm-9.7.jar"/>
+        <property name="asm.jar" location="${platform/libs.asm.dir}/core/asm-9.8.jar"/>
         <property name="tsaurl" value=""/>
         <property name="tsacert" value=""/>
     </target>
@@ -749,7 +749,14 @@
         <test test.type="qa-functional"/>
     </target>
 
-    <target name="-do-junit" depends="test-init">
+    <target name="-setup-continue-after-failing">
+        <!-- The -do.continue... property is used in unless= context, so it must be defined only if the user property is set to true -->
+        <condition property="-do.continue.after.failing.tests">
+            <istrue value="${continue.after.failing.tests}"/>
+        </condition>
+    </target>
+
+    <target name="-do-junit" depends="test-init,-setup-continue-after-failing">
         <property name="test.jms.flags" value=""/>
         <macrodef name="junit-impl">
             <attribute name="test.type"/>
@@ -765,19 +772,18 @@
                     <jvmarg line="${test.jms.flags}"/>
                     <jvmarg line="${test.insane.prepend.args}"/>
                     <jvmarg line="${test.run.args}"/>
-                    <jvmarg line="${nbjdk.enable_security_manager}" />
                     <!--needed to have tests NOT to steal focus when running, works in latest apple jdk update only.-->
                     <sysproperty key="apple.awt.UIElement" value="@{disable.apple.ui}"/>
                     <formatter type="brief" usefile="false"/>
                     <formatter type="xml"/>
                 </junit>
-                <fail if="tests.failed" unless="continue.after.failing.tests">Some tests failed; see details above.</fail>
-            </sequential>
+                <fail if="tests.failed" unless="-do.continue.after.failing.tests">Some tests failed; see details above.</fail>            
+	    </sequential>
         </macrodef>
         <junit-impl test.type="${run.test.type}" disable.apple.ui="${disable.apple.ui}"/>
     </target>
 
-    <target name="-do-testng" depends="test-init">
+    <target name="-do-testng" depends="test-init,-setup-continue-after-failing">
         <macrodef name="testng-impl">
             <attribute name="test.type"/>
             <attribute name="disable.apple.ui" default="false"/>
@@ -797,11 +803,10 @@
                     <jvmarg value="${test.bootclasspath.prepend.args}"/>
                     <jvmarg line="${test.insane.prepend.args}"/>
                     <jvmarg line="${test.run.args}"/>
-                    <jvmarg line="${nbjdk.enable_security_manager}" />
                     <!-- needed to have tests NOT to steal focus when running, works in latest apple jdk update only.-->
                     <sysproperty key="apple.awt.UIElement" value="@{disable.apple.ui}"/>
                 </testng>
-                <fail if="tests.failed" unless="continue.after.failing.tests">Some tests failed; see details above.</fail>
+                <fail if="tests.failed" unless="-do.continue.after.failing.tests">Some tests failed; see details above.</fail>
             </sequential>
         </macrodef>
         <testng-impl test.type="${run.test.type}" disable.apple.ui="${disable.apple.ui}"/>
@@ -856,7 +861,7 @@
         <test-single test.type="${test.type}"/>
     </target>
 
-    <target name="-do-junit-single" depends="test-init">
+    <target name="-do-junit-single" depends="test-init,-setup-continue-after-failing">
         <macrodef name="junit-impl">
             <attribute name="test.type"/>
             <sequential>
@@ -871,17 +876,16 @@
                     <jvmarg line="${test.insane.prepend.args}"/>
                     <jvmarg line="${run.args.ide}"/>
                     <jvmarg line="${run.jvmargs.ide}"/>
-                    <jvmarg line="${nbjdk.enable_security_manager}" />
                     <formatter type="brief" usefile="false"/>
                     <formatter type="xml"/>
                 </junit>
-                <fail if="tests.failed" unless="continue.after.failing.tests">Some tests failed; see details above.</fail>
+                <fail if="tests.failed" unless="-do.continue.after.failing.tests">Some tests failed; see details above.</fail>
             </sequential>
         </macrodef>
         <junit-impl test.type="${test.type}" />
     </target>
 
-    <target name="-do-testng-single" depends="test-init">
+    <target name="-do-testng-single" depends="test-init,-setup-continue-after-failing">
         <macrodef name="testng-impl">
             <attribute name="test.type"/>
             <sequential>
@@ -901,17 +905,16 @@
                     <jvmarg value="${test.bootclasspath.prepend.args}"/>
                     <jvmarg line="${test.insane.prepend.args}"/>
                     <jvmarg line="${test.run.args}"/>
-                    <jvmarg line="${nbjdk.enable_security_manager}" />
                     <!-- needed to have tests NOT to steal focus when running, works in latest apple jdk update only.-->
                     <sysproperty key="apple.awt.UIElement" value="@{disable.apple.ui}"/>
                 </testng>
-                <fail if="tests.failed" unless="continue.after.failing.tests">Some tests failed; see details above.</fail>
+                <fail if="tests.failed" unless="-do.continue.after.failing.tests">Some tests failed; see details above.</fail>
             </sequential>
         </macrodef>
         <testng-impl test.type="${test.type}"/>
     </target>
 
-    <target name="-do-testng-single-suite" depends="test-init">
+    <target name="-do-testng-single-suite" depends="test-init,-setup-continue-after-failing">
         <macrodef name="testng-impl">
             <attribute name="test.type"/>
             <sequential>
@@ -931,11 +934,10 @@
                     <jvmarg value="${test.bootclasspath.prepend.args}"/>
                     <jvmarg line="${test.insane.prepend.args}"/>
                     <jvmarg line="${test.run.args}"/>
-                    <jvmarg line="${nbjdk.enable_security_manager}" />
                     <!-- needed to have tests NOT to steal focus when running, works in latest apple jdk update only.-->
                     <sysproperty key="apple.awt.UIElement" value="@{disable.apple.ui}"/>
                 </testng>
-                <fail if="tests.failed" unless="continue.after.failing.tests">Some tests failed; see details above.</fail>
+                <fail if="tests.failed" unless="-do.continue.after.failing.tests">Some tests failed; see details above.</fail>
             </sequential>
         </macrodef>
         <testng-impl test.type="${test.type}"/>
@@ -975,7 +977,6 @@
                 <java fork="true" classname="org.apache.tools.ant.taskdefs.optional.junit.JUnitTestRunner" jvm="${test.nbjdk.java}">
                     <jvmarg value="-agentlib:jdwp=transport=dt_socket,address=${jpda.address}"/>
                     <jvmarg line="${test.run.args}"/>
-                    <jvmarg line="${nbjdk.enable_security_manager}" />
                     <classpath>
                         <path refid="test.@{test.type}.run.cp"/>
                         <fileset dir="${ant.home}" includes="patches/*.jar"/>
@@ -1011,7 +1012,6 @@
                 <java classname="org.testng.TestNG" fork="true" jvm="${test.nbjdk.java}">
                     <jvmarg value="-agentlib:jdwp=transport=dt_socket,address=${jpda.address}"/>
                     <jvmarg line="${test.run.args}"/>
-                    <jvmarg line="${nbjdk.enable_security_manager}" />
                     <jvmarg value="${test.bootclasspath.prepend.args}"/>
                     <jvmarg line="${test.insane.prepend.args}"/>
                     <classpath refid="test.@{test.type}.run.cp"/>
@@ -1029,7 +1029,7 @@
         <testng-impl test.type="${test.type}"/>
     </target>
 
-    <target name="-do-testng-debug-single-suite" depends="test-init">
+    <target name="-do-testng-debug-single-suite" depends="test-init,-setup-continue-after-failing">
         <macrodef name="testng-impl">
             <attribute name="test.type"/>
             <sequential>
@@ -1049,12 +1049,11 @@
                     <jvmarg value="${test.bootclasspath.prepend.args}"/>
                     <jvmarg line="${test.insane.prepend.args}"/>
                     <jvmarg line="${test.run.args}"/>
-                    <jvmarg line="${nbjdk.enable_security_manager}" />
                     <jvmarg value="-agentlib:jdwp=transport=dt_socket,address=${jpda.address}"/>
                     <!-- needed to have tests NOT to steal focus when running, works in latest apple jdk update only.-->
                     <sysproperty key="apple.awt.UIElement" value="@{disable.apple.ui}"/>
                 </testng>
-                <fail if="tests.failed" unless="continue.after.failing.tests">Some tests failed; see details above.</fail>
+                <fail if="tests.failed" unless="-do.continue.after.failing.tests">Some tests failed; see details above.</fail>
             </sequential>
         </macrodef>
         <testng-impl test.type="${test.type}"/>
@@ -1102,7 +1101,7 @@
         <test-method test.type="${test.type}"/>
     </target>
     
-    <target name="-do-junit-testmethod" depends="test-init">
+    <target name="-do-junit-testmethod" depends="test-init,-setup-continue-after-failing">
         <macrodef name="junit-impl">
             <attribute name="test.type"/>
             <sequential>
@@ -1111,20 +1110,19 @@
                     <classpath refid="test.@{test.type}.run.cp"/>
                     <syspropertyset refid="test.@{test.type}.properties"/>
                     <jvmarg line="${test.run.args}"/>
-                    <jvmarg line="${nbjdk.enable_security_manager}" />
                     <jvmarg value="${test.bootclasspath.prepend.args}"/>
                     <jvmarg line="${test.insane.prepend.args}"/>
                     <jvmarg line="${run.jvmargs.ide}"/>
                     <formatter type="brief" usefile="false"/>
                     <formatter type="xml"/>
                 </junit>
-                <fail if="tests.failed" unless="continue.after.failing.tests">Some tests failed; see details above.</fail>
+                <fail if="tests.failed" unless="-do.continue.after.failing.tests">Some tests failed; see details above.</fail>
             </sequential>
         </macrodef>
         <junit-impl test.type="${test.type}" />
     </target>
 
-    <target name="-do-testng-testmethod" depends="test-init">
+    <target name="-do-testng-testmethod" depends="test-init,-setup-continue-after-failing">
         <macrodef name="testng-impl">
             <attribute name="test.type"/>
             <sequential>
@@ -1143,11 +1141,10 @@
                     <jvmarg value="${test.bootclasspath.prepend.args}"/>
                     <jvmarg line="${test.insane.prepend.args}"/>
                     <jvmarg line="${test.run.args}"/>
-                    <jvmarg line="${nbjdk.enable_security_manager}" />
                     <!-- needed to have tests NOT to steal focus when running, works in latest apple jdk update only.-->
                     <sysproperty key="apple.awt.UIElement" value="@{disable.apple.ui}"/>
                 </testng>
-                <fail if="tests.failed" unless="continue.after.failing.tests">Some tests failed; see details above.</fail>
+                <fail if="tests.failed" unless="-do.continue.after.failing.tests">Some tests failed; see details above.</fail>
             </sequential>
         </macrodef>
         <testng-impl test.type="${test.type}"/>
@@ -1165,7 +1162,6 @@
                     <classpath refid="test.@{test.type}.run.cp"/>
                     <syspropertyset refid="test.@{test.type}.properties"/>
                     <jvmarg line="${test.run.args}"/>
-                    <jvmarg line="${nbjdk.enable_security_manager}" />
                     <jvmarg line="${run.args.ide}"/>
                     <jvmarg line="${run.jvmargs.ide}"/>
                     <customize/>
@@ -1187,7 +1183,6 @@
                 <java fork="true" classname="${main.class}">
                     <jvmarg value="-agentlib:jdwp=transport=dt_socket,address=${jpda.address}"/>
                     <jvmarg line="${test.run.args}"/>
-                    <jvmarg line="${nbjdk.enable_security_manager}" />
                     <classpath refid="test.@{test.type}.run.cp"/>
                     <syspropertyset refid="test.@{test.type}.properties"/>
                     <customize/>
@@ -1270,7 +1265,6 @@
                     <jvmarg line="${test.insane.prepend.args}"/>
                     <syspropertyset refid="test.@{test.type}.properties"/>
                     <jvmarg line="${test.run.args}"/>
-                    <jvmarg line="${nbjdk.enable_security_manager}" />
                     <formatter type="brief" usefile="false"/>
                     <formatter type="xml"/>
                 </junit>

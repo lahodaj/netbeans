@@ -38,6 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -59,8 +60,6 @@ import org.netbeans.modules.apisupport.project.universe.DestDirProvider;
 import org.netbeans.modules.apisupport.project.universe.ModuleEntry;
 import org.netbeans.modules.apisupport.project.universe.ModuleList;
 import org.netbeans.modules.apisupport.project.universe.TestModuleDependency;
-import org.netbeans.nbbuild.extlibs.SetupLimitModulesProbe;
-import org.netbeans.spi.java.project.support.ProjectPlatform;
 import org.netbeans.spi.project.support.ant.AntProjectEvent;
 import org.netbeans.spi.project.support.ant.AntProjectHelper;
 import org.netbeans.spi.project.support.ant.AntProjectListener;
@@ -75,7 +74,6 @@ import org.openide.util.ChangeSupport;
 import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
 import org.openide.util.RequestProcessor;
-import org.openide.util.Utilities;
 import org.openide.util.WeakListeners;
 import org.openide.xml.XMLUtil;
 import org.w3c.dom.Element;
@@ -889,7 +887,11 @@ public final class Evaluator implements PropertyEvaluator, PropertyChangeListene
         return cps.toString();
     }
 
-    private static final Map<String, String> limitModulesCache = new HashMap<>();
+    /**
+     * cache shared between Evaluator instances.
+     */
+    private static final Map<String, String> limitModulesCache = new ConcurrentHashMap<>();
+
     private static String getLimitModules(String javacRelease) {
         return limitModulesCache.computeIfAbsent(javacRelease, release -> {
             int maxSupportedSourceVersion = SourceVersion.latest().ordinal();

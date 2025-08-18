@@ -49,6 +49,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
@@ -358,8 +359,7 @@ public class DataEditorSupport extends CloneableEditorSupport {
     protected String messageLine (Line line) {
         return NbBundle.getMessage(DataObject.class, "FMT_LineDisplayName2",
             obj.getPrimaryFile().getNameExt(),
-            FileUtil.getFileDisplayName(obj.getPrimaryFile()),
-            new Integer(line.getLineNumber() + 1));
+            FileUtil.getFileDisplayName(obj.getPrimaryFile()), line.getLineNumber() + 1);
     }
     
     
@@ -476,7 +476,7 @@ public class DataEditorSupport extends CloneableEditorSupport {
         };
     }
 
-    private static Set<FileObject> warnedEncodingFiles = new WeakSet<FileObject>();
+    private static Set<FileObject> warnedEncodingFiles = Collections.newSetFromMap(new WeakHashMap<>());
 
     /** can hold the right charset to be used during save, needed for communication
      * between saveFromKitToStream and saveDocument
@@ -1116,11 +1116,11 @@ public class DataEditorSupport extends CloneableEditorSupport {
             public String getLocalizedMessage () {
                 Object[] arr = {
                     getFileImpl().getPath (),
-                    getFileImpl().getNameExt (),
-                    new Long (size), // bytes
-                    new Long (size / 1024 + 1), // kilobytes
-                    new Long (size / (1024 * 1024)), // megabytes
-                    new Long (size / (1024 * 1024 * 1024)), // gigabytes
+                    getFileImpl().getNameExt (), 
+                    Long.valueOf(size), // bytes
+                    Long.valueOf(size / 1024 + 1), // kilobytes
+                    Long.valueOf(size / (1024 * 1024)), // megabytes
+                    Long.valueOf(size / (1024 * 1024 * 1024)) // gigabytes
                 };
                 return NbBundle.getMessage(DataObject.class, "MSG_ObjectIsTooBig", arr);
             }

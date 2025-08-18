@@ -15,6 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# https://infra.apache.org/github-actions-policy.html
+# actions:
+#  - github actions use the latest release within the locked major version
+#  - third party actions (geekyeggo/delete-artifact, test-summary/action and shivammathur/setup-ph) shall be locked to a hash
+#    - see https://github.com/apache/infrastructure-gha-allowlist-manager/blob/main/approved_patterns.yml
+#    - dependabot is active to keep them up to date
+#
+# this workflow can push the limit of the apache action runner policy, please use CI responsibly
+
 name: NetBeans
 
 on:
@@ -51,9 +60,16 @@ env:
   # what to build and test, see nbbuild/cluster.properties
   CLUSTER_CONFIG: 'full'
   
-  # default java distribution used by the setup-java action
+  # default java distribution used by the setup-java action across jobs
   # see https://github.com/actions/setup-java#supported-distributions
-  DEFAULT_JAVA_DISTRIBUTION: 'zulu'
+  # CI requirements:
+  #  - timely GA releases (no delays if possible)
+  #  - EA builds must be available for the upcoming release (note: some vendors skip builds)
+  #  - linux, win, mac (arm)
+  #  - reliable / no extra sauce
+  DEFAULT_JAVA_DISTRIBUTION: 'temurin'
+#  DEFAULT_JAVA_DISTRIBUTION: 'sapmachine'
+#  DEFAULT_JAVA_DISTRIBUTION: 'zulu'
 
   # labels are mapped to env vars for pipeline customization. If this is not a PR, (almost) everything will run, but with a reduced matrix.
   # note: env vars don't work in the job's 'if' field but do work within jobs ( https://github.com/actions/runner/issues/1189 ), the whole expression must be duplicated
@@ -124,7 +140,7 @@ jobs:
     timeout-minutes: 40
     strategy:
       matrix:
-        java: [ '17', '21', '23-ea' ]
+        java: [ '17', '21', '25-ea' ]
         exclude:
           - java: ${{ github.event_name == 'pull_request' && 'nothing' || '21' }}
       fail-fast: false
@@ -137,7 +153,7 @@ jobs:
           distribution: ${{ env.DEFAULT_JAVA_DISTRIBUTION }}
           
       - name: Checkout ${{ github.ref }} ( ${{ github.sha }} )
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
           submodules: false
@@ -175,7 +191,7 @@ jobs:
         if: ${{ matrix.java == '17' && contains(github.event.pull_request.labels.*.name, 'ci:dev-build') && success() }}
         uses: actions/upload-artifact@v4
         with:
-          name: dev-build
+          name: dev-build_${{github.event.pull_request.number || github.run_id}}
           path: nbbuild/NetBeans-*.zip
           compression-level: 0
           retention-days: 7
@@ -189,7 +205,7 @@ jobs:
     steps:
 
       - name: Checkout ${{ github.ref }} ( ${{ github.sha }} )
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
           submodules: false
@@ -229,7 +245,7 @@ jobs:
         java: [ 17 ]
         include:
           - os: ubuntu-latest
-            java: 22
+            java: 25-ea
       fail-fast: false
     steps:
 
@@ -246,7 +262,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -260,6 +276,7 @@ jobs:
         run: tar --zstd -xf build.tar.zst
 
       - name: platform/masterfs
+        if: ${{ matrix.java == '17' }}
         run: .github/retry.sh ant $OPTS -f platform/masterfs test
 
       - name: Commit Validation tests
@@ -269,7 +286,7 @@ jobs:
         run: ant $OPTS -f platform/core.network test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: |
@@ -296,25 +313,31 @@ jobs:
           echo "::error::PRs must be labeled, see: https://cwiki.apache.org/confluence/display/NETBEANS/PRs+and+You+-+A+reviewer+Guide"
           exit 1
 
+      - name: Checkout ${{ github.ref }} ( ${{ github.sha }} )
+        if: ${{ !cancelled() }}
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          submodules: false
+          show-progress: false
+
+      - name: Set up JDK 25 for scripts
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: 25-ea
+          distribution: ${{ env.DEFAULT_JAVA_DISTRIBUTION }}
+
+      - name: Check Commit Headers
+        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
+        run: java .github/scripts/CommitHeaderChecker.java ${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+
       - name: Set up JDK ${{ matrix.java }} 
         if: ${{ !cancelled() }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ matrix.java }} 
           distribution: ${{ env.DEFAULT_JAVA_DISTRIBUTION }}
-
-      - name: Checkout ${{ github.ref }} ( ${{ github.sha }} )
-        if: ${{ !cancelled() }}
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          submodules: false
-          show-progress: false
-          fetch-depth: 10
-
-      - name: Print last 10 Commits
-        if: ${{ github.event_name == 'pull_request' && !cancelled() }}
-        run: git log --oneline -n10 --pretty=format:'%h %an [%ae] %s'
 
       - name: Check line endings and verify RAT report
         if: ${{ !cancelled() }}
@@ -331,7 +354,7 @@ jobs:
 
       - name: Download Build
         if: ${{ needs.base-build.result == 'success' && !cancelled() }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -375,7 +398,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -416,21 +439,32 @@ jobs:
       - name: Build nbms
         run: ant $OPTS build-nbms
 
-      # 13-14 min
-      - name: Build javadoc
-        if: env.test_javadoc == 'true' && success()
-        run: ant $OPTS build-javadoc
-
       # runs only in PRs if requested; ~18 min
       - name: Build all Tests
         if: env.test_tests == 'true' && github.event_name == 'pull_request' && success()
         run: ant -quiet -Dcluster.config=$CLUSTER_CONFIG test -Dtest.includes=NoTestsJustBuild
 
+      # 13-14 min for javadoc; JDK version must be synced with nb-javac
+      - name: Set up JDK 25 for javadoc
+        if: env.test_javadoc == 'true' && success()
+        uses: actions/setup-java@v4
+        with:
+          java-version: 25-ea
+          distribution: ${{ env.DEFAULT_JAVA_DISTRIBUTION }}
+
+      - name: Build javadoc
+        if: env.test_javadoc == 'true' && success()
+        run: |
+          export ANT_OPTS=-Djdk.xml.totalEntitySizeLimit=200000
+          ant $OPTS -Djavadoc.fail.broken.links=true build-javadoc
+
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
-          paths: "./*/*/build/test/*/results/TEST-*.xml"
+          paths: |
+            ./*/*/build/test/*/results/TEST-*.xml
+            ./nbbuild/build/javadoc/checklinks-errors.xml
 
 
   build-from-src-zip:
@@ -454,7 +488,7 @@ jobs:
           distribution: ${{ env.DEFAULT_JAVA_DISTRIBUTION }}
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -486,7 +520,7 @@ jobs:
         if: ${{ (matrix.config == 'release') && success() }}
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20.18.1
 
       - name: Build NBVSCodeExt from ${{ matrix.config }}-src zip
         if: ${{ (matrix.config == 'release') && success() }}
@@ -518,7 +552,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -744,6 +778,9 @@ jobs:
       - name: ide/team.commons
         run: ant $OPTS -f ide/team.commons test
 
+      - name: ide/textmate.lexer
+        run: ant $OPTS -f ide/textmate.lexer test
+
       - name: ide/terminal.nb
         run: ant $OPTS -f ide/terminal.nb test
 
@@ -805,7 +842,7 @@ jobs:
         run: ant $OPTS -f ide/xsl test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -820,7 +857,7 @@ jobs:
     timeout-minutes: 50
     strategy:
       matrix:
-        java: [ '17', '21', '23-ea' ]
+        java: [ '17', '21', '25-ea' ]
         exclude:
           - java: ${{ github.event_name == 'pull_request' && 'nothing' || '21' }}
       fail-fast: false
@@ -838,7 +875,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -928,7 +965,7 @@ jobs:
         run: ant $OPTS -f apisupport/apisupport.ant test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -959,7 +996,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -1091,7 +1128,7 @@ jobs:
         run: ant $OPTS -f platform/netbinox test -Dtest.config=stableBTD
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1122,7 +1159,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -1229,7 +1266,7 @@ jobs:
         run: ant $OPTS -f platform/api.templates test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1260,7 +1297,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -1282,6 +1319,9 @@ jobs:
       - name: editor.htmlui
         run: ant $OPTS -f java/editor.htmlui test
 
+      - name: java.api.common
+        run: ant $OPTS -f java/java.api.common test
+
       - name: java.completion
         run: ant $OPTS -f java/java.completion test
 
@@ -1293,6 +1333,9 @@ jobs:
 
       - name: java.freeform
         run: ant $OPTS -f java/java.freeform test
+
+      - name: java.file.launcher
+        run: ant $OPTS -f java/java.file.launcher test
 
 #      - name: java.kit
 #        run: ant $OPTS -f java/java.kit test
@@ -1409,7 +1452,7 @@ jobs:
         run: ant $OPTS -f java/javadoc test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1424,10 +1467,10 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        java: [ '17', '22' ]
+        java: [ '17', '25-ea' ]
         config: [ 'batch1', 'batch2' ]
         exclude:
-          - java: ${{ github.event_name == 'pull_request' && 'nothing' || '22' }}
+          - java: ${{ github.event_name == 'pull_request' && 'nothing' || '25-ea' }}
       fail-fast: false
     steps:
 
@@ -1443,12 +1486,16 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
       - name: Extract
         run: tar --zstd -xf build.tar.zst
+
+      - name: java.hints (unreliable tests)
+        if: ${{ (matrix.config == 'batch2') && success() }}
+        run: .github/retry.sh ant $OPTS -Dtest.config=unreliable -f java/java.hints test
 
       - name: java.hints ${{ matrix.config }}
         run: ant $OPTS -Dtest.config=${{ matrix.config }} -f java/java.hints test
@@ -1462,7 +1509,7 @@ jobs:
         run: ant $OPTS -f java/spi.java.hints test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1477,7 +1524,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        java: [ '17', '21', '23-ea' ]
+        java: [ '17', '21', '25-ea' ]
         exclude:
           - java: ${{ github.event_name == 'pull_request' && 'nothing' || '21' }}
       fail-fast: false
@@ -1495,7 +1542,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -1520,11 +1567,11 @@ jobs:
 #      - name: debugger.jpda.truffle
 #        run: ant $OPTS -f java/debugger.jpda.truffle test
 
-#      - name: debugger.jpda.ui
-#        run: ant $OPTS -f java/debugger.jpda.ui test
+      - name: debugger.jpda.ui
+        run: ant $OPTS -f java/debugger.jpda.ui test-unit
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1555,7 +1602,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -1569,7 +1616,7 @@ jobs:
         run: ant $OPTS -f profiler/profiler.oql test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1600,7 +1647,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -1614,7 +1661,7 @@ jobs:
         run: ant $OPTS -f ide/csl.types test
 
       - name: ide/css.editor
-        run: ant $OPTS -f ide/css.editor test
+        run: .github/retry.sh ant $OPTS -f ide/css.editor test
 
       - name: ide/css.lib
         run: ant $OPTS -f ide/css.lib test
@@ -1650,7 +1697,7 @@ jobs:
         run: ant $OPTS -f webcommon/html.angular test-unit
 
       - name: webcommon/html.knockout
-        run: ant $OPTS -f webcommon/html.knockout test-unit
+        run: .github/retry.sh ant $OPTS -f webcommon/html.knockout test-unit
 
       - name: webcommon/javascript.bower
         run: ant $OPTS -f webcommon/javascript.bower test
@@ -1713,6 +1760,9 @@ jobs:
       - name: webcommon/javascript2.requirejs
         run: ant $OPTS -f webcommon/javascript2.requirejs test-unit
 
+      - name: webcommon/javascript2.vue
+        run: ant $OPTS -f webcommon/javascript2.vue test
+
       - name: webcommon/javascript2.sdoc
         run: ant $OPTS -f webcommon/javascript2.sdoc test
 
@@ -1744,7 +1794,7 @@ jobs:
         run: ant $OPTS -f webcommon/api.knockout test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1775,7 +1825,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -1792,7 +1842,7 @@ jobs:
 #        run: ant $OPTS -f javafx/javafx2.project test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1807,7 +1857,9 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        java: [ '17' ]
+        java: [ '17', '21' ]
+        exclude:
+          - java: ${{ github.event_name == 'pull_request' && 'nothing' || '21' }}
       fail-fast: false
     steps:
 
@@ -1823,7 +1875,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -1843,7 +1895,7 @@ jobs:
 #        run: ant $OPTS -f groovy/groovy.kit test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1874,7 +1926,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -1891,7 +1943,7 @@ jobs:
         run: ant $OPTS -f rust/rust.options test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -1922,7 +1974,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -1983,6 +2035,9 @@ jobs:
 #      - name: j2ee.ejbverification
 #        run: ant $OPTS -f enterprise/j2ee.ejbverification test
 
+      - name: j2ee.persistence
+        run: ant $OPTS -f java/j2ee.persistence test
+
 # Fails
 #      - name: j2eeserver
 #        run: ant $OPTS -f enterprise/j2eeserver test
@@ -1996,10 +2051,6 @@ jobs:
 # Fails
 #      - name: j2ee.sun.ddui
 #        run: ant $OPTS -f enterprise/j2ee.sun.ddui test
-
-# Fails + Slow
-#      - name: jakarta.web.beans
-#        run: ant $OPTS -f enterprise/jakarta.web.beans test
 
       - name: javaee.wildfly
         run: .github/retry.sh ant $OPTS -f enterprise/javaee.wildfly test
@@ -2042,9 +2093,8 @@ jobs:
       - name: tomcat5
         run: ant $OPTS -f enterprise/tomcat5 test
 
-# Fails
-#      - name: web.beans
-#        run: ant $OPTS -f enterprise/web.beans test
+      - name: web.beans
+        run: ant $OPTS -f enterprise/web.beans test
 
 # Fails + Slow
 #      - name: web.core.syntax
@@ -2076,9 +2126,8 @@ jobs:
       - name: web.jsfapi
         run: ant $OPTS -f enterprise/web.jsfapi test
 
-# Fails
-#      - name: web.jspparser
-#        run: ant $OPTS -f enterprise/web.jspparser test
+      - name: web.jspparser
+        run: ant $OPTS -f enterprise/web.jspparser test
 
 # Fails
 #      - name: web.project
@@ -2138,7 +2187,7 @@ jobs:
         run: ant $OPTS -f enterprise/j2ee.dd.webservice test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -2169,7 +2218,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -2221,7 +2270,7 @@ jobs:
           ant $OPTS -f ide/versioning test-qa-functional
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -2262,7 +2311,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -2281,7 +2330,7 @@ jobs:
         run: .github/retry.sh ant $OPTS $OPTS_TEST -f ide/db.mysql test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -2328,7 +2377,7 @@ jobs:
       # linux specific setup
       - name: Setup PHP
         if: contains(matrix.os, 'ubuntu')
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@ccf2c627fe61b1b4d924adfcbd19d661a18133a0 # v2.35.2
         with:
           php-version: '8.3'
           tools: pecl
@@ -2341,7 +2390,7 @@ jobs:
       # - - -
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -2439,7 +2488,7 @@ jobs:
         run: ant $OPTS -f php/spellchecker.bindings.php test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -2470,7 +2519,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -2484,7 +2533,7 @@ jobs:
         run: .github/retry.sh ant $OPTS -f java/java.lsp.server test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -2511,7 +2560,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -2550,7 +2599,7 @@ jobs:
         run: .github/retry.sh ant $OPTS -f java/debugger.jpda.truffle test
 
       - name: Create Test Summary
-        uses: test-summary/action@v2
+        uses: test-summary/action@31493c76ec9e7aa675f1585d3ed6f1da69269a86 # v2.4
         if: failure()
         with:
           paths: "./*/*/build/test/*/results/TEST-*.xml"
@@ -2578,7 +2627,7 @@ jobs:
       - name: Set up node
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20.18.1
 
       - name: Setup Xvfb
         run: |
@@ -2586,7 +2635,7 @@ jobs:
           Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
 
       - name: Download Build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: build
 
@@ -2604,13 +2653,14 @@ jobs:
           env "netbeans.extra.options=-J-Dnetbeans.logger.console=true" ant $OPTS test-vscode-ext
  
 
-# last job depends on everything so that it is forced to run last even if a long job fails early
+# cleanup job depends on everything so that it is forced to run last even if a long job fails early.
+# 'paperwork' is left out intentionally, since it doesn't run unit tests (hopefully doesn't need restarts)
+# and shouldn't prevent cleanup on validation failure - which might be common during dev time
   cleanup:
     name: Cleanup Workflow Artifacts
     needs:
       - base-build
       - commit-validation
-      - paperwork
       - build-system-test
       - build-from-src-zip
       - ide-modules-test
@@ -2642,14 +2692,14 @@ jobs:
     steps:
 
       - name: Delete Workspace Artifact
-        uses: geekyeggo/delete-artifact@v5
+        uses: geekyeggo/delete-artifact@f275313e70c08f6120db482d7a6b98377786765b # v5.1.0
         with:
           name: build
           useGlob: false
 
       - name: Delete Dev Build Artifact
-        uses: geekyeggo/delete-artifact@v5
+        uses: geekyeggo/delete-artifact@f275313e70c08f6120db482d7a6b98377786765b # v5.1.0
         if: ${{ contains(github.event.pull_request.labels.*.name, 'ci:dev-build') && cancelled() }}
         with:
-          name: dev-build
+          name: dev-build_${{github.event.pull_request.number || github.run_id}}
           useGlob: false

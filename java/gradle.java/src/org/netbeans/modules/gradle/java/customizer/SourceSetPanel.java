@@ -68,7 +68,7 @@ public class SourceSetPanel extends javax.swing.JPanel {
     private static final String PROJECT_ICON = "org.netbeans.modules/gradle/resources/gradle.png"; //NOI18N
     private static final String ARTIFACT_ICON = "org.netbeans.modules/gradle/resources/module-artifact.png"; //NOI18N
 
-    final Icon folderIcon = new ImageIcon(NodeUtils.getTreeFolderIcon(false));
+    final Icon folderIcon = ImageUtilities.image2Icon(NodeUtils.getTreeFolderIcon(false));
     final Icon projectIcon = ImageUtilities.loadImageIcon(PROJECT_ICON, false);
     final Icon artifactIcon = ImageUtilities.loadImageIcon(ARTIFACT_ICON, false);
 
@@ -269,7 +269,7 @@ public class SourceSetPanel extends javax.swing.JPanel {
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addGroup(layout.createSequentialGroup()
-                                .addComponent(tfSourceLevel, javax.swing.GroupLayout.PREFERRED_SIZE, 39, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addComponent(tfSourceLevel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                                 .addGap(0, 0, Short.MAX_VALUE))
                             .addComponent(jtPlatform))))
                 .addContainerGap())

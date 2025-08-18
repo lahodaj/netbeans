@@ -72,12 +72,12 @@ jobs:
   source:
 
     name: Build Source Zip
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
           submodules: false
@@ -104,13 +104,13 @@ jobs:
   build-linux:
 
     name: Build on Linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: source
 
     steps:
 
       - name: Download sources
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nativeexecution-external-sources
 
@@ -144,7 +144,7 @@ jobs:
 #    steps:
 #
 #      - name: Download sources
-#        uses: actions/download-artifact@v4
+#        uses: actions/download-artifact@v5
 #        with:
 #          name: nativeexecution-external-sources
 #
@@ -174,7 +174,7 @@ jobs:
     steps:
 
       - name: Download sources
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nativeexecution-external-sources
 
@@ -203,7 +203,7 @@ jobs:
     steps:
 
       - name: Download sources
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nativeexecution-external-sources
 
@@ -227,7 +227,7 @@ jobs:
   build-zip-with-build-artifacts:
 
     name: Package Native Execution Libraries
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     # Only run when the platform specific builds are finished
     needs: [build-linux, build-macos-x64, build-macos-arm]
@@ -238,7 +238,7 @@ jobs:
       run: mkdir -p myfiles/
 
     - name: Download artifacts from predecessor jobs
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         path: myfiles/
 

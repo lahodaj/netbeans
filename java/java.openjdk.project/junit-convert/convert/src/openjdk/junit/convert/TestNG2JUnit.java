@@ -48,6 +48,8 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.QualifiedNameable;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 import org.netbeans.api.java.source.CompilationInfo;
 import org.netbeans.api.java.source.GeneratorUtilities;
@@ -96,7 +98,8 @@ public class TestNG2JUnit {
             case "assertFalse":
             case "assertTrue":
             case "assertNotNull":
-            case "assertNull": {
+            case "assertNull":
+            case "assertThrows": {
                 switch (paramCount) {
                     case 0: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "()"; break;
                     case 1: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "($param1)"; break;
@@ -104,8 +107,18 @@ public class TestNG2JUnit {
                 }
                 break;
             }
-            case "assertEquals": //XXX: arrays!
+            case "assertEquals":
             case "assertNotEquals": {
+                if (paramCount >= 2 &&
+                    isArray(ctx.getInfo().getTrees().getTypeMirror(new TreePath(ctx.getPath(), mit.getArguments().get(0)))) &&
+                    isArray(ctx.getInfo().getTrees().getTypeMirror(new TreePath(ctx.getPath(), mit.getArguments().get(1))))) {
+
+                    switch (simpleName) {
+                        case "assertEquals": simpleName = "assertArrayEquals"; break;
+                        case "assertNotEquals": simpleName = "assertArrayNotEquals"; break;
+                        default: throw new IllegalStateException();
+                    }
+                }
                 switch (paramCount) {
                     case 2: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "($param2, $param1)"; break;
                     case 3: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "($param2, $param1, $param3)"; break;
@@ -113,7 +126,7 @@ public class TestNG2JUnit {
                 break;
             }
         }
-        if (newCall != null) { 
+        if (newCall != null) {
             Fix fix = JavaFixUtilities.rewriteFix(ctx, "Use JUnit Method", ctx.getPath(), newCall);
             return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), fix);
         }
@@ -150,9 +163,19 @@ public class TestNG2JUnit {
         return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), JavaFixUtilities.rewriteFix(ctx, "Use JUnit annotation", ctx.getPath(), "org.junit.jupiter.api.BeforeAll"));
     }
 
+    @TriggerPattern("org.testng.annotations.AfterSuite") //unclear - is this sensible?
+    public static ErrorDescription aftersuite(HintContext ctx) {
+        return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), JavaFixUtilities.rewriteFix(ctx, "Use JUnit annotation", ctx.getPath(), "org.junit.jupiter.api.AfterAll"));
+    }
+
+    @TriggerPattern("org.testng.annotations.BeforeSuite") //unclear - is this sensible?
+    public static ErrorDescription beforeSuite(HintContext ctx) {
+        return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), JavaFixUtilities.rewriteFix(ctx, "Use JUnit annotation", ctx.getPath(), "org.junit.jupiter.api.BeforeAll"));
+    }
+
     @TriggerPattern("org.testng.annotations.DataProvider")
     public static ErrorDescription dataProvider(HintContext ctx) {
-        if (ctx.getPath().getParentPath().getLeaf().getKind() == Tree.Kind.ANNOTATION) { 
+        if (ctx.getPath().getParentPath().getLeaf().getKind() == Tree.Kind.ANNOTATION) {
             return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), new RemoveAnnotation(ctx.getInfo(), ctx.getPath().getParentPath()).toEditorFix());
         }
         return null;
@@ -184,7 +207,7 @@ public class TestNG2JUnit {
     public static ErrorDescription testAnnotation(HintContext ctx) {
         TreePath annotatedElement;
         boolean disable;
-        TreePathHandle dataProviderMethodHandle;
+        String dataProviderName;
         String expectedException;
         boolean canConvert = true;
         if (ctx.getPath().getParentPath().getLeaf().getKind() == Tree.Kind.ANNOTATION) {
@@ -215,7 +238,7 @@ public class TestNG2JUnit {
 
             if (dataProviderKey != null) {
                 //TODO: fail if not found:
-                dataProviderMethodHandle = null;
+                dataProviderName = null;
 
                 Element annotatedElementEl = ctx.getInfo().getTrees().getElement(annotatedElement);
                 FOUND: for (ExecutableElement candidate : ElementFilter.methodsIn(ctx.getInfo().getElements().getAllMembers((TypeElement) annotatedElementEl.getEnclosingElement()))) {
@@ -230,13 +253,14 @@ public class TestNG2JUnit {
                             }
 
                             if (dataProviderKey.equals(name)) {
-                                dataProviderMethodHandle = TreePathHandle.create(ctx.getInfo().getTrees().getPath(candidate), ctx.getInfo());
+                                //TODO: should be better to rename the method??
+                                dataProviderName = candidate.getSimpleName().toString();
                             }
                         } 
                     } 
                 }
             } else {
-                dataProviderMethodHandle = null;
+                dataProviderName = null;
             }
 
             ExpressionTree expectedExceptionsTree = attribute2Value.get("expectedExceptions");
@@ -257,21 +281,21 @@ public class TestNG2JUnit {
         } else {
             annotatedElement = ctx.getPath();
             disable = false;
-            dataProviderMethodHandle = null;
+            dataProviderName = null;
             expectedException = null;
         } 
         //TODO: parameters to the annotation!
         Fix fix;
         switch (annotatedElement.getLeaf().getKind()) {
-            case METHOD: { 
+            case METHOD: {
                 List<TreePathHandle> placesToAugment = new ArrayList<>();
-                if (dataProviderMethodHandle == null) { 
+                if (dataProviderName == null) {
                     placesToAugment.add(TreePathHandle.create(annotatedElement, ctx.getInfo()));
                 }
-                fix = new AddTestAnnotations(ctx.getInfo(), ctx.getPath().getParentPath(), placesToAugment, disable, dataProviderMethodHandle, expectedException).toEditorFix();
+                fix = new AddTestAnnotations(ctx.getInfo(), ctx.getPath().getParentPath(), placesToAugment, disable, dataProviderName, expectedException).toEditorFix();
                 break;
             }
-            case CLASS: { 
+            case CLASS: {
                 List<TreePathHandle> placesToAugment = new ArrayList<>();
                 MEMBERS: for (Tree member : ((ClassTree) annotatedElement.getLeaf()).getMembers()) {
                     if (member.getKind() != Tree.Kind.METHOD) {
@@ -290,7 +314,7 @@ public class TestNG2JUnit {
                     }
                     placesToAugment.add(TreePathHandle.create(methodTP, ctx.getInfo()));
                 }
-                fix = new AddTestAnnotations(ctx.getInfo(), ctx.getPath().getParentPath(), placesToAugment, disable, dataProviderMethodHandle, expectedException).toEditorFix();
+                fix = new AddTestAnnotations(ctx.getInfo(), ctx.getPath().getParentPath(), placesToAugment, disable, dataProviderName, expectedException).toEditorFix();
                 break;
             }
             default:
@@ -351,18 +375,22 @@ public class TestNG2JUnit {
         return false;
     }
 
+    private static boolean isArray(TypeMirror type) {
+        return type != null && type.getKind() == TypeKind.ARRAY;
+    }
+
     private static final class AddTestAnnotations extends JavaFix {
 
         private final List<TreePathHandle> placesToAugment;
         private final boolean disable;
-        private final TreePathHandle dataProviderMethodHandle;
+        private final String dataProviderName;
         private final String expectedException;
 
-        public AddTestAnnotations(CompilationInfo info, TreePath tp, List<TreePathHandle> placesToAugment, boolean disable, TreePathHandle dataProviderMethod, String expectedException) {
+        public AddTestAnnotations(CompilationInfo info, TreePath tp, List<TreePathHandle> placesToAugment, boolean disable, String dataProviderName, String expectedException) {
             super(info, tp);
             this.placesToAugment = placesToAugment;
             this.disable = disable;
-            this.dataProviderMethodHandle = dataProviderMethod;
+            this.dataProviderName = dataProviderName;
             this.expectedException = expectedException;
         }
 
@@ -410,15 +438,13 @@ public class TestNG2JUnit {
 
                 tc.getWorkingCopy().rewrite(mt, mt = make.addModifiersAnnotation(mt, disableAnnotation));
             }
-            if (dataProviderMethodHandle != null) {
-                TreePath dataProviderMethod = dataProviderMethodHandle.resolve(tc.getWorkingCopy());
-                MethodTree provider = (MethodTree) dataProviderMethod.getLeaf();
+            if (dataProviderName != null) {
                 AnnotationTree newTestAnnotation = make.Annotation(make.QualIdent("org.junit.jupiter.params.ParameterizedTest"), Collections.emptyList());
 
                 gu.copyComments(originalAnnotation, newTestAnnotation, false);
                 gu.copyComments(originalAnnotation, newTestAnnotation, true);
                 tc.getWorkingCopy().rewrite(mt, mt = make.addModifiersAnnotation(mt, newTestAnnotation));
-                tc.getWorkingCopy().rewrite(mt, mt = make.addModifiersAnnotation(mt, make.Annotation(make.QualIdent("org.junit.jupiter.params.provider.MethodSource"), Arrays.asList(make.Literal(provider.getName().toString())))));
+                tc.getWorkingCopy().rewrite(mt, mt = make.addModifiersAnnotation(mt, make.Annotation(make.QualIdent("org.junit.jupiter.params.provider.MethodSource"), Arrays.asList(make.Literal(dataProviderName)))));
             } 
         }
         

@@ -1,6 +1,20 @@
 /*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/NetBeansModuleDevelopment-files/javaHint.java to edit this template
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package openjdk.junit.convert;
 
@@ -17,35 +31,35 @@ import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.ModifiersTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.util.TreePath;
+import com.sun.source.util.TreePathScanner;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
-import javax.lang.model.element.Name;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.QualifiedNameable;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.ElementFilter;
 import org.netbeans.api.java.source.CompilationInfo;
+import org.netbeans.api.java.source.GeneratorUtilities;
 import org.netbeans.api.java.source.TreeMaker;
 import org.netbeans.api.java.source.TreePathHandle;
 import org.netbeans.spi.editor.hints.ErrorDescription;
 import org.netbeans.spi.editor.hints.Fix;
-import org.netbeans.spi.java.hints.ConstraintVariableType;
 import org.netbeans.spi.java.hints.ErrorDescriptionFactory;
 import org.netbeans.spi.java.hints.Hint;
 import org.netbeans.spi.java.hints.HintContext;
 import org.netbeans.spi.java.hints.JavaFix;
 import org.netbeans.spi.java.hints.JavaFixUtilities;
-import org.netbeans.spi.java.hints.MatcherUtilities;
 import org.netbeans.spi.java.hints.TriggerPattern;
 import org.netbeans.spi.java.hints.TriggerTreeKind;
 import org.openide.util.NbBundle.Messages;
@@ -204,7 +218,7 @@ public class TestNG2JUnit {
                 dataProviderMethodHandle = null;
 
                 Element annotatedElementEl = ctx.getInfo().getTrees().getElement(annotatedElement);
-                FOUND: for (ExecutableElement candidate : ElementFilter.methodsIn(annotatedElementEl.getEnclosingElement().getEnclosedElements())) {
+                FOUND: for (ExecutableElement candidate : ElementFilter.methodsIn(ctx.getInfo().getElements().getAllMembers((TypeElement) annotatedElementEl.getEnclosingElement()))) {
                     for (AnnotationMirror am : candidate.getAnnotationMirrors()) {
                         if (((TypeElement) am.getAnnotationType().asElement()).getQualifiedName().contentEquals("org.testng.annotations.DataProvider")) {
                             String name = candidate.getSimpleName().toString();
@@ -220,7 +234,7 @@ public class TestNG2JUnit {
                             }
                         } 
                     } 
-                } 
+                }
             } else {
                 dataProviderMethodHandle = null;
             }
@@ -299,11 +313,42 @@ public class TestNG2JUnit {
     }
 
     @TriggerTreeKind(Tree.Kind.COMPILATION_UNIT)
-    public static ErrorDescription changeTestRunner(HintContext ctx) {
+    public static List<ErrorDescription> changeTestRunner(HintContext ctx) {
         if (ctx.getInfo().getText().contains("@run testng")) {
-            return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), new RunJUnit(ctx.getInfo(), ctx.getPath()).toEditorFix());
+            List<ErrorDescription> result = new ArrayList<>();
+            result.add(ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), new RunJUnit(ctx.getInfo(), ctx.getPath()).toEditorFix()));
+            new TreePathScanner<Void, Void>() {
+                @Override
+                public Void visitClass(ClassTree node, Void p) {
+                    Element el = ctx.getInfo().getTrees().getElement(getCurrentPath());
+                    if (el != null && el.getKind().isClass() && requiresPerClassLifecycle(ctx.getInfo(), (TypeElement) el)) {
+                        result.add(ErrorDescriptionFactory.forName(ctx, getCurrentPath(), "Requires per-class lifecycle", new AddPerClassLifecycleAnnotation(ctx.getInfo(), getCurrentPath()).toEditorFix()));
+                    }
+                    return super.visitClass(node, p);
+                }
+            }.scan(ctx.getInfo().getCompilationUnit(), null);
+            return result;
         }
         return null;
+    }
+
+    private static final Set<String> REQUIRES_PER_CLASS_LIFECYCLE_ANNOTATIONS = Set.of(
+        "org.testng.annotations.AfterClass",
+        "org.testng.annotations.BeforeClass",
+        "org.testng.annotations.AfterTest",
+        "org.testng.annotations.BeforeTest",
+        "org.testng.annotations.DataProvider");
+
+    private static boolean requiresPerClassLifecycle(CompilationInfo info, TypeElement te) {
+        for (ExecutableElement candidate : ElementFilter.methodsIn(info.getElements().getAllMembers(te))) {
+            for (AnnotationMirror am : candidate.getAnnotationMirrors()) {
+                if (REQUIRES_PER_CLASS_LIFECYCLE_ANNOTATIONS.contains(((TypeElement) am.getAnnotationType().asElement()).getQualifiedName().toString())) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static final class AddTestAnnotations extends JavaFix {
@@ -329,6 +374,8 @@ public class TestNG2JUnit {
         @Override
         protected void performRewrite(TransformationContext tc) throws Exception {
             TreeMaker make = tc.getWorkingCopy().getTreeMaker();
+            GeneratorUtilities gu = GeneratorUtilities.get(tc.getWorkingCopy());
+            AnnotationTree originalAnnotation = (AnnotationTree) tc.getPath().getLeaf();
 
             for (TreePathHandle toAugment : placesToAugment) {
                 TreePath member = toAugment.resolve(tc.getWorkingCopy());
@@ -339,8 +386,12 @@ public class TestNG2JUnit {
                 }
 
                 MethodTree method = (MethodTree) member.getLeaf();
+                AnnotationTree newTestAnnotation = make.Annotation(make.QualIdent("org.junit.jupiter.api.Test"), Collections.emptyList());
 
-                tc.getWorkingCopy().rewrite(method.getModifiers(), make.addModifiersAnnotation(method.getModifiers(), make.Annotation(make.QualIdent("org.junit.jupiter.api.Test"), Collections.emptyList())));
+                gu.copyComments(originalAnnotation, newTestAnnotation, false);
+                gu.copyComments(originalAnnotation, newTestAnnotation, true);
+
+                tc.getWorkingCopy().rewrite(method.getModifiers(), make.addModifiersAnnotation(method.getModifiers(), newTestAnnotation));
 
                 if (expectedException != null) {
                     //TODO: use QualIdent instead of MemberSelect:
@@ -348,20 +399,26 @@ public class TestNG2JUnit {
                 } 
             }
 
+            //remove original annotation:
             TreePath modifiersTP = tc.getPath().getParentPath();
             ModifiersTree mt = (ModifiersTree) modifiersTP.getLeaf();
             mt = (ModifiersTree) tc.getWorkingCopy().resolveRewriteTarget(mt);
-            tc.getWorkingCopy().rewrite(mt, mt = make.removeModifiersAnnotation(mt, (AnnotationTree) tc.getPath().getLeaf()));
+            tc.getWorkingCopy().rewrite(mt, mt = make.removeModifiersAnnotation(mt, originalAnnotation));
+
             if (disable) { 
-                tc.getWorkingCopy().rewrite(mt, mt = make.addModifiersAnnotation(mt, make.Annotation(make.QualIdent("org.junit.jupiter.api.Disabled"), Collections.emptyList())));
+                AnnotationTree disableAnnotation = make.Annotation(make.QualIdent("org.junit.jupiter.api.Disabled"), Collections.emptyList());
+
+                tc.getWorkingCopy().rewrite(mt, mt = make.addModifiersAnnotation(mt, disableAnnotation));
             }
             if (dataProviderMethodHandle != null) {
                 TreePath dataProviderMethod = dataProviderMethodHandle.resolve(tc.getWorkingCopy());
                 MethodTree provider = (MethodTree) dataProviderMethod.getLeaf();
-                tc.getWorkingCopy().rewrite(mt, mt = make.addModifiersAnnotation(mt, make.Annotation(make.QualIdent("org.junit.jupiter.params.ParameterizedTest"), Collections.emptyList())));
+                AnnotationTree newTestAnnotation = make.Annotation(make.QualIdent("org.junit.jupiter.params.ParameterizedTest"), Collections.emptyList());
+
+                gu.copyComments(originalAnnotation, newTestAnnotation, false);
+                gu.copyComments(originalAnnotation, newTestAnnotation, true);
+                tc.getWorkingCopy().rewrite(mt, mt = make.addModifiersAnnotation(mt, newTestAnnotation));
                 tc.getWorkingCopy().rewrite(mt, mt = make.addModifiersAnnotation(mt, make.Annotation(make.QualIdent("org.junit.jupiter.params.provider.MethodSource"), Arrays.asList(make.Literal(provider.getName().toString())))));
-                ModifiersTree providerMods = (ModifiersTree) tc.getWorkingCopy().resolveRewriteTarget(provider.getModifiers());
-                tc.getWorkingCopy().rewrite(providerMods, make.addModifiersModifier(providerMods, Modifier.STATIC));
             } 
         }
         
@@ -438,6 +495,30 @@ public class TestNG2JUnit {
         }
         
     } 
+
+    private static final class AddPerClassLifecycleAnnotation extends JavaFix {
+
+        public AddPerClassLifecycleAnnotation(CompilationInfo info, TreePath tp) {
+            super(info, tp);
+        }
+
+        @Override
+        protected String getText() {
+            return "Add @TestInstance(Lifecycle.PER_CLASS)";
+        }
+
+        @Override
+        protected void performRewrite(TransformationContext tc) throws Exception {
+            TreeMaker make = tc.getWorkingCopy().getTreeMaker();
+            ModifiersTree mt = ((ClassTree) tc.getPath().getLeaf()).getModifiers();
+            mt = (ModifiersTree) tc.getWorkingCopy().resolveRewriteTarget(mt);
+
+            AnnotationTree lifecycleAnno =
+                    make.Annotation(make.QualIdent("org.junit.jupiter.api.TestInstance"), Arrays.asList(make.MemberSelect(make.QualIdent("org.junit.jupiter.api.TestInstance.Lifecycle"), "PER_CLASS")));
+            tc.getWorkingCopy().rewrite(mt, tc.getWorkingCopy().getTreeMaker().addModifiersAnnotation(mt, lifecycleAnno));
+        }
+
+    }
 
     private static final class RunJUnit extends JavaFix {
 

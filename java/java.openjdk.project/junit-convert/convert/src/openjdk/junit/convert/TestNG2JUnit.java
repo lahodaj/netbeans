@@ -20,15 +20,18 @@ package openjdk.junit.convert;
 
 import com.sun.source.tree.AnnotationTree;
 import com.sun.source.tree.AssignmentTree;
+import com.sun.source.tree.BlockTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.ExpressionTree;
+import com.sun.source.tree.IfTree;
 import com.sun.source.tree.ImportTree;
 import com.sun.source.tree.LiteralTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.ModifiersTree;
+import com.sun.source.tree.StatementTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.TreePathScanner;
@@ -79,10 +82,10 @@ public class TestNG2JUnit {
         TypeElement testNGAssert = ctx.getInfo().getElements().getTypeElement("org.testng.Assert");
         if (testNGAssert == null) {
             return null;
-        } 
+        }
 
         Element el = ctx.getInfo().getTrees().getElement(ctx.getPath());
-        
+
         if (el == null || el.getEnclosingElement() != testNGAssert) {
             return null;
         }
@@ -93,17 +96,24 @@ public class TestNG2JUnit {
         }
         String newCall = null;
         String simpleName = el.getSimpleName().toString();
-        switch (simpleName) {
-            case "fail": 
+        OUTER: switch (simpleName) {
+            case "fail":
             case "assertFalse":
             case "assertTrue":
             case "assertNotNull":
             case "assertNull":
-            case "assertThrows": 
-            case "expectThrows": 
+            case "assertThrows":
+            case "expectThrows":
             {
                 switch (simpleName) {
                     case "expectThrows": simpleName = "assertThrows"; break; //in TestNG, assertThrows returns void, but expectThrows returns the exception. In JUnit, assertThrows returns the exception.
+                    case "assertThrows":
+                        if (paramCount == 1) {
+                            //special-case:
+                            newCall = "org.junit.jupiter.api.Assertions." + simpleName + "(Throwable.class, $param1)";
+                            break OUTER;
+                        }
+                        break;
                 }
                 switch (paramCount) {
                     case 0: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "()"; break;
@@ -186,6 +196,61 @@ public class TestNG2JUnit {
         return null;
     }
 
+    @TriggerPattern("org.testng.annotations.NoInjection")
+    public static ErrorDescription noInjection(HintContext ctx) {
+        if (ctx.getPath().getParentPath().getLeaf().getKind() == Tree.Kind.ANNOTATION &&
+            ctx.getPath().getParentPath().getParentPath().getParentPath().getLeaf().getKind() == Tree.Kind.VARIABLE) {
+            TreePath varPath = ctx.getPath().getParentPath().getParentPath().getParentPath();
+            if ("java.lang.reflect.Method".equals(String.valueOf(ctx.getInfo().getTrees().getTypeMirror(varPath)))) {
+                //JUnit does not (specially) inject Method parameters, no need for NoInjection(?)
+                return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), new RemoveAnnotation(ctx.getInfo(), ctx.getPath().getParentPath()).toEditorFix());
+            }
+        }
+
+        return null;
+    }
+
+    @TriggerPattern("throw new org.testng.SkipException($message);")
+    public static ErrorDescription skipException(HintContext ctx) {
+        //XXX: this may interact badly with assertThrows
+        TreePath baseTP = ctx.getPath();
+        if (baseTP.getParentPath().getLeaf().getKind() == Tree.Kind.BLOCK) {
+            BlockTree bt = (BlockTree) baseTP.getParentPath().getLeaf();
+            if (bt.getStatements().size() != 1) {
+                return naiveSkipExceptionRewrite(ctx);
+            }
+            baseTP = baseTP.getParentPath();
+        }
+        if (baseTP.getParentPath().getLeaf().getKind() == Tree.Kind.IF) {
+            TreePath ifPath = baseTP.getParentPath();
+            IfTree it = (IfTree) ifPath.getLeaf();
+            String assumeMethod;
+            StatementTree notThrowingBranch;
+            if (it.getThenStatement() == baseTP.getLeaf()) {
+                assumeMethod = "assumeFalse";
+                notThrowingBranch = it.getElseStatement();
+            } else if (it.getElseStatement() == baseTP.getLeaf()) {
+                assumeMethod = "assumeTrue";
+                notThrowingBranch = it.getThenStatement();
+            } else {
+                return naiveSkipExceptionRewrite(ctx);
+            }
+            if (notThrowingBranch == null) {
+                ctx.getVariables().put("$condition", new TreePath(ifPath, it.getCondition()));
+                Fix fix = JavaFixUtilities.rewriteFix(ctx, "Use Assumptions", ifPath, "org.junit.jupiter.api.Assumptions." + assumeMethod + "($condition, $message);");
+                return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), fix);
+            }
+        }
+
+        return naiveSkipExceptionRewrite(ctx);
+    }
+
+    public static ErrorDescription naiveSkipExceptionRewrite(HintContext ctx) {
+        //TODO: do we want these naive re-writes??
+        Fix fix = JavaFixUtilities.rewriteFix(ctx, "Use Assumptions", ctx.getPath(), "org.junit.jupiter.api.Assumptions.assumeTrue(false, $message);");
+        return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), fix);
+    }
+
     @TriggerTreeKind(Tree.Kind.IMPORT)
     public static ErrorDescription removeImports(HintContext ctx) {
         ImportTree it = (ImportTree) ctx.getPath().getLeaf();
@@ -261,8 +326,8 @@ public class TestNG2JUnit {
                                 //TODO: should be better to rename the method??
                                 dataProviderName = candidate.getSimpleName().toString();
                             }
-                        } 
-                    } 
+                        }
+                    }
                 }
             } else {
                 dataProviderName = null;
@@ -278,17 +343,17 @@ public class TestNG2JUnit {
                 } else {
                     canConvert = false;
                     expectedException = null;
-                } 
+                }
             } else {
                 expectedException = null;
-            } 
+            }
             //TODO: fail if unknown/unresolvable attributes are present
         } else {
             annotatedElement = ctx.getPath();
             disable = false;
             dataProviderName = null;
             expectedException = null;
-        } 
+        }
         //TODO: parameters to the annotation!
         Fix fix;
         switch (annotatedElement.getLeaf().getKind()) {
@@ -326,9 +391,9 @@ public class TestNG2JUnit {
                 fix = JavaFixUtilities.rewriteFix(ctx, "Use JUnit annotation", ctx.getPath(), "org.junit.jupiter.api.Test");
                 break;
         }
-        if (canConvert) { 
+        if (canConvert) {
             return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), fix);
-        } else { 
+        } else {
             return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit());
         }
     }
@@ -427,9 +492,8 @@ public class TestNG2JUnit {
                 tc.getWorkingCopy().rewrite(method.getModifiers(), make.addModifiersAnnotation(method.getModifiers(), newTestAnnotation));
 
                 if (expectedException != null) {
-                    //TODO: use QualIdent instead of MemberSelect:
-                    tc.getWorkingCopy().rewrite(method.getBody(), make.Block(Arrays.asList(make.ExpressionStatement(make.MethodInvocation(Collections.emptyList(), make.MemberSelect(make.QualIdent("org.junit.jupiter.api.Assertions"), "assertThrows"), Arrays.asList(make.MemberSelect(make.QualIdent(expectedException), "class"), make.LambdaExpression(Collections.emptyList(), method.getBody()))))), false));
-                } 
+                    resolveAssertThrows(tc, member);
+                }
             }
 
             //remove original annotation:
@@ -438,7 +502,7 @@ public class TestNG2JUnit {
             mt = (ModifiersTree) tc.getWorkingCopy().resolveRewriteTarget(mt);
             tc.getWorkingCopy().rewrite(mt, mt = make.removeModifiersAnnotation(mt, originalAnnotation));
 
-            if (disable) { 
+            if (disable) {
                 AnnotationTree disableAnnotation = make.Annotation(make.QualIdent("org.junit.jupiter.api.Disabled"), Collections.emptyList());
 
                 tc.getWorkingCopy().rewrite(mt, mt = make.addModifiersAnnotation(mt, disableAnnotation));
@@ -450,9 +514,22 @@ public class TestNG2JUnit {
                 gu.copyComments(originalAnnotation, newTestAnnotation, true);
                 tc.getWorkingCopy().rewrite(mt, mt = make.addModifiersAnnotation(mt, newTestAnnotation));
                 tc.getWorkingCopy().rewrite(mt, mt = make.addModifiersAnnotation(mt, make.Annotation(make.QualIdent("org.junit.jupiter.params.provider.MethodSource"), Arrays.asList(make.Literal(dataProviderName)))));
-            } 
+
+                if (expectedException != null) {
+                    TreePath member = modifiersTP.getParentPath();
+
+                    resolveAssertThrows(tc, member);
+                }
+            }
         }
-        
+
+        private void resolveAssertThrows(TransformationContext tc, TreePath member) {
+            TreeMaker make = tc.getWorkingCopy().getTreeMaker();
+            MethodTree method = (MethodTree) member.getLeaf();
+
+            //TODO: use QualIdent instead of MemberSelect:
+            tc.getWorkingCopy().rewrite(method.getBody(), make.Block(Arrays.asList(make.ExpressionStatement(make.MethodInvocation(Collections.emptyList(), make.MemberSelect(make.QualIdent("org.junit.jupiter.api.Assertions"), "assertThrows"), Arrays.asList(make.MemberSelect(make.QualIdent(expectedException), "class"), make.LambdaExpression(Collections.emptyList(), method.getBody()))))), false));
+        }
     }
 
     private static final class RemoveImport extends JavaFix {
@@ -473,8 +550,8 @@ public class TestNG2JUnit {
             CompilationUnitTree adjustedTopLevel = (CompilationUnitTree) tc.getWorkingCopy().resolveRewriteTarget(topLevelTP.getLeaf());
             tc.getWorkingCopy().rewrite(adjustedTopLevel, tc.getWorkingCopy().getTreeMaker().removeCompUnitImport(adjustedTopLevel, it));
         }
-        
-    } 
+
+    }
 
     private static final class ChangeStaticImport extends JavaFix {
 
@@ -507,8 +584,8 @@ public class TestNG2JUnit {
             gu.copyComments(tc.getWorkingCopy().getCompilationUnit(), newTopLevel, true);
             tc.getWorkingCopy().rewrite(tc.getWorkingCopy().getCompilationUnit(), newTopLevel);
         }
-        
-    } 
+
+    }
 
     private static final class RemoveAnnotation extends JavaFix {
 
@@ -527,8 +604,8 @@ public class TestNG2JUnit {
             mt = (ModifiersTree) tc.getWorkingCopy().resolveRewriteTarget(mt);
             tc.getWorkingCopy().rewrite(mt, tc.getWorkingCopy().getTreeMaker().removeModifiersAnnotation(mt, (AnnotationTree) tc.getPath().getLeaf()));
         }
-        
-    } 
+
+    }
 
     private static final class AddPerClassLifecycleAnnotation extends JavaFix {
 
@@ -567,10 +644,15 @@ public class TestNG2JUnit {
 
         @Override
         protected void performRewrite(TransformationContext tc) throws Exception {
-            int runTestNG = tc.getWorkingCopy().getText().indexOf("@run testng");
-            if (runTestNG == (-1)) return ;
-            tc.getWorkingCopy().rewriteInComment(runTestNG, "@run testng".length(), "@run junit");
+            String text = tc.getWorkingCopy().getText();
+            int startIndex = 0;
+            while (true) {
+                int runTestNG = text.indexOf("@run testng", startIndex);
+                if (runTestNG == (-1)) return ;
+                tc.getWorkingCopy().rewriteInComment(runTestNG, "@run testng".length(), "@run junit");
+                startIndex = runTestNG + "@run testng".length();
+            }
         }
-        
-    } 
+
+    }
 }

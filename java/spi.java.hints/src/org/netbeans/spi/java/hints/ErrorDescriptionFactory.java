@@ -157,6 +157,10 @@ public class ErrorDescriptionFactory {
         
         if (span != null && span[0] != (-1) && span[1] != (-1)) {
             LazyFixList fixesForED = org.netbeans.spi.editor.hints.ErrorDescriptionFactory.lazyListForFixes(resolveDefaultFixes(context, fixes));
+            if (span[1] < span[0]) {
+                //XXX: seems to happen for empty CompilationUnit??
+                span[1] = findLineEnd(context.getInfo(), span[0]);
+            }
             return org.netbeans.spi.editor.hints.ErrorDescriptionFactory.createErrorDescription("text/x-java:" + context.getHintMetadata().id, context.getSeverity(), text, context.getHintMetadata().description, fixesForED, context.getInfo().getFileObject(), span[0], span[1]);
         }
 

@@ -99,7 +99,12 @@ public class TestNG2JUnit {
             case "assertTrue":
             case "assertNotNull":
             case "assertNull":
-            case "assertThrows": {
+            case "assertThrows": 
+            case "expectThrows": 
+            {
+                switch (simpleName) {
+                    case "expectThrows": simpleName = "assertThrows"; break; //in TestNG, assertThrows returns void, but expectThrows returns the exception. In JUnit, assertThrows returns the exception.
+                }
                 switch (paramCount) {
                     case 0: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "()"; break;
                     case 1: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "($param1)"; break;

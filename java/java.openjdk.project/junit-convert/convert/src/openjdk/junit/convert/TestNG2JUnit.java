@@ -490,6 +490,7 @@ public class TestNG2JUnit {
         protected void performRewrite(TransformationContext tc) throws Exception {
             CompilationUnitTree adjustedTopLevel = (CompilationUnitTree) tc.getWorkingCopy().resolveRewriteTarget(tc.getPath().getCompilationUnit());
             TreeMaker make = tc.getWorkingCopy().getTreeMaker();
+            GeneratorUtilities gu = GeneratorUtilities.get(tc.getWorkingCopy());
             List<ImportTree> imports = new ArrayList<>(adjustedTopLevel.getImports());
             for (int i = 0; i < imports.size(); i++) {
                 if (imports.get(i) == tc.getPath().getLeaf()) {
@@ -497,6 +498,8 @@ public class TestNG2JUnit {
                 }
             }
             CompilationUnitTree newTopLevel = make.CompilationUnit(adjustedTopLevel.getPackage(), imports, adjustedTopLevel.getTypeDecls(), adjustedTopLevel.getSourceFile());
+            gu.copyComments(tc.getWorkingCopy().getCompilationUnit(), newTopLevel, false);
+            gu.copyComments(tc.getWorkingCopy().getCompilationUnit(), newTopLevel, true);
             tc.getWorkingCopy().rewrite(tc.getWorkingCopy().getCompilationUnit(), newTopLevel);
         }
         

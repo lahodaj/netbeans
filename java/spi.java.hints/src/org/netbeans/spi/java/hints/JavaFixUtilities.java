@@ -91,6 +91,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import org.netbeans.api.annotations.common.NonNull;
+import org.netbeans.api.annotations.common.NullAllowed;
 import org.netbeans.api.java.classpath.ClassPath;
 import org.netbeans.api.java.classpath.ClassPath.PathConversionMode;
 import org.netbeans.api.java.queries.SourceForBinaryQuery;
@@ -148,8 +149,28 @@ public class JavaFixUtilities {
         return rewriteFix(ctx.getInfo(), displayName, what, to, ctx.getVariables(), ctx.getMultiVariables(), ctx.getVariableNames(), ctx.getConstraints(), Collections.<String, String>emptyMap());
     }
 
+    /**Prepare a fix that will replace the given tree node ({@code what}) with the
+     * given code. Any variables in the {@code to} pattern will be replaced with their
+     * values from {@link HintContext#getVariables() }, {@link HintContext#getMultiVariables() }
+     * and {@link HintContext#getVariableNames() }.
+     *
+     * @param ctx basic context for which the fix should be created
+     * @param displayName the display name of the fix
+     * @param what the tree node that should be replaced
+     * @param to the new code that should replaced the {@code what} tree node
+     * @param sortText sort text (TODO)
+     * @return an editor fix that performs the required transformation
+     */
+    public static Fix rewriteFix(HintContext ctx, String displayName, TreePath what, final String to, @NullAllowed String sortText) {
+        return rewriteFix(ctx.getInfo(), displayName, what, to, sortText, ctx.getVariables(), ctx.getMultiVariables(), ctx.getVariableNames(), ctx.getConstraints(), Collections.<String, String>emptyMap());
+    }
+
     @SuppressWarnings("AssignmentToMethodParameter")
     static Fix rewriteFix(CompilationInfo info, String displayName, TreePath what, final String to, Map<String, TreePath> parameters, Map<String, Collection<? extends TreePath>> parametersMulti, final Map<String, String> parameterNames, Map<String, TypeMirror> constraints, Map<String, String> options, String... imports) {
+        return rewriteFix(info, displayName, what, to, null, parameters, parametersMulti, parameterNames, constraints, options, imports);
+    }
+
+    static Fix rewriteFix(CompilationInfo info, String displayName, TreePath what, final String to, @NullAllowed String sortText, Map<String, TreePath> parameters, Map<String, Collection<? extends TreePath>> parametersMulti, final Map<String, String> parameterNames, Map<String, TypeMirror> constraints, Map<String, String> options, String... imports) {
         final Map<String, TreePathHandle> params = new HashMap<>();
         final Map<String, Object> extraParamsData = new HashMap<>();
         final Map<String, ElementHandle<?>> implicitThis = new HashMap<>();
@@ -211,7 +232,7 @@ public class JavaFixUtilities {
             lazyNamer = () -> displayName;
         }
 
-        return new JavaFixRealImpl(info, what, options, lazyNamer, to, params, extraParamsData, implicitThis, paramsMulti, parameterNames, constraintsHandles, Arrays.asList(imports)).toEditorFix();
+        return new JavaFixRealImpl(info, what, options, sortText, lazyNamer, to, params, extraParamsData, implicitThis, paramsMulti, parameterNames, constraintsHandles, Arrays.asList(imports)).toEditorFix();
     }
 
     private static Set<Tree> immediateChildren(Tree t) {
@@ -448,8 +469,8 @@ public class JavaFixUtilities {
         private final Iterable<? extends String> imports;
         private final String to;
 
-        public JavaFixRealImpl(CompilationInfo info, TreePath what, Map<String, String> options, Supplier<String> displayName, String to, Map<String, TreePathHandle> params, Map<String, Object> extraParamsData, Map<String, ElementHandle<?>> implicitThis, Map<String, Collection<TreePathHandle>> paramsMulti, final Map<String, String> parameterNames, Map<String, TypeMirrorHandle<?>> constraintsHandles, Iterable<? extends String> imports) {
-            super(info, what, options);
+        public JavaFixRealImpl(CompilationInfo info, TreePath what, Map<String, String> options, String sortText, Supplier<String> displayName, String to, Map<String, TreePathHandle> params, Map<String, Object> extraParamsData, Map<String, ElementHandle<?>> implicitThis, Map<String, Collection<TreePathHandle>> paramsMulti, final Map<String, String> parameterNames, Map<String, TypeMirrorHandle<?>> constraintsHandles, Iterable<? extends String> imports) {
+            super(TreePathHandle.create(what, info), options, sortText);
 
             this.displayName = displayName;
             this.to = to;

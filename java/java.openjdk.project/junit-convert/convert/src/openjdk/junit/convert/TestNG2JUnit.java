@@ -23,6 +23,7 @@ import com.sun.source.tree.AssignmentTree;
 import com.sun.source.tree.BlockTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
+import com.sun.source.tree.ExpressionStatementTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IfTree;
 import com.sun.source.tree.ImportTree;
@@ -235,10 +236,26 @@ public class TestNG2JUnit {
             } else {
                 return naiveSkipExceptionRewrite(ctx);
             }
-            if (notThrowingBranch == null) {
+            if (notThrowingBranch == null) {//XXX
                 ctx.getVariables().put("$condition", new TreePath(ifPath, it.getCondition()));
-                Fix fix = JavaFixUtilities.rewriteFix(ctx, "Use Assumptions", ifPath, "org.junit.jupiter.api.Assumptions." + assumeMethod + "($condition, $message);");
+                Fix fix = JavaFixUtilities.rewriteFix(ctx, "Use Assumptions", ifPath, "org.junit.jupiter.api.Assumptions." + assumeMethod + "($condition, $message);", "0");
                 return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), fix);
+            } else if (ifPath.getParentPath().getLeaf().getKind() == Tree.Kind.BLOCK) {
+                TreePath blockPath = ifPath.getParentPath();
+                BlockTree enclosing = (BlockTree) blockPath.getLeaf();
+                int ifIdx = enclosing.getStatements().indexOf(it);
+                
+                ctx.getVariables().put("$condition", new TreePath(ifPath, it.getCondition()));
+                ctx.getMultiVariables().put("$blockPrefix$", enclosing.getStatements().subList(0, ifIdx).stream().map(s -> new TreePath(blockPath, s)).toList());
+                ctx.getMultiVariables().put("$blockSuffix$", enclosing.getStatements().subList(ifIdx + 1, enclosing.getStatements().size()).stream().map(s -> new TreePath(blockPath, s)).toList());
+                if (notThrowingBranch.getKind() == Tree.Kind.BLOCK) {
+                    ctx.getMultiVariables().put("$content$", ((BlockTree) notThrowingBranch).getStatements().stream().map(s -> new TreePath(new TreePath(ifPath, notThrowingBranch), s)).toList());
+                } else {
+                    ctx.getMultiVariables().put("$content$", List.of(new TreePath(ifPath, notThrowingBranch)));
+                }
+
+                Fix fix = JavaFixUtilities.rewriteFix(ctx, "Use Assumptions", ifPath, "$blockPrefix$; org.junit.jupiter.api.Assumptions." + assumeMethod + "($condition, $message); $content$; $blockSuffix$;", "0");
+                return ErrorDescriptionFactory.forName(ctx, blockPath, Bundle.ERR_TestNG2JUnit(), fix);
             }
         }
 
@@ -247,7 +264,7 @@ public class TestNG2JUnit {
 
     public static ErrorDescription naiveSkipExceptionRewrite(HintContext ctx) {
         //TODO: do we want these naive re-writes??
-        Fix fix = JavaFixUtilities.rewriteFix(ctx, "Use Assumptions", ctx.getPath(), "org.junit.jupiter.api.Assumptions.assumeTrue(false, $message);");
+        Fix fix = JavaFixUtilities.rewriteFix(ctx, "Use Assumptions", ctx.getPath(), "org.junit.jupiter.api.Assumptions.assumeTrue(false, $message);", "0");
         return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), fix);
     }
 
@@ -307,7 +324,6 @@ public class TestNG2JUnit {
             String dataProviderKey = dataProviderTree != null && dataProviderTree.getKind() == Tree.Kind.STRING_LITERAL ? (String) ((LiteralTree) dataProviderTree).getValue() : null;
 
             if (dataProviderKey != null) {
-                //TODO: fail if not found:
                 dataProviderName = null;
 
                 Element annotatedElementEl = ctx.getInfo().getTrees().getElement(annotatedElement);
@@ -328,6 +344,10 @@ public class TestNG2JUnit {
                             }
                         }
                     }
+                }
+                if (dataProviderName == null) {
+                    //TODO: what to do here? fallback to dataProviderKey for now, although it is not really correct:
+                    dataProviderName = dataProviderKey;
                 }
             } else {
                 dataProviderName = null;
@@ -526,9 +546,39 @@ public class TestNG2JUnit {
         private void resolveAssertThrows(TransformationContext tc, TreePath member) {
             TreeMaker make = tc.getWorkingCopy().getTreeMaker();
             MethodTree method = (MethodTree) member.getLeaf();
+            BlockTree body = method.getBody();
 
+            body = (BlockTree) tc.getWorkingCopy().resolveRewriteTarget(body);
+
+            //keep initial Assumptions outside of the assertThrows
+            //assertThrows is incompatible with Assumptions, see: https://github.com/junit-team/junit-framework/discussions/4851
+            //not 100% correct, of course - there may be Assumptions later in the method:
+            List<StatementTree> newStatements = new ArrayList<>();
+            int idx = 0;
+
+            while (idx < body.getStatements().size()) {
+                StatementTree currentStatement = body.getStatements().get(idx);
+                if (currentStatement.getKind() == Tree.Kind.EXPRESSION_STATEMENT) {
+                    ExpressionStatementTree es = (ExpressionStatementTree) currentStatement;
+                    if (es.getExpression().getKind() == Tree.Kind.METHOD_INVOCATION) {
+                        MethodInvocationTree mit = (MethodInvocationTree) es.getExpression();
+                        if (mit.getMethodSelect().toString().startsWith("org.junit.jupiter.api.Assumptions.")) {
+                            newStatements.add(currentStatement);
+                            idx++;
+                            continue;
+                        }
+                    }
+                }
+                break;
+            }
+
+            //TODO: there's also a message in the @Test annotation that can be used for assertThrows(?)
             //TODO: use QualIdent instead of MemberSelect:
-            tc.getWorkingCopy().rewrite(method.getBody(), make.Block(Arrays.asList(make.ExpressionStatement(make.MethodInvocation(Collections.emptyList(), make.MemberSelect(make.QualIdent("org.junit.jupiter.api.Assertions"), "assertThrows"), Arrays.asList(make.MemberSelect(make.QualIdent(expectedException), "class"), make.LambdaExpression(Collections.emptyList(), method.getBody()))))), false));
+            newStatements.add(make.ExpressionStatement(make.MethodInvocation(Collections.emptyList(),
+                                                                             make.MemberSelect(make.QualIdent("org.junit.jupiter.api.Assertions"), "assertThrows"),
+                                                                             Arrays.asList(make.MemberSelect(make.QualIdent(expectedException), "class"),
+                                                                                           make.LambdaExpression(Collections.emptyList(), make.Block(body.getStatements().subList(idx, body.getStatements().size()), false))))));
+            tc.getWorkingCopy().rewrite(body, make.Block(newStatements, false));
         }
     }
 

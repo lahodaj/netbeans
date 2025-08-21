@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -77,6 +78,7 @@ import org.netbeans.modules.java.source.save.DiffUtilities;
 import org.netbeans.modules.java.source.save.ElementOverlay;
 import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.refactoring.spi.RefactoringElementImplementation;
+import org.netbeans.spi.editor.hints.EnhancedFix;
 import org.netbeans.spi.editor.hints.ErrorDescription;
 import org.netbeans.spi.editor.hints.Fix;
 import org.netbeans.spi.java.hints.HintContext.MessageKind;
@@ -267,7 +269,7 @@ public class BatchUtilities {
     
     @SuppressWarnings("unchecked")
     public static boolean applyFixes(WorkingCopy copy, Map<Project, Set<String>> processedDependencyChanges, Collection<? extends ErrorDescription> hints, Map<FileObject, byte[]> resourceContentChanges, Collection<? super RefactoringElementImplementation> fileChanges, Map<JavaFix, ModificationResult> changesPerFix, Collection<? super MessageImpl> problems) throws IllegalStateException, Exception {
-        Set<JavaFix> fixes = new LinkedHashSet<>();
+        List<JavaFixImpl> javaFixes = new ArrayList<>();
         for (ErrorDescription ed : hints) {
             if (!ed.getFixes().isComputed()) {
                 throw new IllegalStateException();//TODO: should be problem
@@ -296,9 +298,17 @@ public class BatchUtilities {
                 throw new IllegalStateException(toApply.getClass().getName());//XXX: hints need to provide JavaFixes
             }
 
-
-            fixes.add(((JavaFixImpl) toApply).jf);
+            javaFixes.add((JavaFixImpl) toApply);
         }
+
+        javaFixes = sortFixes(javaFixes);
+
+        Set<JavaFix> fixes = new LinkedHashSet<>();
+
+        for (JavaFixImpl f : javaFixes) {
+            fixes.add(f.jf);
+        }
+
         if (fixDependencies(copy.getFileObject(), fixes, processedDependencyChanges)) {
             return true;
         }
@@ -562,4 +572,41 @@ public class BatchUtilities {
             }
         }
     }    
+
+    //copied from FixData:
+
+    private static <F extends Fix> List<F> sortFixes(Collection<F> fixes) {
+        List<F> result = new ArrayList<>(fixes);
+
+        result.sort(new FixComparator());
+
+        return result;
+    }
+
+    private static final String DEFAULT_SORT_TEXT = "\uFFFF";
+
+    private static CharSequence getSortText(Fix f) {
+        if (f instanceof EnhancedFix) {
+            return ((EnhancedFix) f).getSortText();
+        } else {
+            return DEFAULT_SORT_TEXT;
+        }
+    }
+    private static final class FixComparator implements Comparator<Fix> {
+        public int compare(Fix o1, Fix o2) {
+            return compareText(getSortText(o1), getSortText(o2));
+        }
+    }
+
+    private static int compareText(CharSequence text1, CharSequence text2) {
+        int len = Math.min(text1.length(), text2.length());
+        for (int i = 0; i < len; i++) {
+            char ch1 = text1.charAt(i);
+            char ch2 = text2.charAt(i);
+            if (ch1 != ch2) {
+                return ch1 - ch2;
+            }
+        }
+        return text1.length() - text2.length();
+    }
 }

@@ -44,7 +44,7 @@
                     <build-prerequisite/>
                     <compile-dependency/>
                     <run-dependency>
-                        <specification-version>1.54.0.13.4.3.32.6.8</specification-version>
+                        <specification-version>1.64.0.13.4.3.32.6.8</specification-version>
                     </run-dependency>
                 </dependency>
                 <dependency>

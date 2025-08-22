@@ -1,6 +1,7 @@
 Manifest-Version: 1.0
 AutoUpdate-Show-In-Client: true
 OpenIDE-Module: openjdk.junit.convert
+OpenIDE-Module-Layer: openjdk/junit/convert/layer.xml
 OpenIDE-Module-Localizing-Bundle: openjdk/junit/convert/Bundle.properties
 OpenIDE-Module-Specification-Version: 1.0
 

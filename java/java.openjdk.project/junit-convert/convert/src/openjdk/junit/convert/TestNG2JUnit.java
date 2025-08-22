@@ -346,8 +346,7 @@ public class TestNG2JUnit {
                     }
                 }
                 if (dataProviderName == null) {
-                    //TODO: what to do here? fallback to dataProviderKey for now, although it is not really correct:
-                    dataProviderName = dataProviderKey;
+                    dataProviderName = "TODO: cannot automatically find data provider named '" + dataProviderKey + "', please resolve manually.";
                 }
             } else {
                 dataProviderName = null;

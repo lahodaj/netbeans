@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -27,6 +28,7 @@ import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Properties;
@@ -50,6 +52,7 @@ import org.netbeans.spi.java.classpath.support.ClassPathSupport;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.util.Exceptions;
+import org.openide.util.RequestProcessor;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -58,6 +61,8 @@ import org.openide.util.lookup.ServiceProvider;
  */
 @ServiceProvider(service=ClassPathProvider.class, position=9999)
 public class ClassPathProviderImpl implements ClassPathProvider {
+
+    private static final RequestProcessor WORKER = new RequestProcessor(ClassPathProviderImpl.class.getName(), 1, false, false);
 
     @Override
     public ClassPath findClassPath(FileObject file, String type) {
@@ -213,7 +218,7 @@ public class ClassPathProviderImpl implements ClassPathProvider {
 
         //XXX:
         for (FileObject root : roots) {
-//            initializeUsagesQuery(root);
+            initializeUsagesQuery(root);
         }
 
         return ClassPathSupport.createClassPath(roots.toArray(new FileObject[0]));
@@ -268,6 +273,19 @@ public class ClassPathProviderImpl implements ClassPathProvider {
     private void initializeUsagesQuery(FileObject root) {
         try {
             ClassLoader cl = JavaSource.class.getClassLoader();
+
+            Class<?> repositoryUpdaterClass = Class.forName("org.netbeans.modules.parsing.impl.indexing.RepositoryUpdater", false, cl);
+            Field workerField = repositoryUpdaterClass.getDeclaredField("WORKER");
+
+            workerField.setAccessible(true);
+
+            RequestProcessor repositoryUpdaterWorker = (RequestProcessor) workerField.get(null);
+
+            if (repositoryUpdaterWorker.isRequestProcessorThread()) {
+                WORKER.post(() -> initializeUsagesQuery(root));
+                return ;
+            }
+
             Class<?> transactionContextClass = Class.forName("org.netbeans.modules.java.source.indexing.TransactionContext", false, cl);
             Class<?> serviceClass = Class.forName("org.netbeans.modules.java.source.indexing.TransactionContext$Service", false, cl);
             Method beginTrans = transactionContextClass.getDeclaredMethod("beginTrans");

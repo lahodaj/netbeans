@@ -65,19 +65,19 @@ public final class TestMethodFinderImpl extends EmbeddingIndexer {
 
     @Override
     protected void index(Indexable indexable, Parser.Result parserResult, Context context) {
-//        List<TestMethodController.TestMethod> testMethods = new ArrayList<>();
-//        for (ComputeTestMethods ctm : MimeLookup.getLookup(indexable.getMimeType()).lookupAll(ComputeTestMethods.class)) {
-//            testMethods.addAll(ctm.computeTestMethods(parserResult, new AtomicBoolean()));
-//        }
-//        FileObject fo = parserResult.getSnapshot().getSource().getFileObject();
-//        store(context.getIndexFolder(), indexable.getURL(), indexable.getRelativePath(), testMethods);
-//        if (!context.isAllFilesIndexing()) {
-//            synchronized (listeners) {
-//                for (BiConsumer<FileObject, Collection<TestMethodController.TestMethod>> listener : listeners) {
-//                    listener.accept(fo, testMethods);
-//                }
-//            }
-//        }
+        List<TestMethodController.TestMethod> testMethods = new ArrayList<>();
+        for (ComputeTestMethods ctm : MimeLookup.getLookup(indexable.getMimeType()).lookupAll(ComputeTestMethods.class)) {
+            testMethods.addAll(ctm.computeTestMethods(parserResult, new AtomicBoolean()));
+        }
+        FileObject fo = parserResult.getSnapshot().getSource().getFileObject();
+        store(context.getIndexFolder(), indexable.getURL(), indexable.getRelativePath(), testMethods);
+        if (!context.isAllFilesIndexing()) {
+            synchronized (listeners) {
+                for (BiConsumer<FileObject, Collection<TestMethodController.TestMethod>> listener : listeners) {
+                    listener.accept(fo, testMethods);
+                }
+            }
+        }
     }
 
     public void addListener(BiConsumer<FileObject, Collection<TestMethodController.TestMethod>> listener) {

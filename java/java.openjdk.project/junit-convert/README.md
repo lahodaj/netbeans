@@ -7,7 +7,12 @@ To use the tool:
 1. have a built OpenJDK sources, lets denote the directory as "`$JDK_DIR`"
 2. checkout this repository/branch:
 ```
-git clone -b openjdk-testng-junit-fixes-and-hacks https://github.com/lahodaj/netbeans/
+git clone \
+    --single-branch \
+    --filter=blob:none \
+    --branch openjdk-testng-junit-fixes-and-hacks \
+    https://github.com/lahodaj/netbeans/ \
+    netbeans
 ```
 3. build NetBeans:
 ```

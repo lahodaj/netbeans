@@ -13,7 +13,7 @@ git clone -b openjdk-testng-junit-fixes-and-hacks https://github.com/lahodaj/net
 ```
 (cd netbeans; ant -Dcluster.config=java)
 ```
-4. to convert tests in directory $TESTS_TO_CONVERT (an absolute path), do:
+4. to convert tests in directory $TESTS_TO_CONVERT (note: the path *must* be an absolute path), do:
 ```
-(cd netbeans/java/java.openjdk.project/junit-convert; ant -Dconversion.project=$JDK_DIR/src/java.base,$JDK_DIR/src/java.compiler -Dconversion.directories=$TESTS_TO_CONVERT run-conversion)
+(cd netbeans/java/java.openjdk.project/junit-convert; ant -Dconversion.project=$JDK_DIR/src/java.base,$JDK_DIR/src/java.compiler,$JDK_DIR/src/java.xml -Dconversion.directories=$TESTS_TO_CONVERT run-conversion)
 ```

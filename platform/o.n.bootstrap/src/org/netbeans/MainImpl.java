@@ -27,6 +27,9 @@ import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.AllPermission;
 import java.security.CodeSource;
 import java.security.PermissionCollection;
@@ -103,12 +106,31 @@ final class MainImpl extends Object {
         List<String> argsL = Arrays.asList (args);
         // only nbexec.exe puts userdir into netbeans.user
         String user = System.getProperty ("netbeans.user"); // NOI18N
+        int userDirArgsIndex = -1;
         if (user == null) {
             // read userdir from args (for unix nbexec)
             int idx = argsL.indexOf ("--userdir"); // NOI18N
             if (idx != -1 && argsL.size () > idx + 1) {
                 user = argsL.get (idx + 1);
+                userDirArgsIndex = idx + 1;
             }
+        }
+        if ("scratch".equals(user)) {
+            String userdirPrefix = "nbuser"; //TODO: read branding?
+            Path scratchUserdir = Files.createTempDirectory(userdirPrefix);
+            user = scratchUserdir.toString();
+            System.setProperty("netbeans.user", user);
+            if (userDirArgsIndex != (-1)) {
+                argsL.set(userDirArgsIndex, user);
+            }
+
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try {
+                    deleteRecursively(scratchUserdir);
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+            }));
         }
         if (user != null) {
             build_cp (new File (user), list, processedDirs, processedPaths);
@@ -250,6 +272,16 @@ final class MainImpl extends Object {
         }
     }
 
+    private static void deleteRecursively(Path toDelete) throws IOException {
+        if (Files.isDirectory(toDelete)) {
+            try (DirectoryStream<Path> ds = Files.newDirectoryStream(toDelete)) {
+                for (Path c : ds) {
+                    deleteRecursively(c);
+                }
+            }
+        }
+        Files.deleteIfExists(toDelete);
+    }
     static final class BootClassLoader extends JarClassLoader
     implements Runnable {
         private Lookup metaInf;

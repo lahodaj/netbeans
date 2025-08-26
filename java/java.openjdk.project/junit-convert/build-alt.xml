@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- You may freely edit this file. See harness/README in the NetBeans platform -->
+<!-- for some information on what you could do (e.g. targets to override). -->
+<!-- If you delete this file and reopen the project it will be recreated. -->
+<project name="working" basedir=".">
+    <description>Builds the module suite working.</description>
+    <property name="nbplatform.default.netbeans.dest.dir" location="../../../nbbuild/netbeans" />
+    <property name="nbplatform.default.harness.dir" location="${nbplatform.default.netbeans.dest.dir}/harness" />
+
+    <import file="nbproject/build-impl.xml"/>
+
+    <target name="run-conversion" depends="-prepare-args,run" />
+
+    <target name="-prepare-args" depends="-prepare-all-args,-prepare-args-fail" />
+
+    <target name="-prepare-all-args" if="conversion.directories">
+        <property name="temp.directories.arg" value="" />
+        <property name="run.args.extra" value="--junit-convert-directories=${conversion.directories} --nogui --nosplash -J-Dnetbeans.logger.console=false" />
+        <property name="test.user.dir" value="build/conversionuserdir"/>
+        <delete dir="${test.user.dir}" />
+    </target>
+
+    <target name="-prepare-args-fail" unless="conversion.directories">
+        <fail>Property "conversion.directories" not set. Must provide "conversion.directories" specifying directories to convert (a comma separated list of absolute paths expected).</fail>
+    </target>
+
+</project>

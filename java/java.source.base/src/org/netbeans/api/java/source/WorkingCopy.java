@@ -1127,7 +1127,7 @@ public class WorkingCopy extends CompilationController {
                 // do not copy anything from this node and its children
                 collectChildren = false;
             } else if (target != null) {
-                if (!commentHandler.getComments(target).hasComments()) {
+                if (!commentHandler.getComments(target).hasComments() && l.getKind() != Kind.COMPILATION_UNIT) {
                     if (!stillPresent.contains(l)) {
                         commentHandler.copyComments(l, target, null, usedComments, false);
                         newParentCopy = target;

@@ -22,7 +22,9 @@ import java.io.File;
 import java.io.IOException;
 
 import com.sun.source.tree.*;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import javax.lang.model.element.Modifier;
 
 import org.netbeans.api.java.source.*;
@@ -145,6 +147,67 @@ public class TopLevelTest extends GeneratorTestMDRCompat {
                 workingCopy.rewrite(cut, make.addCompUnitTypeDecl(cut, clazz));
             }
             
+        };
+        src.runModificationTask(task).commit();
+        String res = TestUtilities.copyFileToString(testFile);
+        //System.err.println(res);
+        assertEquals(golden, res);
+    }
+
+    public void testCommentsImportsChange() throws Exception {
+        testFile = new File(getWorkDir(), "Test.java");
+        TestUtilities.copyStringToFile(testFile,
+                """
+                /*
+                 * 1
+                 */
+                /*
+                 * 2
+                 */
+                import static java.lang.String.valueOf;
+
+                import java.io.IOException;
+
+                public class Test {
+                }
+                """);
+        String golden =
+                """
+                /*
+                 * 1
+                 */
+                /*
+                 * 3
+                 */
+                import static java.lang.Integer.valueOf;
+
+                import java.io.IOException;
+                import java.util.ArrayList;
+
+                public class Test extends ArrayList {
+                }
+                """;
+
+        JavaSource src = getJavaSource(testFile);
+        Task task = new Task<WorkingCopy>() {
+
+            public void run(WorkingCopy workingCopy) throws IOException {
+                workingCopy.toPhase(Phase.RESOLVED);
+                CompilationUnitTree cut = workingCopy.getCompilationUnit();
+                TreeMaker make = workingCopy.getTreeMaker();
+                workingCopy.getTreeUtilities().getComments(cut, true);
+                workingCopy.getTreeUtilities().getComments(cut.getImports().get(0), true);
+                List<ImportTree> imps = new ArrayList<>();
+                imps.addAll(cut.getImports());
+                imps.set(0, make.Import(make.MemberSelect(make.Identifier("java.lang.Integer"), "valueOf"), true));
+                workingCopy.rewrite(cut,
+                                    make.CompilationUnit(cut.getPackage(), imps, cut.getTypeDecls(), cut.getSourceFile()));
+                String text = workingCopy.getText();
+                workingCopy.rewriteInComment(text.indexOf("2"), 1, "3");
+                ClassTree topLevel = (ClassTree) cut.getTypeDecls().get(0);
+                workingCopy.rewrite(topLevel, make.setExtends(topLevel, make.QualIdent("java.util.ArrayList")));
+            }
+
         };
         src.runModificationTask(task).commit();
         String res = TestUtilities.copyFileToString(testFile);

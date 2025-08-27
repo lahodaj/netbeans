@@ -234,7 +234,7 @@ public class BatchSearch {
                         if (cancel.get())
                             return;
                         final AtomicBoolean stop = new AtomicBoolean();
-                        List<FileObject> currentInputList = toProcess.subList(currentPointer.get(), toProcess.size());
+                        List<FileObject> currentInputList = toProcess.subList(currentPointer.get(), currentPointer.get() + 1);
 //                        JavaSource js = JavaSource.create(e.getKey(), f);
                         JavaSource js = JavaSource.create(e.getKey(), currentInputList);
 

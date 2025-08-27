@@ -1233,6 +1233,7 @@ public class TreeFactory {
             compilationUnit.getTypeDecls(),
             compilationUnit.getSourceFile()
         );
+        chs.copyComments(compilationUnit, copy);
         return copy;
     }
     

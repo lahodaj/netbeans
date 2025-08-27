@@ -597,6 +597,8 @@ public class TestNG2JUnit {
             TreePath topLevelTP = tc.getPath().getParentPath();
             ImportTree it = (ImportTree) tc.getPath().getLeaf();
             CompilationUnitTree adjustedTopLevel = (CompilationUnitTree) tc.getWorkingCopy().resolveRewriteTarget(topLevelTP.getLeaf());
+            //force comments mapped:
+            tc.getWorkingCopy().getTreeUtilities().getComments(tc.getWorkingCopy().getCompilationUnit(), true);
             tc.getWorkingCopy().rewrite(adjustedTopLevel, tc.getWorkingCopy().getTreeMaker().removeCompUnitImport(adjustedTopLevel, it));
         }
 

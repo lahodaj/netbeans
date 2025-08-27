@@ -278,6 +278,62 @@ public class TopLevelTest extends GeneratorTestMDRCompat {
         assertEquals(golden, res);
     }
 
+    public void testTopLevelCommentsPreserved() throws Exception {
+        testFile = new File(getWorkDir(), "Test.java");
+        TestUtilities.copyStringToFile(testFile,
+                """
+                /*
+                 * 1
+                 */
+                /*
+                 * 2
+                 */
+                package test;
+
+                import java.io.IOException;
+
+                public class Test {
+                }
+                """);
+        String golden =
+                """
+                /*
+                 * 1
+                 */
+                /*
+                 * 2
+                 */
+                package test;
+
+                public class Test {
+                }
+                """;
+
+        JavaSource src = getJavaSource(testFile);
+        Task task = new Task<WorkingCopy>() {
+
+            public void run(WorkingCopy workingCopy) throws IOException {
+                workingCopy.toPhase(Phase.RESOLVED);
+                CompilationUnitTree cut = workingCopy.getCompilationUnit();
+                TreeMaker make = workingCopy.getTreeMaker();
+                workingCopy.getTreeUtilities().getComments(cut, true);
+                CompilationUnitTree cut2 = make.CompilationUnit(cut.getPackage(), cut.getImports(), cut.getTypeDecls(), cut.getSourceFile());
+                workingCopy.rewrite(cut, cut2);
+                GeneratorUtilities gu = GeneratorUtilities.get(workingCopy);
+                gu.copyComments(cut, cut2, true);
+                gu.copyComments(cut, cut2, false);
+                workingCopy.rewrite(cut, cut2);
+                CompilationUnitTree cut3 = make.removeCompUnitImport(cut2, 0);
+                workingCopy.rewrite(cut2, cut3);
+            }
+
+        };
+        src.runModificationTask(task).commit();
+        String res = TestUtilities.copyFileToString(testFile);
+        //System.err.println(res);
+        assertEquals(golden, res);
+    }
+
     String getGoldenPckg() {
         return "";
     }

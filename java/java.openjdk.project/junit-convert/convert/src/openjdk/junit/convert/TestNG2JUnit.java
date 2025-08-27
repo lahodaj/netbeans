@@ -86,9 +86,10 @@ public class TestNG2JUnit {
             return null;
         }
 
+        TypeElement testNGAssertJUnit = ctx.getInfo().getElements().getTypeElement("org.testng.AssertJUnit");
         Element el = ctx.getInfo().getTrees().getElement(ctx.getPath());
 
-        if (el == null || el.getEnclosingElement() != testNGAssert) {
+        if (el == null || (el.getEnclosingElement() != testNGAssert && el.getEnclosingElement() != testNGAssertJUnit)) {
             return null;
         }
         MethodInvocationTree mit = (MethodInvocationTree) ctx.getPath().getLeaf();
@@ -98,49 +99,66 @@ public class TestNG2JUnit {
         }
         String newCall = null;
         String simpleName = el.getSimpleName().toString();
-        OUTER: switch (simpleName) {
-            case "fail":
-            case "assertFalse":
-            case "assertTrue":
-            case "assertNotNull":
-            case "assertNull":
-            case "assertThrows":
-            case "expectThrows":
-            {
-                switch (simpleName) {
-                    case "expectThrows": simpleName = "assertThrows"; break; //in TestNG, assertThrows returns void, but expectThrows returns the exception. In JUnit, assertThrows returns the exception.
-                    case "assertThrows":
-                        if (paramCount == 1) {
-                            //special-case:
-                            newCall = "org.junit.jupiter.api.Assertions." + simpleName + "(Throwable.class, $param1)";
-                            break OUTER;
-                        }
-                        break;
-                }
-                switch (paramCount) {
-                    case 0: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "()"; break;
-                    case 1: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "($param1)"; break;
-                    case 2: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "($param1, $param2)"; break;
-                }
-                break;
-            }
-            case "assertEquals":
-            case "assertNotEquals": {
-                if (paramCount >= 2 &&
-                    isArray(ctx.getInfo().getTrees().getTypeMirror(new TreePath(ctx.getPath(), mit.getArguments().get(0)))) &&
-                    isArray(ctx.getInfo().getTrees().getTypeMirror(new TreePath(ctx.getPath(), mit.getArguments().get(1))))) {
+        if (el.getEnclosingElement() == testNGAssertJUnit) {
+            //don't flip arguments, don't rename(?)
+            StringBuilder newCallBuilder = new StringBuilder();
+            newCallBuilder.append("org.junit.jupiter.api.Assertions." + simpleName + "(");
+            int useParamCount = 0;
+            String sep = "";
 
+            for (Tree param : mit.getArguments()) {
+                newCallBuilder.append(sep);
+                newCallBuilder.append("$param" + ++useParamCount);
+                sep = ", ";
+            }
+
+            newCallBuilder.append(")");
+            newCall = newCallBuilder.toString();
+        } else {
+            OUTER: switch (simpleName) {
+                case "fail":
+                case "assertFalse":
+                case "assertTrue":
+                case "assertNotNull":
+                case "assertNull":
+                case "assertThrows":
+                case "expectThrows":
+                {
                     switch (simpleName) {
-                        case "assertEquals": simpleName = "assertArrayEquals"; break;
-                        case "assertNotEquals": simpleName = "assertArrayNotEquals"; break;
-                        default: throw new IllegalStateException();
+                        case "expectThrows": simpleName = "assertThrows"; break; //in TestNG, assertThrows returns void, but expectThrows returns the exception. In JUnit, assertThrows returns the exception.
+                        case "assertThrows":
+                            if (paramCount == 1) {
+                                //special-case:
+                                newCall = "org.junit.jupiter.api.Assertions." + simpleName + "(Throwable.class, $param1)";
+                                break OUTER;
+                            }
+                            break;
                     }
+                    switch (paramCount) {
+                        case 0: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "()"; break;
+                        case 1: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "($param1)"; break;
+                        case 2: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "($param1, $param2)"; break;
+                    }
+                    break;
                 }
-                switch (paramCount) {
-                    case 2: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "($param2, $param1)"; break;
-                    case 3: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "($param2, $param1, $param3)"; break;
+                case "assertEquals":
+                case "assertNotEquals": {
+                    if (paramCount >= 2 &&
+                        isArray(ctx.getInfo().getTrees().getTypeMirror(new TreePath(ctx.getPath(), mit.getArguments().get(0)))) &&
+                        isArray(ctx.getInfo().getTrees().getTypeMirror(new TreePath(ctx.getPath(), mit.getArguments().get(1))))) {
+
+                        switch (simpleName) {
+                            case "assertEquals": simpleName = "assertArrayEquals"; break;
+                            case "assertNotEquals": simpleName = "assertArrayNotEquals"; break;
+                            default: throw new IllegalStateException();
+                        }
+                    }
+                    switch (paramCount) {
+                        case 2: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "($param2, $param1)"; break;
+                        case 3: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "($param2, $param1, $param3)"; break;
+                    }
+                    break;
                 }
-                break;
             }
         }
         if (newCall != null) {

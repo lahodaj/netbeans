@@ -32,6 +32,7 @@ import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.ModifiersTree;
+import com.sun.source.tree.NewArrayTree;
 import com.sun.source.tree.StatementTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.util.TreePath;
@@ -355,6 +356,12 @@ public class TestNG2JUnit {
             ExpressionTree expectedExceptionsTree = attribute2Value.get("expectedExceptions");
 
             if (expectedExceptionsTree != null) {
+                if (expectedExceptionsTree.getKind() == Tree.Kind.NEW_ARRAY) {
+                    NewArrayTree value = (NewArrayTree) expectedExceptionsTree;
+                    if (value.getInitializers().size() == 1) {
+                        expectedExceptionsTree = value.getInitializers().get(0);
+                    }
+                }
                 if (expectedExceptionsTree.getKind() == Tree.Kind.MEMBER_SELECT) {
                     ExpressionTree exceptionClass = ((MemberSelectTree) expectedExceptionsTree).getExpression();
 

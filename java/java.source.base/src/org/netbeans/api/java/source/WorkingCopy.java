@@ -1127,11 +1127,11 @@ public class WorkingCopy extends CompilationController {
                 // do not copy anything from this node and its children
                 collectChildren = false;
             } else if (target != null) {
-                if (!commentHandler.getComments(target).hasComments() && l.getKind() != Kind.COMPILATION_UNIT) {
+                if (!commentHandler.getComments(target).hasComments()) {
                     if (!stillPresent.contains(l)) {
                         commentHandler.copyComments(l, target, null, usedComments, false);
                         newParentCopy = target;
-                        collectChildren = true;
+                        collectChildren = l.getKind() != Kind.COMPILATION_UNIT;
                     }
                 }
             } else if (!stillPresent.contains(l)) { // target == null, node removed

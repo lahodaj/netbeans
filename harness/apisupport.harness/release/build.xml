@@ -129,7 +129,7 @@
         <echo file="${license.file}">[NO LICENSE SPECIFIED]</echo>
     </target>
 
-    <target name="build-init" depends="basic-init,nbm-license-init">
+    <target name="build-init" depends="basic-init,nbm-license-init,-check-source-over-8,-init-compile-limit-modules-nb">
         <condition property="public.package.jar.dir" value="${suite.build.dir}/public-package-jars">
             <isset property="suite.build.dir"/>
         </condition>
@@ -209,11 +209,62 @@
             <and>
                 <os family="mac"/>
                 <istrue value="${requires.nb.javac}"/>
+                <istrue value="${javac.source.is.8}"/>
             </and>
         </condition>
         <condition property="bootclasspath.prepend" value="${retouche.javac.api}">
-            <istrue value="${requires.nb.javac}"/>
+            <and>
+                <istrue value="${requires.nb.javac}"/>
+                <istrue value="${javac.source.is.8}"/>
+            </and>
         </condition>
+        <condition property="limit.modules.option.list" value="${nb.javac.limit.modules.nb}">
+            <and>
+                <istrue value="${requires.nb.javac}"/>
+                <not>
+                    <istrue value="${javac.source.is.8}"/>
+                </not>
+            </and>
+        </condition>
+        <taskdef name="setuplimitmodules" classname="org.netbeans.nbbuild.extlibs.SetupLimitModules" classpath="${harness.dir}/tasks.jar"/>
+        <setuplimitmodules limitModulesProperty="run.nb.javac.limit.modules.nb"
+                           releaseVersion="last"
+                           excludedModules="java.compiler,jdk.compiler"
+                           nbjdkHome="${test.nbjdk.home}"
+                           cacheFile="${suite.build.dir}/limit-modules-cache.properties" />
+        <condition property="test.bootclasspath.prepend.args" value="--limit-modules=${run.nb.javac.limit.modules.nb}">
+            <and>
+                <istrue value="${requires.nb.javac}"/>
+                <not>
+                    <istrue value="${test.use.jdk.javac}"/>
+                </not>
+                <not>
+                    <istrue value="${javac.source.is.8}"/>
+                </not>
+            </and>
+        </condition>
+    </target>
+
+    <target name="-check-source-over-8" depends="basic-init">
+        <condition property="limitmodules.release" value="${javac.target}" else="${javac.release}">
+            <equals arg1="${javac.release}" arg2=""/>
+        </condition>
+        <condition property="javac.source.is.8" value="true">
+            <or>
+                <equals arg1="${limitmodules.release}" arg2="1.6" />
+                <equals arg1="${limitmodules.release}" arg2="1.7" />
+                <equals arg1="${limitmodules.release}" arg2="1.8" />
+            </or>
+        </condition>
+    </target>
+
+    <target name="-init-compile-limit-modules-nb" depends="basic-init,-check-source-over-8" unless="javac.source.is.8">
+        <taskdef name="setuplimitmodules" classname="org.netbeans.nbbuild.extlibs.SetupLimitModules" classpath="${harness.dir}/tasks.jar"/>
+        <setuplimitmodules limitModulesProperty="nb.javac.limit.modules.nb"
+                           releaseVersion="${limitmodules.release}"
+                           excludedModules="java.compiler,jdk.compiler"
+                           nbjdkHome="${nbjdk.home}"
+                           cacheFile="${suite.build.dir}/limit-modules-cache.properties" />
     </target>
 
     <target name="-test-branding" if="branding.token"><!-- #197066 -->

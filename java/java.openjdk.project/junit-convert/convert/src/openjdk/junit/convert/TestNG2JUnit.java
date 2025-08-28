@@ -25,6 +25,7 @@ import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.ExpressionStatementTree;
 import com.sun.source.tree.ExpressionTree;
+import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.IfTree;
 import com.sun.source.tree.ImportTree;
 import com.sun.source.tree.LiteralTree;
@@ -35,6 +36,7 @@ import com.sun.source.tree.ModifiersTree;
 import com.sun.source.tree.NewArrayTree;
 import com.sun.source.tree.StatementTree;
 import com.sun.source.tree.Tree;
+import com.sun.source.tree.TypeCastTree;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.TreePathScanner;
 import java.util.ArrayList;
@@ -42,6 +44,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import javax.lang.model.element.AnnotationMirror;
@@ -143,9 +146,18 @@ public class TestNG2JUnit {
                 }
                 case "assertEquals":
                 case "assertNotEquals": {
+                    String orderedParams = "$param2, $param1";
+                    TreePath param1 = new TreePath(ctx.getPath(), mit.getArguments().get(0));
+                    TreePath param2 = new TreePath(ctx.getPath(), mit.getArguments().get(1));
+
+                    if (looksLikeAPossibleExpectedValue(param1) && !looksLikeAPossibleExpectedValue(param2)) {
+                        //do not flip the arguments if the left one looks-like an expected value:
+                        orderedParams = "$param1, $param2";
+                    }
+
                     if (paramCount >= 2 &&
-                        isArray(ctx.getInfo().getTrees().getTypeMirror(new TreePath(ctx.getPath(), mit.getArguments().get(0)))) &&
-                        isArray(ctx.getInfo().getTrees().getTypeMirror(new TreePath(ctx.getPath(), mit.getArguments().get(1))))) {
+                        isArray(ctx.getInfo().getTrees().getTypeMirror(param1)) &&
+                        isArray(ctx.getInfo().getTrees().getTypeMirror(param2))) {
 
                         switch (simpleName) {
                             case "assertEquals": simpleName = "assertArrayEquals"; break;
@@ -154,11 +166,13 @@ public class TestNG2JUnit {
                         }
                     }
                     switch (paramCount) {
-                        case 2: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "($param2, $param1)"; break;
-                        case 3: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "($param2, $param1, $param3)"; break;
+                        case 2: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "(" + orderedParams + ")"; break;
+                        case 3: newCall = "org.junit.jupiter.api.Assertions." + simpleName + "(" + orderedParams + ", $param3)"; break;
                     }
                     break;
                 }
+
+
             }
         }
         if (newCall != null) {
@@ -166,6 +180,16 @@ public class TestNG2JUnit {
             return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), fix);
         }
         return ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit());
+    }
+
+    private static boolean looksLikeAPossibleExpectedValue(TreePath tp) {
+        return switch (tp.getLeaf().getKind()) {
+            case IDENTIFIER -> ((IdentifierTree) tp.getLeaf()).getName().toString().toLowerCase(Locale.US).contains("expected");
+            case BOOLEAN_LITERAL, CHAR_LITERAL, DOUBLE_LITERAL, FLOAT_LITERAL,
+                 INT_LITERAL, LONG_LITERAL, NULL_LITERAL, STRING_LITERAL -> true;
+            case TYPE_CAST -> looksLikeAPossibleExpectedValue(new TreePath(tp, ((TypeCastTree) tp.getLeaf()).getExpression()));
+            default -> false;
+        };
     }
 
     @TriggerPattern("org.testng.annotations.AfterMethod")

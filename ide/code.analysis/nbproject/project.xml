@@ -282,6 +282,7 @@
                 <friend>org.netbeans.modules.cnd.analysis.impl</friend>
                 <friend>org.netbeans.modules.cnd.highlight</friend>
                 <friend>org.netbeans.modules.java.hints</friend>
+                <friend>org.netbeans.modules.java.hints.test</friend>
                 <friend>org.netbeans.modules.java.hints.ui</friend>
                 <friend>org.netbeans.modules.java.j2seprofiles</friend>
                 <friend>org.netbeans.modules.latex.hints</friend>

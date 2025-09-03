@@ -557,7 +557,7 @@ public class TestNG2JUnit {
                 gu.copyComments(originalAnnotation, newTestAnnotation, false);
                 gu.copyComments(originalAnnotation, newTestAnnotation, true);
 
-                tc.getWorkingCopy().rewrite(method.getModifiers(), make.addModifiersAnnotation(method.getModifiers(), newTestAnnotation));
+                tc.getWorkingCopy().rewrite(method.getModifiers(), make.removeModifiersModifier(make.addModifiersAnnotation(method.getModifiers(), newTestAnnotation), Modifier.STATIC));
 
                 if (expectedException != null) {
                     resolveAssertThrows(tc, member);

@@ -149,6 +149,60 @@ public class TestNG2JUnitTest {
                               """);
     }
 
+    @Test
+    public void testRemoveStaticModifierFromTestMethod1() throws Exception {
+        HintTest.create()
+                .classpath(classpath())
+                .input("test/A.java",
+                       """
+                       package test;
+                       import org.testng.annotations.Test;
+
+                       @Test
+                       public class A {
+                           public static void toRun() {}
+                       }
+                       """)
+                .runBulk(TestNG2JUnit.class)
+                .assertOutput("test/A.java",
+                              """
+                              package test;
+                              import org.junit.jupiter.api.Test;
+
+                              public class A {
+                                  @Test
+                                  public void toRun() {}
+                              }
+                              """);
+    }
+
+    @Test
+    public void testRemoveStaticModifierFromTestMethod2() throws Exception {
+        HintTest.create()
+                .classpath(classpath())
+                .input("test/A.java",
+                       """
+                       package test;
+                       import org.testng.annotations.Test;
+
+                       public class A {
+                           @Test
+                           public static void toRun() {}
+                       }
+                       """)
+                .runBulk(TestNG2JUnit.class)
+                .assertOutput("test/A.java",
+                              """
+                              package test;
+                              import org.junit.jupiter.api.Test;
+
+                              public class A {
+                                  @Test
+                                  public void toRun() {}
+                              }
+                              """);
+    }
+
     private static URL[] classpath() {
         return new URL[] {
             FileUtil.getArchiveRoot(org.testng.Assert.class.getProtectionDomain().getCodeSource().getLocation()),

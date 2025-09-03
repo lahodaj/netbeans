@@ -129,6 +129,12 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
+import org.netbeans.modules.java.hints.spiimpl.batch.BatchSearch;
+import org.netbeans.modules.java.hints.spiimpl.batch.BatchSearch.BatchResult;
+import org.netbeans.modules.java.hints.spiimpl.batch.BatchSearch.Folder;
+import org.netbeans.modules.java.hints.spiimpl.batch.BatchSearch.Scope;
+import org.netbeans.modules.java.hints.spiimpl.batch.ProgressHandleWrapper;
+import org.netbeans.modules.java.hints.spiimpl.batch.Scopes;
 
 /**A support class for writing a test for a Java Hint. A test verifying that correct
  * warnings are produced should look like:
@@ -557,6 +563,66 @@ public class HintTest {
         return new HintOutput(result, requiresJavaFix);
     }
     
+    public AppliedFix runBulk(Class<?> hint) throws Exception {
+        IndexingManager.getDefault().refreshIndexAndWait(sourceRoot.toURL(), null);
+
+        for (FileObject file : checkCompilable) {
+            ensureCompilable(file);
+        }
+
+        Map<HintMetadata, Collection<HintDescription>> hints = new HashMap<>();
+        List<ClassWrapper> found = new ArrayList<>();
+
+        for (ClassWrapper w : FSWrapper.listClasses()) {
+            if (hint.getCanonicalName().equals(w.getName().replace('$', '.'))) {
+                found.add(w);
+            }
+        }
+
+        assertFalse(found.isEmpty());
+
+        for (ClassWrapper w : found) {
+            CodeHintProviderImpl.processClass(w, hints);
+        }
+
+        List<HintDescription> total = new LinkedList<>();
+        final Set<ErrorDescription> requiresJavaFix = Collections.newSetFromMap(new IdentityHashMap<>());
+
+        for (final Entry<HintMetadata, Collection<HintDescription>> e : hints.entrySet()) {
+            if (   e.getKey().options.contains(Options.NO_BATCH)
+                || e.getKey().options.contains(Options.QUERY)
+                || e.getKey().kind == Kind.ACTION) {
+                total.addAll(e.getValue());
+                continue;
+            }
+            total.addAll(e.getValue());
+        }
+
+        Handler h = new Handler() {
+            @Override public void publish(LogRecord record) {
+                if (   record.getLevel().intValue() >= Level.WARNING.intValue()
+                    && record.getThrown() != null) {
+                    throw new IllegalStateException(record.getThrown());
+                }
+            }
+            @Override public void flush() { }
+            @Override public void close() throws SecurityException { }
+        };
+        Logger log = Logger.getLogger(Exceptions.class.getName());
+        log.addHandler(h);
+
+        BatchResult searchResult = BatchSearch.findOccurrences(total, Scopes.specifiedFoldersScope(new Folder(sourceRoot)));
+        Collection<ModificationResult> results = BatchUtilities.applyFixes(searchResult, new ProgressHandleWrapper(1), new AtomicBoolean(), new ArrayList<>());
+
+        for (ModificationResult mr : results) {
+            mr.commit();
+        }
+
+        log.removeHandler(h);
+
+        return new AppliedFix();
+    }
+
     //must keep the error descriptions (and their Fixes through them) in a field
     //so that assertGC is able to provide a useful trace of references:
     private static Set<List<ErrorDescription>> DEBUGGING_HELPER = Collections.newSetFromMap(new IdentityHashMap<>());

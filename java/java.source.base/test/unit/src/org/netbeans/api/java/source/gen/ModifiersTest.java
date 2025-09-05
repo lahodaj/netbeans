@@ -1554,6 +1554,43 @@ public class ModifiersTest extends GeneratorTestMDRCompat {
         assertEquals(golden, res);
     }
     
+    public void testRemoveLastModifierWithAnnotation() throws Exception {
+        testFile = new File(getWorkDir(), "Test.java");
+        TestUtilities.copyStringToFile(testFile,
+                """
+                package flaska;
+
+                public class Test {
+                    @Deprecated
+                    private void test() { }}
+                """);
+        String golden =
+                """
+                package flaska;
+
+                public class Test {
+                    @Deprecated
+                    void test() { }}
+                """;
+        JavaSource testSource = JavaSource.forFileObject(FileUtil.toFileObject(testFile));
+        Task<WorkingCopy> task = new Task<WorkingCopy>() {
+
+            public void run(final WorkingCopy workingCopy) throws java.io.IOException {
+                workingCopy.toPhase(Phase.RESOLVED);
+                final TreeMaker make = workingCopy.getTreeMaker();
+                ClassTree clazz = (ClassTree) workingCopy.getCompilationUnit().getTypeDecls().get(0);
+                MethodTree mt = (MethodTree) clazz.getMembers().get(1);
+                ModifiersTree mods = mt.getModifiers();
+                mods = make.removeModifiersModifier(mods, Modifier.PRIVATE);
+                workingCopy.rewrite(mt.getModifiers(), mods);
+            }
+        };
+        testSource.runModificationTask(task).commit();
+        String res = TestUtilities.copyFileToString(testFile);
+        //System.err.println(res);
+        assertEquals(golden, res);
+    }
+
     String getGoldenPckg() {
         return "";
     }

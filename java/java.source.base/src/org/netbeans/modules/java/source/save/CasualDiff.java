@@ -3129,8 +3129,15 @@ public class CasualDiff {
                 moveToSrcRelevant(tokenSequence, Direction.FORWARD);
                 copyTo(localPointer, localPointer = tokenSequence.offset());
                 localPointer = tokenSequence.offset();
-                if (!oldT.getFlags().isEmpty()) localPointer = endOffset;
-                printer.printFlags(newT.flags, oldT.getFlags().isEmpty());
+                if (!oldT.getFlags().isEmpty() && newT.getFlags().isEmpty()) {
+                    //skip flags and the following whitespaces:
+                    tokenSequence.move(endOffset);
+                    while (tokenSequence.moveNext() && JavaTokenId.WHITESPACE == tokenSequence.token().id()) ;
+                    localPointer = tokenSequence.offset();
+                } else {
+                    if (!oldT.getFlags().isEmpty()) localPointer = endOffset;
+                    printer.printFlags(newT.flags, oldT.getFlags().isEmpty());
+                }
             }
         } else {
             if (endOffset > localPointer) {

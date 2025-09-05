@@ -557,7 +557,13 @@ public class TestNG2JUnit {
                 gu.copyComments(originalAnnotation, newTestAnnotation, false);
                 gu.copyComments(originalAnnotation, newTestAnnotation, true);
 
-                tc.getWorkingCopy().rewrite(method.getModifiers(), make.removeModifiersModifier(make.addModifiersAnnotation(method.getModifiers(), newTestAnnotation), Modifier.STATIC));
+                ModifiersTree mods = method.getModifiers();
+
+                mods = make.addModifiersAnnotation(mods, newTestAnnotation);
+                mods = make.removeModifiersModifier(mods, Modifier.STATIC);
+                mods = make.removeModifiersModifier(mods, Modifier.PRIVATE);
+
+                tc.getWorkingCopy().rewrite(method.getModifiers(), mods);
 
                 if (expectedException != null) {
                     resolveAssertThrows(tc, member);
@@ -581,6 +587,8 @@ public class TestNG2JUnit {
                 gu.copyComments(originalAnnotation, newTestAnnotation, false);
                 gu.copyComments(originalAnnotation, newTestAnnotation, true);
                 tc.getWorkingCopy().rewrite(mt, mt = make.addModifiersAnnotation(mt, newTestAnnotation));
+                tc.getWorkingCopy().rewrite(mt, mt = make.removeModifiersModifier(mt, Modifier.STATIC));
+                tc.getWorkingCopy().rewrite(mt, mt = make.removeModifiersModifier(mt, Modifier.PRIVATE));
                 tc.getWorkingCopy().rewrite(mt, mt = make.addModifiersAnnotation(mt, make.Annotation(make.QualIdent("org.junit.jupiter.params.provider.MethodSource"), Arrays.asList(make.Literal(dataProviderName)))));
 
                 if (expectedException != null) {

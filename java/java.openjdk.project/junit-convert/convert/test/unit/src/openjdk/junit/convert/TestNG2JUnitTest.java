@@ -161,6 +161,7 @@ public class TestNG2JUnitTest {
                        @Test
                        public class A {
                            public static void toRun() {}
+                           private void toRun2() {}
                        }
                        """)
                 .runBulk(TestNG2JUnit.class)
@@ -172,6 +173,7 @@ public class TestNG2JUnitTest {
                               public class A {
                                   @Test
                                   public void toRun() {}
+                                  private void toRun2() {}
                               }
                               """);
     }
@@ -188,6 +190,8 @@ public class TestNG2JUnitTest {
                        public class A {
                            @Test
                            public static void toRun() {}
+                           @Test
+                           private void toRun2() {}
                        }
                        """)
                 .runBulk(TestNG2JUnit.class)
@@ -199,6 +203,41 @@ public class TestNG2JUnitTest {
                               public class A {
                                   @Test
                                   public void toRun() {}
+                                  @Test
+                                  void toRun2() {}
+                              }
+                              """);
+    }
+
+    @Test
+    public void testRemoveStaticModifierFromTestMethod3() throws Exception {
+        HintTest.create()
+                .classpath(classpath())
+                .input("test/A.java",
+                       """
+                       package test;
+                       import org.testng.annotations.DataProvider;
+                       import org.testng.annotations.Test;
+
+                       public class A {
+                           @Test(dataProvider="data")
+                           private static void toRun(String value) {}
+                           @DataProvider(name = "data")
+                           Object[][] data() { return null; }
+                       }
+                       """)
+                .runBulk(TestNG2JUnit.class)
+                .assertOutput("test/A.java",
+                              """
+                              package test;
+                              import org.junit.jupiter.params.ParameterizedTest;
+                              import org.junit.jupiter.params.provider.MethodSource;
+
+                              public class A {
+                                  @ParameterizedTest
+                                  @MethodSource("data")
+                                  void toRun(String value) {}
+                                  Object[][] data() { return null; }
                               }
                               """);
     }
@@ -207,6 +246,7 @@ public class TestNG2JUnitTest {
         return new URL[] {
             FileUtil.getArchiveRoot(org.testng.Assert.class.getProtectionDomain().getCodeSource().getLocation()),
             FileUtil.getArchiveRoot(org.junit.jupiter.api.Assertions.class.getProtectionDomain().getCodeSource().getLocation()),
+            FileUtil.getArchiveRoot(org.junit.jupiter.params.ParameterizedTest.class.getProtectionDomain().getCodeSource().getLocation()),
         };
     }
 }

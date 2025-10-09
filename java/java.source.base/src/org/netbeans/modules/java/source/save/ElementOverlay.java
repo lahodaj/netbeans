@@ -437,7 +437,7 @@ public class ElementOverlay {
 
     private Element resolvedPackageOf(ASTService ast, Elements elements, Element el) {
         ModuleElement modle = moduleOf(elements, el);
-        PackageElement pack = getPackageOf(el);
+        PackageElement pack = packageOf(el);
 
         return resolve(ast, elements, pack.getQualifiedName().toString(), modle);
     }
@@ -446,7 +446,7 @@ public class ElementOverlay {
         return (PackageElement) resolve(ast, elements, "", modle);
     }
     
-    public PackageElement getPackageOf(Element el) {
+    public PackageElement packageOf(Element el) {
         while ((el != null) && (el.getKind() != ElementKind.PACKAGE)) el = el.getEnclosingElement();
 
         return (PackageElement) el;

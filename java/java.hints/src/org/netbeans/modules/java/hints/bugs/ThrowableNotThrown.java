@@ -362,7 +362,7 @@ public class ThrowableNotThrown {
                         SwitchTree st = (SwitchTree) leaf;
 
                         if (st.getExpression() == prevLeaf) {
-                            handleCases(st.getCases());
+                            collectCaseBindings(st.getCases());
                         }
 
                         break;
@@ -371,7 +371,7 @@ public class ThrowableNotThrown {
                         SwitchExpressionTree st = (SwitchExpressionTree) leaf;
 
                         if (st.getExpression() == prevLeaf) {
-                            handleCases(st.getCases());
+                            collectCaseBindings(st.getCases());
                             process = true;
                         }
                         break;
@@ -382,7 +382,7 @@ public class ThrowableNotThrown {
             return varAssignments.isEmpty() ? Boolean.FALSE : null;
         }
 
-        private void handleCases(List<? extends CaseTree> cases) {
+        private void collectCaseBindings(List<? extends CaseTree> cases) {
             //all binding patterns should be considered as new target variables for the selector value:
             cases.stream()
                  .flatMap(cse -> cse.getLabels().stream())

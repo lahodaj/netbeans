@@ -114,8 +114,18 @@ import org.netbeans.spi.java.hints.HintContext;
  */
 public class Flow {
 
-    public static final Set<ElementKind> LOCAL_VARIABLES = Set.of(ElementKind.BINDING_VARIABLE, ElementKind.EXCEPTION_PARAMETER, ElementKind.LOCAL_VARIABLE, ElementKind.PARAMETER, ElementKind.RESOURCE_VARIABLE);
-    private static final Set<ElementKind> IMPLICITLY_INITIALIZED_VARIABLES = Set.of(ElementKind.BINDING_VARIABLE, ElementKind.EXCEPTION_PARAMETER, ElementKind.PARAMETER);
+    public static final Set<ElementKind> LOCAL_VARIABLES =
+            Set.of(ElementKind.BINDING_VARIABLE,
+                   ElementKind.EXCEPTION_PARAMETER,
+                   ElementKind.LOCAL_VARIABLE,
+                   ElementKind.PARAMETER,
+                   ElementKind.RESOURCE_VARIABLE
+            );
+    private static final Set<ElementKind> IMPLICITLY_INITIALIZED_VARIABLES =
+            Set.of(ElementKind.BINDING_VARIABLE,
+                   ElementKind.EXCEPTION_PARAMETER,
+                   ElementKind.PARAMETER
+            );
     private static final Set<ElementKind> SUPPORTED_VARIABLES;
 
     static {

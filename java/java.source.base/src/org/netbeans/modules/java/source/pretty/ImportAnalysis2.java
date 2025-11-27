@@ -367,7 +367,7 @@ public class ImportAnalysis2 {
             return make.Identifier(element.getSimpleName());
         }
 
-        if (overlay.getPackageOf(element) != null && overlay.getPackageOf(element).isUnnamed()) {
+        if (overlay.packageOf(element) != null && overlay.packageOf(element).isUnnamed()) {
             if (orig.getExpression().getKind() == Kind.MEMBER_SELECT) {
                 return make.MemberSelect(resolveImport((MemberSelectTree) orig.getExpression(), element.getEnclosingElement()),
                                          element.getSimpleName());

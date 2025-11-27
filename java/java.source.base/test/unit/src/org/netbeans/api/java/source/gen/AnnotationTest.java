@@ -1138,24 +1138,75 @@ public class AnnotationTest extends GeneratorTestBase {
     public void testAnnotationRemoveLastAttribute1() throws Exception {
         testFile = new File(getWorkDir(), "Test.java");
         TestUtilities.copyStringToFile(testFile,
-            "package hierbas.del.litoral;\n" +
-            "\n" +
-            "@Ann( 1 )\n" +
-            "public class Test {\n" +
-            "}\n" +
-            "public @interface Ann {\n" +
-            "    public int value() default 0;\n" +
-            "}\n"
-            );
+                                       """
+                                       package hierbas.del.litoral;
+                                       
+                                       @Ann( 1 )
+                                       public class Test {
+                                       }
+                                       public @interface Ann {
+                                           public int value() default 0;
+                                       }
+                                       """);
         String golden =
-            "package hierbas.del.litoral;\n" +
-            "\n" +
-            "@Ann\n" +
-            "public class Test {\n" +
-            "}\n" +
-            "public @interface Ann {\n" +
-            "    public int value() default 0;\n" +
-            "}\n";
+            """
+            package hierbas.del.litoral;
+            
+            @Ann
+            public class Test {
+            }
+            public @interface Ann {
+                public int value() default 0;
+            }
+            """;
+
+        JavaSource src = getJavaSource(testFile);
+        Task task = new Task<WorkingCopy>() {
+
+            public void run(WorkingCopy workingCopy) throws IOException {
+                workingCopy.toPhase(Phase.RESOLVED);
+                TreeMaker make = workingCopy.getTreeMaker();
+                CompilationUnitTree cut = workingCopy.getCompilationUnit();
+                new TreePathScanner<Void, Void>() {
+                    @Override
+                    public Void visitAnnotation(AnnotationTree node, Void p) {
+                        workingCopy.rewrite(node,
+                                            make.Annotation(node.getAnnotationType(), List.of()));
+                        return null;
+                    }
+                }.scan(cut, null);
+            }
+        };
+        src.runModificationTask(task).commit();
+        String res = TestUtilities.copyFileToString(testFile);
+        //System.err.println(res);
+        assertEquals(golden, res);
+    }
+
+    public void testAnnotationRemoveLastAttribute2() throws Exception {
+        testFile = new File(getWorkDir(), "Test.java");
+        TestUtilities.copyStringToFile(testFile,
+                                       """
+                                       package hierbas.del.litoral;
+                                       
+                                       @Ann( value = 1 )
+                                       public class Test {
+                                       }
+                                       public @interface Ann {
+                                           public int value() default 0;
+                                       }
+                                       """);
+        String golden =
+            """
+            package hierbas.del.litoral;
+            
+            @Ann
+            public class Test {
+            }
+            public @interface Ann {
+                public int value() default 0;
+            }
+            """;
 
         JavaSource src = getJavaSource(testFile);
         Task task = new Task<WorkingCopy>() {

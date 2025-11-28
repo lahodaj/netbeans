@@ -23,6 +23,7 @@ package org.netbeans.modules.java.source.transform;
 import com.sun.source.tree.*;
 import com.sun.source.tree.Tree.Kind;
 import com.sun.tools.javac.code.Flags;
+import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.JCTree.JCLambda;
 import com.sun.tools.javac.tree.JCTree.JCModifiers;
@@ -34,6 +35,7 @@ import java.util.Objects;
 import java.util.Set;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ModuleElement;
 import javax.lang.model.element.QualifiedNameable;
 import javax.lang.model.util.Elements;
 import org.netbeans.api.java.source.GeneratorUtilities;
@@ -520,6 +522,9 @@ public class ImmutableTreeTranslator implements TreeVisitor<Tree,Object> {
             if (el == null) {
                 el = overlay.resolve(model, elements, qit.getFQN());
             } else {
+                if (((Symbol) el).name.table.names.empty != elements.getName("")) {
+                    throw new IllegalStateException("Element: " + el + " originates in a different javac instance than is the current one. Please use ElementHandles, TypeMirrorHandles and TreePathHandles to transfer instances of Element, TypeMirror and TreePath, respectivelly, between javac instances.");
+                }
                 if (el.getKind().isClass() || el.getKind().isInterface() || el.getKind() == ElementKind.PACKAGE) {
                     el = overlay.resolve(model, elements, ((QualifiedNameable) el).getQualifiedName().toString(), el, elements.getModuleOf(el));
                 }

@@ -316,11 +316,6 @@ public class JavaCompletionCollectorTest extends NbTestCase {
                              for (Completion completion : completions) {
                                  if (completion.getLabel().equals("Test") &&
                                      "(int i) - generate".equals(completion.getLabelDetail())) {
-                                     //force full reparse:
-                                     byte[] content = primaryTestFO.asBytes();
-                                     try (OutputStream out = primaryTestFO.getOutputStream()) {
-                                         out.write(content);
-                                     }
                                      assertEquals(null,
                                                   completion.getInsertText());
                                      assertEquals("63-63:",
@@ -329,6 +324,124 @@ public class JavaCompletionCollectorTest extends NbTestCase {
                                                   59-59:
                                                       public Test(int i) {
                                                           this.i = i;
+                                                      }
+                                                  """.replace("\n", "\\n"),
+                                                  completion.getAdditionalTextEdits()
+                                                            .get()
+                                                            .stream()
+                                                            .map(JavaCompletionCollectorTest::textEdit2String)
+                                                            .collect(Collectors.joining(", ")));
+                                     found.set(true);
+                                 }
+                             }
+                         });
+        assertTrue(found.get());
+    }
+
+    public void testOverrideItem() throws Exception {
+        System.err.println(System.getProperties().keySet());
+        AtomicBoolean found = new AtomicBoolean();
+        runJavaCollector(List.of(new FileDescription("test/Test.java",
+                                                     """
+                                                     package test;
+                                                     
+                                                     public class Test extends List {
+                                                         acce|
+                                                     }
+                                                     class List {
+                                                         public void accept(java.util.List l) {}
+                                                     }
+                                                     """)),
+                         completions -> {
+                             for (Completion completion : completions) {
+                                 if (completion.getLabel().equals("accept") &&
+                                     "(List l) - override".equals(completion.getLabelDetail())) {
+                                     assertEquals(null,
+                                                  completion.getInsertText());
+                                     assertEquals("52-52:",
+                                                  textEdit2String(completion.getTextEdit()));
+                                     assertEquals("""
+                                                  48-48:
+                                                      @Override
+                                                      public void accept(java.util.List l) {
+                                                      }
+                                                  """.replace("\n", "\\n"),
+                                                  completion.getAdditionalTextEdits()
+                                                            .get()
+                                                            .stream()
+                                                            .map(JavaCompletionCollectorTest::textEdit2String)
+                                                            .collect(Collectors.joining(", ")));
+                                     found.set(true);
+                                 }
+                             }
+                         });
+        assertTrue(found.get());
+    }
+
+    public void testGetterSetterItem() throws Exception {
+        System.err.println(System.getProperties().keySet());
+        AtomicBoolean found = new AtomicBoolean();
+        runJavaCollector(List.of(new FileDescription("test/Test.java",
+                                                     """
+                                                     package test;
+                                                     
+                                                     public class Test extends List {
+                                                         java.util.List list;
+                                                         get|
+                                                     }
+                                                     class List {}
+                                                     """)),
+                         completions -> {
+                             for (Completion completion : completions) {
+                                 if (completion.getLabel().equals("getList") &&
+                                     "() - generate".equals(completion.getLabelDetail())) {
+                                     assertEquals(null,
+                                                  completion.getInsertText());
+                                     assertEquals("77-77:",
+                                                  textEdit2String(completion.getTextEdit()));
+                                     assertEquals("""
+                                                  73-73:
+                                                      public java.util.List getList() {
+                                                          return list;
+                                                      }
+                                                  """.replace("\n", "\\n"),
+                                                  completion.getAdditionalTextEdits()
+                                                            .get()
+                                                            .stream()
+                                                            .map(JavaCompletionCollectorTest::textEdit2String)
+                                                            .collect(Collectors.joining(", ")));
+                                     found.set(true);
+                                 }
+                             }
+                         });
+        assertTrue(found.get());
+    }
+
+    public void testInitializeAll() throws Exception {
+        System.err.println(System.getProperties().keySet());
+        AtomicBoolean found = new AtomicBoolean();
+        runJavaCollector(List.of(new FileDescription("test/Test.java",
+                                                     """
+                                                     package test;
+                                                     
+                                                     public class Test extends List {
+                                                         private final java.util.List list;
+                                                         Test|
+                                                     }
+                                                     class List {}
+                                                     """)),
+                         completions -> {
+                             for (Completion completion : completions) {
+                                 if (completion.getLabel().equals("Test") &&
+                                     "(List list) - generate".equals(completion.getLabelDetail())) {
+                                     assertEquals(null,
+                                                  completion.getInsertText());
+                                     assertEquals("91-91:",
+                                                  textEdit2String(completion.getTextEdit()));
+                                     assertEquals("""
+                                                  87-87:
+                                                      public Test(java.util.List list) {
+                                                          this.list = list;
                                                       }
                                                   """.replace("\n", "\\n"),
                                                   completion.getAdditionalTextEdits()
@@ -387,6 +500,11 @@ public class JavaCompletionCollectorTest extends NbTestCase {
             cc.toPhase(JavaSource.Phase.RESOLVED);
         }, true);
         collector.collectCompletions(doc, caretPosition, ctx, completions::add);
+        //force full reparse, to ensure handles are used properly:
+        byte[] content = primaryTestFO.asBytes();
+        try (OutputStream out = primaryTestFO.getOutputStream()) {
+            out.write(content);
+        }
         validator.validate(completions);
     }
 

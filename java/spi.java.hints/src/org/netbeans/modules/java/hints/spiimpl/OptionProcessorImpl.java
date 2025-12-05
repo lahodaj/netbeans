@@ -164,7 +164,13 @@ public class OptionProcessorImpl implements ArgsProcessor {
             WORKER.post(() -> {
                 OpenProjects.getDefault().open(projects.toArray(new Project[0]), false);
                 try {
-                    OpenProjects.getDefault().openProjects().get();
+                    while (true) {
+                        Set<Project> openedProjects = Set.of(OpenProjects.getDefault().openProjects().get());
+
+                        if (openedProjects.containsAll(projects)) {
+                            break;
+                        }
+                    }
                 } catch (ExecutionException | InterruptedException ex) {
                     ex.printStackTrace();
                 }

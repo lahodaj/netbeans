@@ -1,5 +1,6 @@
 
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -43,32 +44,48 @@ public class JUnitConvert {
 
     private static void help() {
         System.err.println("Usage:");
-        System.err.println("java JUnitConvert <directory-with-tests-to-convert>");
+        System.err.println("java JUnitConvert.java <directory-with-tests-to-convert>");
     }
 
     private static void doConvert(Path jdkRoot, Path directoryToConvert) throws Exception {
         Path scratchUserDir = Files.createTempDirectory("junit-conversion");
         Path scratchCacheDir = Files.createTempDirectory("junit-conversion");
-        Path thisSource = Paths.get(JUnitConvert.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-        new ProcessBuilder(thisSource.getParent().resolve("bin").resolve("junit_convert_tool").toString(),
-                           "--userdir", scratchUserDir.toString(),
-                           "--cachedir", scratchCacheDir.toString(),
-                           "--jdkhome", System.getProperty("java.home"),
-                           "--java-hints-hack-open-project=" + List.of("java.base","java.compiler","java.xml").stream().map(project -> jdkRoot.resolve("src").resolve(project).toString()).collect(Collectors.joining(",")),
-                           "--java-hints-run-directories=" + directoryToConvert.toString(),
-                           "--java-hints-run-apply=openjdk.junit.convert.TestNG2JUnit",
-                           "--java-hints-shutdown-when-done",
-                           "-J--add-opens=java.base/java.net=ALL-UNNAMED",
-                           "-J--add-opens=java.desktop/javax.swing=ALL-UNNAMED",
-                           "-J--add-opens=java.desktop/javax.swing.text=ALL-UNNAMED",
-                           "-J--add-opens=java.desktop/sun.awt=ALL-UNNAMED",
-                           "-J-Dsun.misc.unsafe.memory.access=allow",
-                           "-J--enable-native-access=ALL-UNNAMED",
-                           "--nogui",
-                           "--nosplash",
-                           "-J-Dnetbeans.logger.console=false")
-                .inheritIO()
-                .start()
-                .waitFor();
+        try {
+            Path thisSource = Paths.get(JUnitConvert.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            String suffix = ";".equals(System.getProperty("path.separator")) ? "64.exe" : "";
+            new ProcessBuilder(thisSource.getParent().resolve("bin").resolve("junit_convert_tool" + suffix).toString(),
+                               "--userdir", scratchUserDir.toString(),
+                               "--cachedir", scratchCacheDir.toString(),
+                               "--jdkhome", System.getProperty("java.home"),
+                               "--java-hints-hack-open-project=" + List.of("java.base","java.compiler","java.xml").stream().map(project -> jdkRoot.resolve("src").resolve(project).toString()).collect(Collectors.joining(",")),
+                               "--java-hints-run-directories=" + directoryToConvert.toString(),
+                               "--java-hints-run-apply=openjdk.junit.convert.TestNG2JUnit",
+                               "--java-hints-shutdown-when-done",
+                               "-J--add-opens=java.base/java.net=ALL-UNNAMED",
+                               "-J--add-opens=java.desktop/javax.swing=ALL-UNNAMED",
+                               "-J--add-opens=java.desktop/javax.swing.text=ALL-UNNAMED",
+                               "-J--add-opens=java.desktop/sun.awt=ALL-UNNAMED",
+                               "-J-Dsun.misc.unsafe.memory.access=allow",
+                               "-J--enable-native-access=ALL-UNNAMED",
+                               "--nogui",
+                               "--nosplash",
+                               "-J-Dnetbeans.logger.console=false")
+                    .inheritIO()
+                    .start()
+                    .waitFor();
+        } finally {
+            deleteRecursivelly(scratchUserDir);
+            deleteRecursivelly(scratchCacheDir);
+        }
+    }
+    private static void deleteRecursivelly(Path p) throws IOException {
+        if (Files.isDirectory(p)) {
+            try (DirectoryStream<Path> ds = Files.newDirectoryStream(p)) {
+                for (Path c : ds) {
+                    deleteRecursivelly(c);
+                }
+            }
+        }
+        Files.deleteIfExists(p);
     }
 }

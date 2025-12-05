@@ -323,6 +323,8 @@
     
     <target name="build-zip" depends="build,build-launchers" description="Builds a ZIP distribution of the suite, launchers, and selected modules from the platform.">
         <mkdir dir="${dist.dir}"/>
+        <property name="zip.extra.files.dir" location="${build.dir}/zipextra" />
+        <mkdir dir="${zip.extra.files.dir}" />
         <!-- pathfileset does not support 'prefix' and 'filemode' parameters,
              we have to copy them to temp location -->
         <tempfile property="temp.dir.nbexec" destdir="${suite.build.dir}" deleteonexit="true" prefix="nbexec"/>
@@ -336,6 +338,7 @@
         <zip destfile="${dist.dir}/${app.name}.zip">
             <zipfileset dir="${build.launcher.dir}/bin/" filemode="755" prefix="${app.name}/bin"/>
             <zipfileset dir="${build.launcher.dir}/etc/" prefix="${app.name}/etc"/>
+            <zipfileset dir="${zip.extra.files.dir}" prefix="${app.name}"/>
             <zipfileset dir="${temp.dir.nbexec}" filemode="755" prefix="${app.name}"/>
             <zipfileset dir="${temp.dir.rest}" prefix="${app.name}"/>
 

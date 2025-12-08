@@ -204,6 +204,7 @@ public class BatchSearch {
         ClassPath[] toRegister = null;
 
         if (!doNotRegisterClassPath) {
+            progress.setMessage("Indexing sources.");
             Set<ClassPath> toRegisterSet = new HashSet<>();
 
             for (ClasspathInfo cpInfo : cp2Files.keySet()) {
@@ -220,6 +221,7 @@ public class BatchSearch {
                     Exceptions.printStackTrace(ex);
                 }
             }
+            progress.setMessage(null);
         }
 
         try {

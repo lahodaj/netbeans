@@ -48,6 +48,7 @@ public class JUnitConvert {
     }
 
     private static void doConvert(Path jdkRoot, Path directoryToConvert) throws Exception {
+        System.out.println("Starting the backend.");
         Path scratchUserDir = Files.createTempDirectory("junit-conversion");
         Path scratchCacheDir = Files.createTempDirectory("junit-conversion");
         try {

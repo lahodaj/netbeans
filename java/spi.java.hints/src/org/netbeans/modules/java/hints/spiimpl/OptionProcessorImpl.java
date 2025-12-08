@@ -34,6 +34,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.netbeans.api.actions.Savable;
 import org.netbeans.api.java.source.CompilationController;
 import org.netbeans.api.java.source.ModificationResult;
@@ -143,6 +145,8 @@ public class OptionProcessorImpl implements ArgsProcessor {
             }
         }
         if (projectsToOpen != null) {
+            System.out.print("Opening projects...");
+            System.out.flush();
             List<Project> projects = new ArrayList<>();
 
             for (String path : projectsToOpen.split(", *")) {
@@ -174,6 +178,7 @@ public class OptionProcessorImpl implements ArgsProcessor {
                 } catch (ExecutionException | InterruptedException ex) {
                     ex.printStackTrace();
                 }
+                System.out.println("done");
             });
         }
         String hintsToRun;
@@ -221,9 +226,56 @@ public class OptionProcessorImpl implements ArgsProcessor {
                 }
                 BatchResult occurrences = BatchSearch.findOccurrences(hints, scope);
                 List<MessageImpl> problems = new ArrayList<MessageImpl>();
-                ProgressHandleWrapper progress = new ProgressHandleWrapper(new int[] {1});
+                ProgressHandleWrapper progress = new ProgressHandleWrapper(new ProgressHandleWrapper.ProgressHandleAbstraction() {
+                    private int currentDone;
+                    private int total = 1;
+                    private String message;
+                    private int maxPrinted;
+                    private boolean finished;
+                    private void updateNotify() {
+                        String text = "Finding places to change: " + ((100.0 * currentDone) / total) + "%" + (message != null ? " (" + message + ")" : "");
+                        System.out.print("\r" + text + Stream.generate(() -> " ").limit(Math.max(0, maxPrinted - text.length())).collect(Collectors.joining()));
+                        maxPrinted = Math.max(maxPrinted, text.length());
+                        System.out.flush();
+                    }
+
+                    @Override
+                    public void start(int totalWork) {
+                        total = totalWork;
+                        updateNotify();
+                    }
+
+                    @Override
+                    public void progress(int currentWorkDone) {
+                        currentDone = currentWorkDone;
+                        updateNotify();
+                    }
+
+                    @Override
+                    public void progress(String message) {
+                        this.message = message;
+                        updateNotify();
+                    }
+
+                    @Override
+                    public void finish() {
+                        if (finished) {
+                            return ;
+                        }
+                        finished = true;
+                        currentDone = total;
+                        message = null;
+                        updateNotify();
+                        System.out.println();
+                    }
+                }, new int[] {1});
                 if (apply) {
                     Collection<ModificationResult> diffs = BatchUtilities.applyFixes(occurrences, progress, new AtomicBoolean(), problems);
+
+                    progress.finish();
+
+                    System.out.print("Applying changes...");
+                    System.out.flush();
 
                     for (ModificationResult mr : diffs) {
                         try {
@@ -239,6 +291,8 @@ public class OptionProcessorImpl implements ArgsProcessor {
                             Exceptions.printStackTrace(ex);
                         }
                     }
+
+                    System.out.print("done.");
                 } else {
                     final Map<String, String> id2DisplayName = computeId2DisplayName(hints);
                     VerifiedSpansCallBack callback = new VerifiedSpansCallBack() {

@@ -125,7 +125,7 @@ public final class ProgressHandleWrapper {
         } else {
             handle.progress(currentOffset + parts[currentPart]);
         }
-        setAutomatedMessage();
+//        setAutomatedMessage();
     }
 
     public void setMessage(String message) {

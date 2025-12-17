@@ -4,36 +4,44 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class JUnitConvert {
 
     public static void main(String... args) throws Exception {
-        if (args.length == 1) {
+        if (args.length >= 1) {
             if ("--help".equals(args[0])) {
                 help();
                 return ;
             }
-            Path directoryToConvert = Paths.get(args[0]).toAbsolutePath();
-            if (Files.exists(directoryToConvert)) {
-                Path jdkRootSearch = directoryToConvert;
-                while (jdkRootSearch != null) {
-                    if (Files.exists(jdkRootSearch.resolve("src/java.base/share/classes/java/lang/Object.java"))) {
-                        doConvert(jdkRootSearch, directoryToConvert);
-                        return ;
+            List<Path> resourcesToConvert = new ArrayList<>();
+            Path jdkRoot = null;
+            boolean ok = true;
+            for (String arg : args) {
+                Path resourceToConvert = Paths.get(arg).toAbsolutePath();
+                if (!Files.exists(resourceToConvert)) {
+                    System.err.println("Cannot find resources to convert: " + resourceToConvert);
+                    ok = false;
+                } else {
+                    Path thisResourceJDKRoot = findJDKFrom(resourceToConvert);
+                    if (thisResourceJDKRoot == null) {
+                        System.err.println("Cannot find the JDK root starting from: " + resourceToConvert);
+                        ok = false;
+                    } else if (jdkRoot == null) {
+                        jdkRoot = thisResourceJDKRoot;
+                    } else if (!jdkRoot.equals(thisResourceJDKRoot)) {
+                        System.err.println("Resource: " + resourceToConvert + " has different JDK root than previous resource(s).");
+                        System.err.println("Previous JDK root: " + jdkRoot + ", this resource's JDK root: " + thisResourceJDKRoot);
+                        ok = false;
                     }
-
-                    if (Files.exists(jdkRootSearch.resolve("open/src/java.base/share/classes/java/lang/Object.java"))) {
-                        doConvert(jdkRootSearch.resolve("open"), directoryToConvert);
-                        return ;
-                    }
-
-                    jdkRootSearch = jdkRootSearch.getParent();
+                    resourcesToConvert.add(resourceToConvert);
                 }
-                System.err.println("Cannot find the JDK root starting from: " + directoryToConvert);
+            }
+            if (ok) {
+                doConvert(jdkRoot, resourcesToConvert);
             } else {
-                System.err.println("Cannot find directory to convert: " + directoryToConvert);
             }
         } else {
             System.err.println("Expected a test directory to convert as a parameter.");
@@ -42,12 +50,30 @@ public class JUnitConvert {
         help();
     }
 
+    private static Path findJDKFrom(Path resource) {
+        Path jdkRootSearch = resource;
+
+        while (jdkRootSearch != null) {
+            if (Files.exists(jdkRootSearch.resolve("src/java.base/share/classes/java/lang/Object.java"))) {
+                return jdkRootSearch;
+            }
+
+            if (Files.exists(jdkRootSearch.resolve("open/src/java.base/share/classes/java/lang/Object.java"))) {
+                return jdkRootSearch.resolve("open");
+            }
+
+            jdkRootSearch = jdkRootSearch.getParent();
+        }
+
+        return null;
+    }
+
     private static void help() {
         System.err.println("Usage:");
         System.err.println("java JUnitConvert.java <directory-with-tests-to-convert>");
     }
 
-    private static void doConvert(Path jdkRoot, Path directoryToConvert) throws Exception {
+    private static void doConvert(Path jdkRoot, List<Path> resourcesToConvert) throws Exception {
         System.out.println("Starting the backend.");
         Path scratchUserDir = Files.createTempDirectory("junit-conversion");
         Path scratchCacheDir = Files.createTempDirectory("junit-conversion");
@@ -59,7 +85,7 @@ public class JUnitConvert {
                                "--cachedir", scratchCacheDir.toString(),
                                "--jdkhome", System.getProperty("java.home"),
                                "--java-hints-hack-open-project=" + List.of("java.base","java.compiler","java.xml").stream().map(project -> jdkRoot.resolve("src").resolve(project).toString()).collect(Collectors.joining(",")),
-                               "--java-hints-run-directories=" + directoryToConvert.toString(),
+                               "--java-hints-run-directories=" + resourcesToConvert.stream().map(p -> p.toString()).collect(Collectors.joining(",")),
                                "--java-hints-run-apply=openjdk.junit.convert.TestNG2JUnit",
                                "--java-hints-shutdown-when-done",
                                "-J--add-opens=java.base/java.net=ALL-UNNAMED",

@@ -244,6 +244,37 @@ public class TestNG2JUnitTest {
                               """);
     }
 
+    @Test
+    public void testAssertEqualsBothDirections() throws Exception {
+        HintTest.create()
+                .classpath(classpath())
+                .input("""
+                       package test;
+                       import org.testng.Assert;
+                       public class Test {
+                           public static void main(String[] args) {
+                               Object v1 = "";
+                               Object v2 = "";
+                               Assert.assertEquals(v1, v2);
+                               Assert.assertEquals(v2, v1);
+                           }
+                       }
+                       """)
+                .runBulk(TestNG2JUnit.class)
+                .assertOutput("""
+                              package test;
+                              import org.junit.jupiter.api.Assertions;
+                              public class Test {
+                                  public static void main(String[] args) {
+                                      Object v1 = "";
+                                      Object v2 = "";
+                                      Assertions.assertEquals(v1, v2);
+                                      Assertions.assertEquals(v2, v1);
+                                  }
+                              }
+                              """);
+    }
+
     private static URL[] classpath() {
         return new URL[] {
             FileUtil.getArchiveRoot(org.testng.Assert.class.getProtectionDomain().getCodeSource().getLocation()),

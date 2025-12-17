@@ -21,6 +21,7 @@ package openjdk.junit.convert;
 import com.sun.source.tree.AnnotationTree;
 import com.sun.source.tree.AssignmentTree;
 import com.sun.source.tree.BlockTree;
+import com.sun.source.tree.CaseTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.ExpressionStatementTree;
@@ -70,6 +71,7 @@ import org.netbeans.spi.java.hints.Hint;
 import org.netbeans.spi.java.hints.HintContext;
 import org.netbeans.spi.java.hints.JavaFix;
 import org.netbeans.spi.java.hints.JavaFixUtilities;
+import org.netbeans.spi.java.hints.MatcherUtilities;
 import org.netbeans.spi.java.hints.TriggerPattern;
 import org.netbeans.spi.java.hints.TriggerTreeKind;
 import org.openide.util.NbBundle.Messages;
@@ -155,6 +157,9 @@ public class TestNG2JUnit {
                         orderedParams = "$param1, $param2";
                     }
 
+                    if (isPartOfEqualsInBothDirections(ctx, simpleName)) {
+                        orderedParams = "$param1, $param2";
+                    }
                     if (paramCount >= 2 &&
                         isArray(ctx.getInfo().getTrees().getTypeMirror(param1)) &&
                         isArray(ctx.getInfo().getTrees().getTypeMirror(param2))) {
@@ -190,6 +195,42 @@ public class TestNG2JUnit {
             case TYPE_CAST -> looksLikeAPossibleExpectedValue(new TreePath(tp, ((TypeCastTree) tp.getLeaf()).getExpression()));
             default -> false;
         };
+    }
+
+    private static boolean isPartOfEqualsInBothDirections(HintContext ctx, String simpleName) {
+        MethodInvocationTree mit = (MethodInvocationTree) ctx.getPath().getLeaf();
+
+        if (mit.getArguments().size() != 2 && mit.getArguments().size() != 3) {
+            return false;
+        }
+
+        List<? extends StatementTree> statements = switch (ctx.getPath().getParentPath().getParentPath().getLeaf().getKind()) {
+            case BLOCK -> ((BlockTree) ctx.getPath().getParentPath().getParentPath().getLeaf()).getStatements();
+            case CASE -> ((CaseTree) ctx.getPath().getParentPath().getParentPath().getLeaf()).getStatements();
+            default -> null;
+        };
+
+        if (statements == null) {
+            return false;
+        }
+
+        int thisStatementIndex = statements.indexOf(ctx.getPath().getParentPath().getLeaf());
+
+        if (thisStatementIndex == (-1)) {
+            return false;
+        }
+
+        String pattern = "org.testng.Assert." + simpleName + "($param2, $param1" + (mit.getArguments().size() == 3 ? ", $param3" : "") + ");";
+
+        if (thisStatementIndex > 0 && MatcherUtilities.matches(ctx, new TreePath(ctx.getPath().getParentPath().getParentPath(), statements.get(thisStatementIndex - 1)), pattern)) {
+            return true;
+        }
+
+        if (thisStatementIndex + 1 < statements.size() && MatcherUtilities.matches(ctx, new TreePath(ctx.getPath().getParentPath().getParentPath(), statements.get(thisStatementIndex + 1)), pattern)) {
+            return true;
+        }
+
+        return false;
     }
 
     @TriggerPattern("org.testng.annotations.AfterMethod")

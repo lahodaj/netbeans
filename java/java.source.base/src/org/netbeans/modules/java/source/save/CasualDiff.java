@@ -4307,9 +4307,11 @@ public class CasualDiff {
         for (int j = 0; j < result.length; j++) {
             ResultItem<JCTree> item = result[j];
             int group = -1;
-            if (importGroups != null && item.element instanceof JCImport imp) {
+            if (/*importGroups != null && */item.element instanceof JCImport imp) {
                 Name name = printer.fullName(imp.qualid);
-                group = (name != null ? importGroups.getGroupId(name.toString(), imp.staticImport) : -1);
+//                group = (name != null ? importGroups.getGroupId(name.toString(), imp.staticImport) : -1);
+                //XXX: force org.junit.jupiter imports into a separate group:
+                group = name != null && name.toString().startsWith("org.junit.jupiter.") ? 1 : 0;
             }
             switch (item.operation) {
                 case MODIFY: {

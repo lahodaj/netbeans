@@ -476,22 +476,21 @@ public class TestNG2JUnit {
 
     @TriggerTreeKind(Tree.Kind.COMPILATION_UNIT)
     public static List<ErrorDescription> changeTestRunner(HintContext ctx) {
+        List<ErrorDescription> result = new ArrayList<>();
         if (ctx.getInfo().getText().contains("@run testng")) {
-            List<ErrorDescription> result = new ArrayList<>();
             result.add(ErrorDescriptionFactory.forName(ctx, ctx.getPath(), Bundle.ERR_TestNG2JUnit(), new RunJUnit(ctx.getInfo(), ctx.getPath()).toEditorFix()));
-            new TreePathScanner<Void, Void>() {
-                @Override
-                public Void visitClass(ClassTree node, Void p) {
-                    Element el = ctx.getInfo().getTrees().getElement(getCurrentPath());
-                    if (el != null && el.getKind().isClass() && requiresPerClassLifecycle(ctx.getInfo(), (TypeElement) el)) {
-                        result.add(ErrorDescriptionFactory.forName(ctx, getCurrentPath(), "Requires per-class lifecycle", new AddPerClassLifecycleAnnotation(ctx.getInfo(), getCurrentPath()).toEditorFix()));
-                    }
-                    return super.visitClass(node, p);
-                }
-            }.scan(ctx.getInfo().getCompilationUnit(), null);
-            return result;
         }
-        return null;
+        new TreePathScanner<Void, Void>() {
+            @Override
+            public Void visitClass(ClassTree node, Void p) {
+                Element el = ctx.getInfo().getTrees().getElement(getCurrentPath());
+                if (el != null && el.getKind().isClass() && requiresPerClassLifecycle(ctx.getInfo(), (TypeElement) el)) {
+                    result.add(ErrorDescriptionFactory.forName(ctx, getCurrentPath(), "Requires per-class lifecycle", new AddPerClassLifecycleAnnotation(ctx.getInfo(), getCurrentPath()).toEditorFix()));
+                }
+                return super.visitClass(node, p);
+            }
+        }.scan(ctx.getInfo().getCompilationUnit(), null);
+        return result;
     }
 
     private static final Set<String> REQUIRES_PER_CLASS_LIFECYCLE_ANNOTATIONS = Set.of(

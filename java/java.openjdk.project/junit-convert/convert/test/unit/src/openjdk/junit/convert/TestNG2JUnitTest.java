@@ -230,9 +230,11 @@ public class TestNG2JUnitTest {
                 .assertOutput("test/A.java",
                               """
                               package test;
+                              import org.junit.jupiter.api.TestInstance;
                               import org.junit.jupiter.params.ParameterizedTest;
                               import org.junit.jupiter.params.provider.MethodSource;
 
+                              @TestInstance(TestInstance.Lifecycle.PER_CLASS)
                               public class A {
                                   @ParameterizedTest
                                   @MethodSource("data")

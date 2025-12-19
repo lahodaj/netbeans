@@ -37,6 +37,7 @@ import com.sun.source.tree.ModifiersTree;
 import com.sun.source.tree.NewArrayTree;
 import com.sun.source.tree.StatementTree;
 import com.sun.source.tree.Tree;
+import com.sun.source.tree.Tree.Kind;
 import com.sun.source.tree.TypeCastTree;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.TreePathScanner;
@@ -380,6 +381,7 @@ public class TestNG2JUnit {
         boolean disable;
         String dataProviderName;
         String expectedException;
+        TreePathHandle timeOut;
         boolean canConvert = true;
         if (ctx.getPath().getParentPath().getLeaf().getKind() == Tree.Kind.ANNOTATION) {
             annotatedElement = ctx.getPath().getParentPath().getParentPath().getParentPath();
@@ -456,12 +458,21 @@ public class TestNG2JUnit {
             } else {
                 expectedException = null;
             }
+
+            ExpressionTree timeOutTree = attribute2Value.get("timeOut");
+
+            if (timeOutTree != null) {
+                timeOut = TreePathHandle.create(TreePath.getPath(ctx.getPath().getParentPath(), timeOutTree), ctx.getInfo());
+            } else {
+                timeOut = null;
+            }
             //TODO: fail if unknown/unresolvable attributes are present
         } else {
             annotatedElement = ctx.getPath();
             disable = false;
             dataProviderName = null;
             expectedException = null;
+            timeOut = null;
         }
         //TODO: parameters to the annotation!
         Fix fix;
@@ -471,7 +482,7 @@ public class TestNG2JUnit {
                 if (dataProviderName == null) {
                     placesToAugment.add(TreePathHandle.create(annotatedElement, ctx.getInfo()));
                 }
-                fix = new AddTestAnnotations(ctx.getInfo(), ctx.getPath().getParentPath(), placesToAugment, disable, dataProviderName, expectedException).toEditorFix();
+                fix = new AddTestAnnotations(ctx.getInfo(), ctx.getPath().getParentPath(), placesToAugment, disable, dataProviderName, expectedException, timeOut).toEditorFix();
                 break;
             }
             case CLASS: {
@@ -493,7 +504,7 @@ public class TestNG2JUnit {
                     }
                     placesToAugment.add(TreePathHandle.create(methodTP, ctx.getInfo()));
                 }
-                fix = new AddTestAnnotations(ctx.getInfo(), ctx.getPath().getParentPath(), placesToAugment, disable, dataProviderName, expectedException).toEditorFix();
+                fix = new AddTestAnnotations(ctx.getInfo(), ctx.getPath().getParentPath(), placesToAugment, disable, dataProviderName, expectedException, timeOut).toEditorFix();
                 break;
             }
             default:
@@ -563,13 +574,15 @@ public class TestNG2JUnit {
         private final boolean disable;
         private final String dataProviderName;
         private final String expectedException;
+        private final TreePathHandle timeOut;
 
-        public AddTestAnnotations(CompilationInfo info, TreePath tp, List<TreePathHandle> placesToAugment, boolean disable, String dataProviderName, String expectedException) {
+        public AddTestAnnotations(CompilationInfo info, TreePath tp, List<TreePathHandle> placesToAugment, boolean disable, String dataProviderName, String expectedException, TreePathHandle timeOut) {
             super(info, tp);
             this.placesToAugment = placesToAugment;
             this.disable = disable;
             this.dataProviderName = dataProviderName;
             this.expectedException = expectedException;
+            this.timeOut = timeOut;
         }
 
         @Override
@@ -636,6 +649,35 @@ public class TestNG2JUnit {
 
                     resolveAssertThrows(tc, member);
                 }
+            }
+            if (timeOut != null) {
+                ModifiersTree mods = (ModifiersTree) tc.getWorkingCopy().resolveRewriteTarget(tc.getPath().getParentPath().getLeaf());
+                TreePath resolvedTimeOut = timeOut.resolve(tc.getWorkingCopy());
+                TypeElement timeUnit = tc.getWorkingCopy().getElements().getTypeElement("java.util.concurrent.TimeUnit");
+                Element milliseconds = timeUnit.getEnclosedElements().stream().filter(e -> e.getKind() == ElementKind.ENUM_CONSTANT).filter(e -> e.getSimpleName().contentEquals("MILLISECONDS")).findAny().orElseThrow();
+                List<ExpressionTree> attributes = new ArrayList<>();
+
+                if (resolvedTimeOut.getLeaf().getKind() == Kind.INT_LITERAL ||
+                    resolvedTimeOut.getLeaf().getKind() == Kind.LONG_LITERAL) {
+                    long timeOutValue = ((Number) ((LiteralTree) resolvedTimeOut.getLeaf()).getValue()).longValue();
+
+                    if ((timeOutValue % 1000) == 0) {
+                        timeOutValue /= 1000;
+
+                        if (timeOutValue <= Integer.MAX_VALUE) {
+                            attributes.add(make.Literal((int) timeOutValue));
+                        } else {
+                            attributes.add(make.Literal(timeOutValue));
+                        }
+                    }
+                }
+
+                if (attributes.isEmpty()) {
+                    attributes.add(make.Assignment(make.Identifier("value"), (ExpressionTree) resolvedTimeOut.getLeaf()));
+                    attributes.add(make.Assignment(make.Identifier("unit"), make.QualIdent(milliseconds)));
+                }
+
+                tc.getWorkingCopy().rewrite(mods, make.addModifiersAnnotation(mods, make.Annotation(make.QualIdent("org.junit.jupiter.api.Timeout"), attributes)));
             }
         }
 

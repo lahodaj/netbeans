@@ -275,6 +275,65 @@ public class TestNG2JUnitTest {
                               """);
     }
 
+    @Test
+    public void testConvertTimeOuts1() throws Exception {
+        HintTest.create()
+                .classpath(classpath())
+                .input("test/A.java",
+                       """
+                       package test;
+                       import org.testng.annotations.Test;
+                       public class A {
+                           @Test(timeOut=60_000)
+                           public void test() {
+                           }
+                       }
+                       """)
+                .runBulk(TestNG2JUnit.class)
+                .assertOutput("test/A.java",
+                              """
+                              package test;
+                              import org.junit.jupiter.api.Test;
+                              import org.junit.jupiter.api.Timeout;
+                              public class A {
+                                  @Test
+                                  @Timeout(60)
+                                  public void test() {
+                                  }
+                              }
+                              """);
+    }
+
+    @Test
+    public void testConvertTimeOuts2() throws Exception {
+        HintTest.create()
+                .classpath(classpath())
+                .input("test/A.java",
+                       """
+                       package test;
+                       import org.testng.annotations.Test;
+                       public class A {
+                           @Test(timeOut=60_001)
+                           public void test() {
+                           }
+                       }
+                       """)
+                .runBulk(TestNG2JUnit.class)
+                .assertOutput("test/A.java",
+                              """
+                              package test;
+                              import java.util.concurrent.TimeUnit;
+                              import org.junit.jupiter.api.Test;
+                              import org.junit.jupiter.api.Timeout;
+                              public class A {
+                                  @Test
+                                  @Timeout(value = 60_001, unit = TimeUnit.MILLISECONDS)
+                                  public void test() {
+                                  }
+                              }
+                              """);
+    }
+
     private static URL[] classpath() {
         return new URL[] {
             FileUtil.getArchiveRoot(org.testng.Assert.class.getProtectionDomain().getCodeSource().getLocation()),

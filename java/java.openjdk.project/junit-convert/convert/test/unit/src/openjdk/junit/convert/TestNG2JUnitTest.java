@@ -402,6 +402,35 @@ public class TestNG2JUnitTest {
                               """);
     }
 
+    @Test
+    public void testConvertTimeOuts5() throws Exception {
+        HintTest.create()
+                .classpath(classpath())
+                .input("test/A.java",
+                       """
+                       package test;
+                       import org.testng.annotations.Test;
+                       @Test(timeOut=10_000)
+                       public class A {
+                           public void test() {
+                           }
+                       }
+                       """)
+                .runBulk(TestNG2JUnit.class)
+                .assertOutput("test/A.java",
+                              """
+                              package test;
+                              import org.junit.jupiter.api.Test;
+                              import org.junit.jupiter.api.Timeout;
+                              @Timeout(10)
+                              public class A {
+                                  @Test
+                                  public void test() {
+                                  }
+                              }
+                              """);
+    }
+
     private static URL[] classpath() {
         return new URL[] {
             FileUtil.getArchiveRoot(org.testng.Assert.class.getProtectionDomain().getCodeSource().getLocation()),

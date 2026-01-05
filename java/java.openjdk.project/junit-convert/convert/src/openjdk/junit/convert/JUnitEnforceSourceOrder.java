@@ -73,7 +73,7 @@ public class JUnitEnforceSourceOrder {
 
         return null;
     }
-    
+
     private static final class EnforceOrder extends JavaFix {
 
         private final List<TreePathHandle> testMethods;

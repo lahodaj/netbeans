@@ -35,6 +35,7 @@ import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.ModifiersTree;
 import com.sun.source.tree.NewArrayTree;
+import com.sun.source.tree.PrimitiveTypeTree;
 import com.sun.source.tree.StatementTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.TypeCastTree;
@@ -481,7 +482,11 @@ public class TestNG2JUnit {
                         continue;
                     }
                     MethodTree method = (MethodTree) member;
-                    if (!method.getModifiers().getFlags().contains(Modifier.PUBLIC) || method.getReturnType() == null) {
+                    if (!method.getModifiers().getFlags().contains(Modifier.PUBLIC) ||
+                        method.getReturnType() == null ||
+                        method.getReturnType().getKind() != Tree.Kind.PRIMITIVE_TYPE ||
+                        ((PrimitiveTypeTree) method.getReturnType()).getPrimitiveTypeKind() != TypeKind.VOID) {
+                        //ignore constructors and method with non-void return type:
                         continue;
                     }
                     TreePath methodTP = new TreePath(annotatedElement, method);

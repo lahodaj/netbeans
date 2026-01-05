@@ -275,6 +275,35 @@ public class TestNG2JUnitTest {
                               """);
     }
 
+    @Test
+    public void testExpandTestAnnotationNonVoidMethods() throws Exception {
+        HintTest.create()
+                .classpath(classpath())
+                .input("test/A.java",
+                       """
+                       package test;
+                       import org.testng.annotations.Test;
+                       @Test
+                       public class A {
+                            public void testReal() {}
+                            public int testNotReal1() { return 0; }
+                            public String testNotReal2() { return null; }
+                       }
+                       """)
+                .runBulk(TestNG2JUnit.class)
+                .assertOutput("test/A.java",
+                              """
+                              package test;
+                              import org.junit.jupiter.api.Test;
+                              public class A {
+                                  @Test
+                                  public void testReal() {}
+                                  public int testNotReal1() { return 0; }
+                                  public String testNotReal2() { return null; }
+                              }
+                              """);
+    }
+
     private static URL[] classpath() {
         return new URL[] {
             FileUtil.getArchiveRoot(org.testng.Assert.class.getProtectionDomain().getCodeSource().getLocation()),

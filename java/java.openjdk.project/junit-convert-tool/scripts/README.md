@@ -18,3 +18,13 @@ subclasses, the base class and all the subclasses should be specified here. Spec
 a directory is often sufficient.
 
 `java` should be at least JDK 17.
+
+Enforcing Test Order to Source Order
+---
+
+An additional tool injects `@Order` annotations together with `@TestMethodOrder(MethodOrderer.OrderAnnotation.class)`
+to enforce test method ordering to the same source as is in the sources. The usage
+is the same as for `JUnitConvert.java`:
+```
+java EnforceSourceOrder.java <tests-to-convert>
+```

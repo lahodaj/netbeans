@@ -60,7 +60,8 @@ public class JUnitEnforceSourceOrder {
                 Element el = ctx.getInfo().getTrees().getElement(memberPath);
 
                 for (AnnotationMirror am : el.getAnnotationMirrors()) {
-                    if (am.getAnnotationType().toString().equals("org.junit.jupiter.api.Test")) {
+                    if (am.getAnnotationType().toString().equals("org.junit.jupiter.api.Test") ||
+                        am.getAnnotationType().toString().equals("org.junit.jupiter.params.ParameterizedTest")) {
                         testMethods.add(TreePathHandle.create(memberPath, ctx.getInfo()));
                     }
                 }
@@ -104,17 +105,18 @@ public class JUnitEnforceSourceOrder {
                 MethodTree method = (MethodTree) member.getLeaf();
                 AnnotationTree orderAnnotation = make.Annotation(make.QualIdent("org.junit.jupiter.api.Order"), List.of(make.Literal(group)));
 
-                insertAnnotation(tc.getWorkingCopy(), method.getModifiers(), orderAnnotation);
+                insertAnnotation(tc.getWorkingCopy(), new TreePath(member, method.getModifiers()), orderAnnotation);
                 group++;
             }
 
             ClassTree clazz = (ClassTree) tc.getPath().getLeaf();
             AnnotationTree methodOrderAnnotation = make.Annotation(make.QualIdent("org.junit.jupiter.api.TestMethodOrder"), List.of(make.MemberSelect(make.QualIdent("org.junit.jupiter.api.MethodOrderer.OrderAnnotation"), "class")));
 
-            insertAnnotation(tc.getWorkingCopy(), clazz.getModifiers(), methodOrderAnnotation);
+            insertAnnotation(tc.getWorkingCopy(), new TreePath(tc.getPath(), clazz.getModifiers()), methodOrderAnnotation);
         }
 
-        private void insertAnnotation(WorkingCopy wc, ModifiersTree mods, AnnotationTree nue) {
+        private void insertAnnotation(WorkingCopy wc, TreePath modsPath, AnnotationTree nue) {
+            ModifiersTree mods = (ModifiersTree) modsPath.getLeaf();
             TreeMaker make = wc.getTreeMaker();
             int insertPoint = 0;
             String newAnnotation = nue.getAnnotationType().toString();
@@ -122,9 +124,14 @@ public class JUnitEnforceSourceOrder {
             mods = (ModifiersTree) wc.resolveRewriteTarget(mods);
 
             for (AnnotationTree existing : mods.getAnnotations()) {
-                if (existing.getAnnotationType().toString().compareTo(newAnnotation) >= 0) {
+                TreePath tp = new TreePath(new TreePath(modsPath, existing), existing.getAnnotationType());
+                Element annoType = wc.getTrees().getElement(tp);
+
+                if (annoType.toString().compareTo(newAnnotation) >= 0) {
                     break;
                 }
+
+                insertPoint++;
             }
 
             wc.rewrite(mods, make.insertModifiersAnnotation(mods, insertPoint, nue));

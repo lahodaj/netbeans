@@ -33,14 +33,18 @@ public class JUnitEnforceSourceOrderTest {
                        """
                        package test;
                        import org.junit.jupiter.api.Test;
+                       import org.junit.jupiter.params.ParameterizedTest;
 
                        public class A {
                            @Test
                            public void test1() {}
                            @Test
                            public void test2() {}
+                           @Deprecated
                            @Test
                            public void test3() {}
+                           @ParameterizedTest
+                           public void test4() {}
                        }
                        """)
                 .runBulk(JUnitEnforceSourceOrder.class)
@@ -51,6 +55,7 @@ public class JUnitEnforceSourceOrderTest {
                               import org.junit.jupiter.api.Order;
                               import org.junit.jupiter.api.Test;
                               import org.junit.jupiter.api.TestMethodOrder;
+                              import org.junit.jupiter.params.ParameterizedTest;
 
                               @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
                               public class A {
@@ -60,9 +65,13 @@ public class JUnitEnforceSourceOrderTest {
                                   @Order(1)
                                   @Test
                                   public void test2() {}
+                                  @Deprecated
                                   @Order(2)
                                   @Test
                                   public void test3() {}
+                                  @Order(3)
+                                  @ParameterizedTest
+                                  public void test4() {}
                               }
                               """);
     }

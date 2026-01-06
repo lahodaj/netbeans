@@ -52,9 +52,9 @@ public class BaseConvert {
             }
         } else {
             System.err.println("Expected a test directory to convert as a parameter.");
-        }
 
-        help();
+            help();
+        }
     }
 
     private static Path findJDKFrom(Path resource) {

@@ -21,6 +21,7 @@ package org.netbeans.modules.debugger.jpda.remote;
 import com.sun.jdi.ArrayReference;
 import com.sun.jdi.ArrayType;
 import com.sun.jdi.ByteValue;
+import com.sun.jdi.ClassLoaderReference;
 import com.sun.jdi.ClassNotLoadedException;
 import com.sun.jdi.ClassObjectReference;
 import com.sun.jdi.ClassType;
@@ -36,11 +37,29 @@ import com.sun.jdi.ThreadReference;
 import com.sun.jdi.Value;
 import com.sun.jdi.VirtualMachine;
 import java.beans.PropertyVetoException;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.StringWriter;
+import java.lang.invoke.MethodHandles;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import javax.tools.FileObject;
+import javax.tools.ForwardingJavaFileManager;
+import javax.tools.JavaCompiler;
+import javax.tools.JavaFileManager;
+import javax.tools.JavaFileObject;
+import javax.tools.SimpleJavaFileObject;
+import javax.tools.StandardJavaFileManager;
+import javax.tools.StandardLocation;
+import javax.tools.ToolProvider;
+import org.netbeans.modules.debugger.jpda.EditorContextBridge;
 import org.netbeans.modules.debugger.jpda.jdi.ArrayReferenceWrapper;
 import org.netbeans.modules.debugger.jpda.jdi.ArrayTypeWrapper;
 import org.netbeans.modules.debugger.jpda.jdi.ClassNotPreparedExceptionWrapper;
@@ -53,6 +72,8 @@ import org.netbeans.modules.debugger.jpda.jdi.ReferenceTypeWrapper;
 import org.netbeans.modules.debugger.jpda.jdi.UnsupportedOperationExceptionWrapper;
 import org.netbeans.modules.debugger.jpda.jdi.VMDisconnectedExceptionWrapper;
 import org.netbeans.modules.debugger.jpda.jdi.VirtualMachineWrapper;
+import org.netbeans.spi.debugger.jpda.EditorContext;
+import org.openide.util.Exceptions;
 
 /**
  * Services that manages uploaded classes into a remote JVM.
@@ -96,50 +117,84 @@ public final class RemoteServices {
                                                                                               ClassNotPreparedExceptionWrapper {
         List<ObjectReference> reenableCollection = new ArrayList<>();
         VirtualMachine vm = MirrorWrapper.virtualMachine(tr);
-        ObjectReference classLoader = getContextClassLoader(tr, vm);
-
-        ClassObjectReference classOption = loadClass(tr, "java.lang.invoke.MethodHandles$Lookup$ClassOption", reenableCollection);
+        //this won't work when the context is load by the bootstrap CL:
+        ClassLoaderReference classLoader = context.reflectedType().classLoader();
+        ClassObjectReference classOption = loadClass(tr, classLoader, "java.lang.invoke.MethodHandles$Lookup$ClassOption", reenableCollection);
 
         try {
             if (classOption != null) {
                 //target has support for MethodHandles.Lookup.defineHiddenClass:
-                ClassType lookup = getClass(vm, "java.lang.invoke.MethodHandles$Lookup");
-                ObjectReference nestmate = (ObjectReference) classOption.reflectedType().getValue(classOption.reflectedType().fieldByName("NESTMATE"));
-                //need to get all powers lookup for the context class:
-                ObjectReference allPowerContextLookup;
-                if (false) {
-                    //use Lookup.IMPL_LOOKUP:
-                    Field allMightyLookup = lookup.fieldByName("IMPL_LOOKUP");
-                    Method inMethod = lookup.methodsByName("in", "(Ljava/lang/Class;)Ljava/lang/invoke/MethodHandles$Lookup;").get(0);
-                    allPowerContextLookup = ((ObjectReference) ((ObjectReference) lookup.getValue(allMightyLookup)).invokeMethod(tr, inMethod, List.of(context), ObjectReference.INVOKE_SINGLE_THREADED));
+                String targetClassName = context.reflectedType().name();
+                int lastDot = targetClassName.lastIndexOf('.');
+                String targetPackage;
+                String injectorClassName;
+                if (lastDot == (-1)) {
+                    targetPackage = null;
+                    injectorClassName = "$$WatchClassInject";
                 } else {
-                    //use Lookup(Class):
-                    Method lookupConstructor = lookup.methodsByName("<init>", "(Ljava/lang/Class;)V").get(0);
-                    allPowerContextLookup = (ObjectReference) lookup.newInstance(tr, lookupConstructor, List.of(context), ObjectReference.INVOKE_SINGLE_THREADED);
+                    targetPackage = targetClassName.substring(0, lastDot);
+                    injectorClassName = targetPackage + ".$$WatchClassInject";
                 }
-                Method defineHiddenClass = lookup.methodsByName("defineHiddenClass", "([BZ[Ljava/lang/invoke/MethodHandles$Lookup$ClassOption;)Ljava/lang/invoke/MethodHandles$Lookup;").get(0);
-                ArrayReference byteArray = createTargetBytes(vm, rc.bytes, new ByteValue[256], reenableCollection);
-                ArrayType classOptionsArrayClass = getArrayClass(vm, "java.lang.invoke.MethodHandles$Lookup$ClassOption[]");
-                ArrayReference classOptionsArray = ArrayTypeWrapper.newInstance(classOptionsArrayClass, 1);
-                classOptionsArray.setValue(0, nestmate);
+                ClassObjectReference existingInjector = loadClass(tr, classLoader, injectorClassName, reenableCollection);
+                if (existingInjector == null) {
+                    Map<String, byte[]> bytecode = new HashMap<>();
 
-                ObjectReference newLookup = (ObjectReference) allPowerContextLookup.invokeMethod(tr, defineHiddenClass, List.of(byteArray, vm.mirrorOf(true), classOptionsArray), ObjectReference.INVOKE_SINGLE_THREADED);
-                Method lookupGetClass = lookup.methodsByName("lookupClass", "()Ljava/lang/Class;").get(0);
+                    class MemoryFileManager extends ForwardingJavaFileManager<JavaFileManager> {
+                        public MemoryFileManager(JavaFileManager fileManager) {
+                            super(fileManager);
+                        }
+                        @Override
+                        public JavaFileObject getJavaFileForOutput(Location location, String className, JavaFileObject.Kind kind, FileObject sibling) throws IOException {
+                            if (location == StandardLocation.CLASS_OUTPUT && kind == JavaFileObject.Kind.CLASS) {
+                                try {
+                                    return new SimpleJavaFileObject(new URI("mem://" + className + ".class"), JavaFileObject.Kind.CLASS) {
+                                        @Override
+                                        public OutputStream openOutputStream() throws IOException {
+                                            return new ByteArrayOutputStream() {
+                                                @Override
+                                                public void close() throws IOException {
+                                                    super.close();
+                                                    bytecode.put(className, toByteArray());
+                                                }
+                                            };
+                                        }
+                                    };
+                                } catch (URISyntaxException ex) {
+                                    throw new IOException(ex);
+                                }
+                            }
+                            return super.getJavaFileForOutput(location, className, kind, sibling);
+                        }
+                    }
+                    JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
 
-                return (ClassObjectReference) newLookup.invokeMethod(tr, lookupGetClass, List.of(), ObjectReference.INVOKE_SINGLE_THREADED);
+                    try (StandardJavaFileManager sfm = compiler.getStandardFileManager(d -> {}, null, null);
+                         MemoryFileManager mfm = new MemoryFileManager(sfm)) {
+                        compiler.getTask(null, mfm, null, List.of("--release", "15", "-proc:none"), null, List.of(new SimpleJavaFileObject(URI.create("mem://$$WatchClassInject.java"), JavaFileObject.Kind.SOURCE) {
+                            @Override
+                            public CharSequence getCharContent(boolean ignoreEncodingErrors) throws IOException {
+                                return INJECT_CLASS.replace("$PACKAGE", targetPackage);
+                            }
+                        })).call();
+                    }
+
+                    for (Map.Entry<String, byte[]> e : bytecode.entrySet()) {
+                        defineClass(vm, tr, classLoader, e.getKey(), e.getValue(), reenableCollection);
+                    }
+
+                    existingInjector = loadClass(tr, classLoader, injectorClassName, reenableCollection);
+
+                    if (existingInjector == null) {
+                        throw new IllegalStateException("Cannot define the class injector!");
+                    }
+                }
+                ClassType existingInjectorType = (ClassType) existingInjector.reflectedType();
+                Method inMethod = ClassTypeWrapper.concreteMethodByName(existingInjectorType, "injectClass", "(Ljava/lang/Class;[B)Ljava/lang/Class;");
+                ArrayReference bytecode = createTargetBytes(vm, rc.bytes, new ByteValue[256], reenableCollection);
+                return (ClassObjectReference) ClassTypeWrapper.invokeMethod(existingInjectorType, tr, inMethod, List.of(context, bytecode), ObjectReference.INVOKE_SINGLE_THREADED);
+//                return (ClassObjectReference) existingInjector.invokeMethod(tr, inMethod, List.of(context, bytecode), ObjectReference.INVOKE_SINGLE_THREADED);
             } else {
-                ClassType classLoaderClass = (ClassType) ObjectReferenceWrapper.referenceType(classLoader);
-
-                String className = rc.name;
-                ArrayReference byteArray = createTargetBytes(vm, rc.bytes, new ByteValue[256], reenableCollection);
-                StringReference nameMirror = objectWithDisabledCollection(() -> VirtualMachineWrapper.mirrorOf(vm, className), reenableCollection);
-                Method defineClass = ClassTypeWrapper.concreteMethodByName(classLoaderClass,
-                                                                           "defineClass",
-                                                                           "(Ljava/lang/String;[BII)Ljava/lang/Class;");
-                ClassObjectReference theUploadedClass = objectWithDisabledCollection(() -> (ClassObjectReference) ObjectReferenceWrapper.invokeMethod(
-                        classLoader, tr, defineClass,
-                        Arrays.asList(nameMirror, byteArray, vm.mirrorOf(0), vm.mirrorOf(rc.bytes.length)),
-                        ObjectReference.INVOKE_SINGLE_THREADED), reenableCollection);
+                ClassObjectReference theUploadedClass = defineClass(vm, tr, classLoader, rc.name, rc.bytes, reenableCollection);
                 // Initialize the class:
                 ClassType bc = ((ClassType) theUploadedClass.reflectedType());
                 if (!bc.isInitialized()) {
@@ -158,26 +213,6 @@ public final class RemoteServices {
                 } catch (UnsupportedOperationExceptionWrapper uex) {}
             }
         }
-    }
-
-    private static ObjectReference getContextClassLoader(ThreadReference tr, VirtualMachine vm) throws InternalExceptionWrapper,
-                                                                                                       VMDisconnectedExceptionWrapper,
-                                                                                                       ClassNotPreparedExceptionWrapper,
-                                                                                                       InvalidTypeException,
-                                                                                                       ClassNotLoadedException,
-                                                                                                       IncompatibleThreadStateException,
-                                                                                                       InvocationException,
-                                                                                                       ObjectCollectedExceptionWrapper {
-        ReferenceType threadType = tr.referenceType();
-        Method getContextCl = ClassTypeWrapper.concreteMethodByName((ClassType) threadType, "getContextClassLoader", "()Ljava/lang/ClassLoader;");
-        ObjectReference cl = (ObjectReference) ObjectReferenceWrapper.invokeMethod(tr, tr, getContextCl, Collections.<Value>emptyList(), ObjectReference.INVOKE_SINGLE_THREADED);
-        ClassType classLoaderClass = null;
-        if (cl == null) {
-            classLoaderClass = getClass(vm, ClassLoader.class.getName());
-            Method getSystemClassLoader = ClassTypeWrapper.concreteMethodByName(classLoaderClass, "getSystemClassLoader", "()Ljava/lang/ClassLoader;");
-            cl = (ObjectReference) ClassTypeWrapper.invokeMethod(classLoaderClass, tr, getSystemClassLoader, Collections.<Value>emptyList(), ObjectReference.INVOKE_SINGLE_THREADED);
-        }
-        return cl;
     }
 
     private static ClassType getClass(VirtualMachine vm, String name) throws InternalExceptionWrapper,
@@ -209,6 +244,33 @@ public final class RemoteServices {
             }
         }
         return (ArrayType) clazz;
+    }
+
+    private static ClassObjectReference defineClass(VirtualMachine vm,
+                                                    ThreadReference tr,
+                                                    ClassLoaderReference classLoader,
+                                                    String className,
+                                                    byte[] classfile,
+                                                    List<ObjectReference> reenableCollection) throws InvalidTypeException,
+                                                                                                     ClassNotLoadedException,
+                                                                                                     ClassNotPreparedExceptionWrapper,
+                                                                                                     InternalExceptionWrapper,
+                                                                                                     VMDisconnectedExceptionWrapper,
+                                                                                                     ObjectCollectedExceptionWrapper,
+                                                                                                     IncompatibleThreadStateException,
+                                                                                                     InvocationException,
+                                                                                                     UnsupportedOperationExceptionWrapper {
+        ClassType classLoaderClass = (ClassType) ObjectReferenceWrapper.referenceType(classLoader);
+
+        ArrayReference byteArray = createTargetBytes(vm, classfile, new ByteValue[256], reenableCollection);
+        StringReference nameMirror = objectWithDisabledCollection(() -> VirtualMachineWrapper.mirrorOf(vm, className), reenableCollection);
+        Method defineClass = ClassTypeWrapper.concreteMethodByName(classLoaderClass,
+                                                                   "defineClass",
+                                                                   "(Ljava/lang/String;[BII)Ljava/lang/Class;");
+        return objectWithDisabledCollection(() -> (ClassObjectReference) ObjectReferenceWrapper.invokeMethod(
+                classLoader, tr, defineClass,
+                Arrays.asList(nameMirror, byteArray, vm.mirrorOf(0), vm.mirrorOf(classfile.length)),
+                ObjectReference.INVOKE_SINGLE_THREADED), reenableCollection);
     }
 
     private static ArrayReference createTargetBytes(VirtualMachine vm, byte[] bytes,
@@ -262,6 +324,7 @@ public final class RemoteServices {
     }
 
     private static ClassObjectReference loadClass(ThreadReference tr,
+                                                  ClassLoaderReference classLoader,
                                                   String className,
                                                   List<ObjectReference> reenableCollection) throws InternalExceptionWrapper,
                                                                                                    VMDisconnectedExceptionWrapper,
@@ -275,11 +338,10 @@ public final class RemoteServices {
         VirtualMachine vm = MirrorWrapper.virtualMachine(tr);
         ReferenceType jlClass = vm.classesByName("java.lang.Class").get(0);
         Method loadClass = jlClass.methodsByName("forName", "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;").get(0);
-        ObjectReference classLoader = getContextClassLoader(tr, vm);
         ObjectReference classNameMirror = objectWithDisabledCollection(() -> vm.mirrorOf(className), reenableCollection);
 
         try {
-            return objectWithDisabledCollection(() -> (ClassObjectReference) jlClass.classObject().invokeMethod(tr, loadClass, List.of(classNameMirror, vm.mirrorOf(true), classLoader), ObjectReference.INVOKE_SINGLE_THREADED),
+            return objectWithDisabledCollection(() -> (ClassObjectReference) jlClass.classObject().invokeMethod(tr, loadClass, Arrays.asList(classNameMirror, vm.mirrorOf(true), classLoader), ObjectReference.INVOKE_SINGLE_THREADED),
                                                 reenableCollection);
         } catch (ClassNotLoadedException | IncompatibleThreadStateException | InvalidTypeException | InvocationException ex) {
             return null;
@@ -289,4 +351,20 @@ public final class RemoteServices {
     interface CreateReference<T extends ObjectReference> {
         public T create() throws InternalExceptionWrapper, VMDisconnectedExceptionWrapper, ClassNotLoadedException, IncompatibleThreadStateException, InvalidTypeException, InvocationException, UnsupportedOperationExceptionWrapper, ObjectCollectedExceptionWrapper;
     }
+
+    private static final String INJECT_CLASS =
+            """
+            package $PACKAGE;
+
+            import java.lang.invoke.MethodHandles;
+            import java.lang.invoke.MethodHandles.Lookup;
+            import java.lang.invoke.MethodHandles.Lookup.ClassOption;
+
+            class $$WatchClassInject {
+                public static Class<?> injectClass(Class<?> target, byte[] data) throws IllegalAccessException {
+                    Lookup l = MethodHandles.lookup();
+                    return MethodHandles.privateLookupIn(target, l).defineHiddenClass(data, true, ClassOption.NESTMATE).lookupClass();
+                }
+            }
+            """;
 }

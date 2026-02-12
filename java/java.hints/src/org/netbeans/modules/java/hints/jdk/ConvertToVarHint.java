@@ -212,7 +212,7 @@ public class ConvertToVarHint {
             // variable initializer type should be same as variable type.
             TypeMirror initTypeMirror = ctx.getInfo().getTrees().getTypeMirror(initTreePath);
             TypeMirror variableTypeMirror = ctx.getInfo().getTrees().getElement(treePath).asType();
-            if ((!Utilities.isValidType(initTypeMirror)) || (!ctx.getInfo().getTypes().isSameType(variableTypeMirror, Utilities.resolveCapturedType(ctx.getInfo(), initTypeMirror)))) {
+            if ((!Utilities.isValidType(initTypeMirror)) || (!ctx.getInfo().getTypes().isSameType(variableTypeMirror, ctx.getInfo().getTypeUtilities().getDenotableType(initTypeMirror)))) {
                 return false;
             }
             return true;
@@ -229,7 +229,7 @@ public class ConvertToVarHint {
                     }
                 }
             } else {
-                ArrayType arrayTypeExp = (ArrayType) Utilities.resolveCapturedType(ctx.getInfo(), expTypeMirror);
+                ArrayType arrayTypeExp = (ArrayType) ctx.getInfo().getTypeUtilities().getDenotableType(expTypeMirror);
                 Type arrayTypeExpType = arrayTypeExp.getComponentType();
                 if ((!Utilities.isValidType(typeTypeMirror)) || (!ctx.getInfo().getTypes().isSameType(typeTypeMirror, arrayTypeExpType))) {
                     return false;

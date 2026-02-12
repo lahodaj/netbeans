@@ -189,7 +189,7 @@ public class CollectionRemove {
 
         for (int cntr = 0; cntr < parameterMapping.length; cntr += 2) {
             TypeMirror actualParam = ctx.getInfo().getTrees().getTypeMirror(new TreePath(ctx.getPath(), mit.getArguments().get(parameterMapping[cntr + 0])));
-            TypeMirror designedType = org.netbeans.modules.java.hints.errors.Utilities.resolveCapturedType(ctx.getInfo(), againstType.getParameterTypes().get(parameterMapping[cntr + 1]));
+            TypeMirror designedType = ctx.getInfo().getTypeUtilities().getDenotableType(againstType.getParameterTypes().get(parameterMapping[cntr + 1]));
 
             if (designedType.getKind() == TypeKind.WILDCARD) {
                 designedType = ((WildcardType) designedType).getExtendsBound();

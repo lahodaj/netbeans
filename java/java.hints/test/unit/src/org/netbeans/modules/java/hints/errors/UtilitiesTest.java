@@ -24,7 +24,9 @@ import com.sun.source.tree.StatementTree;
 import com.sun.source.tree.Tree.Kind;
 import com.sun.source.util.SourcePositions;
 import com.sun.source.util.TreePath;
+import java.lang.reflect.TypeVariable;
 import java.util.Collection;
+import java.util.Map;
 import javax.lang.model.type.TypeMirror;
 import javax.swing.text.Document;
 import org.netbeans.api.java.lexer.JavaTokenId;
@@ -126,7 +128,7 @@ public class UtilitiesTest extends NbTestCase {
     
     public void testCapturedTypeArray164543() throws Exception {
         performCapturedTypeTest("package test; public class Test {public void t() {java.util.Map m; m.getClass().getTypeParameters(|); }}",
-                                "java.lang.reflect.TypeVariable<java.lang.Class<? extends java.util.Map>>[]");
+                                "java.lang.reflect.TypeVariable<? extends java.lang.Class<? extends java.util.Map>>[]");
     }
 
     public void testCapturedTypeExtends170574() throws Exception {
@@ -546,7 +548,7 @@ public class UtilitiesTest extends NbTestCase {
 
         TreePath tp = info.getTreeUtilities().pathFor(position);
         TypeMirror type = info.getTrees().getTypeMirror(tp);
-        TypeMirror resolved = Utilities.resolveCapturedType(info, type);
+        TypeMirror resolved = info.getTypeUtilities().getDenotableType(type);
 
         assertEquals(golden, org.netbeans.modules.editor.java.Utilities.getTypeName(info, resolved, true).toString());
     }

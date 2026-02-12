@@ -362,27 +362,12 @@ public class AssignResultToVariable extends AbstractHint {
                         if (type == null || NOT_ACCEPTABLE_TYPE_KINDS.contains(type.getKind())) {
                             return;
                         }
-                        Tree t = tp.getLeaf();
-                        boolean isAnonymous = false; //handle anonymous classes #138223
-                        ExpressionTree identifier = null;
-                        if (t instanceof NewClassTree) {
-                            Element el = copy.getTrees().getElement(tp);
-
-                            if (el == null) {
-                                return ;
-                            }
-                            NewClassTree nct = ((NewClassTree)t);
-                            isAnonymous = nct.getClassBody() != null || el.getKind().isInterface() || el.getModifiers().contains(Modifier.ABSTRACT);
-                            identifier = nct.getIdentifier();
-                        }
-
-                        type = Utilities.resolveTypeForDeclaration(copy, type);
                         
                         TreeMaker make = copy.getTreeMaker();
                         
                         name[0] = Utilities.guessName(copy, tp);
 
-                        Tree varType = isAnonymous ? identifier : make.Type(type);
+                        Tree varType = make.Type(type);
                         VariableTree var = make.Variable(make.Modifiers(EnumSet.noneOf(Modifier.class)), name[0], varType, (ExpressionTree) tp.getLeaf());
                         
                         var = Utilities.copyComments(copy, tp.getParentPath().getLeaf(), var);

@@ -26,6 +26,7 @@ import com.sun.tools.javac.code.Type.TypeVar;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.model.JavacTypes;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Iterator;
@@ -47,6 +48,7 @@ import javax.lang.model.util.SimpleTypeVisitor6;
 import org.netbeans.api.annotations.common.CheckReturnValue;
 import org.netbeans.api.annotations.common.NonNull;
 import org.netbeans.api.annotations.common.NullAllowed;
+import org.openide.util.Pair;
 
 /**Various utilities related to the {@link TypeMirror}s.
  *
@@ -171,14 +173,19 @@ public final class TypeUtilities {
         } else if (tk == TypeKind.NONE || tk == TypeKind.OTHER) {
             return types.createErrorType(inType);
         }
-        Type t = (Type) resolveCapturedType(info, type);
+        Type t = types.upward(inType, types.captures(inType));
         if (t == null) {
             return types.createErrorType(inType);
         }
         if (!t.isErroneous()) {
-            if (!checkDenotable(t)) {
+            MakeDenotable makeDenotable = new MakeDenotable();
+            Type convertedType = makeDenotable.apply(t);
+
+            if (!makeDenotable.fixable) {
                 return types.createErrorType(t);
             }
+
+            t = convertedType;
         }
         if (t.hasTag(TypeTag.BOT)) {
             return types.createErrorType(t);
@@ -187,163 +194,64 @@ public final class TypeUtilities {
         }
     }
     
-    boolean checkDenotable(Type t) {
-        return denotableChecker.visit(t, null);
-    }
         // where
 
     /** diamondTypeChecker: A type visitor that descends down the given type looking for non-denotable
      *  types. The visit methods return false as soon as a non-denotable type is encountered and true
      *  otherwise.
      */
-    private static final Types.SimpleVisitor<Boolean, Void> denotableChecker = new Types.SimpleVisitor<Boolean, Void>() {
+    private class MakeDenotable extends Type.StructuralTypeMapping<Void> {
+        private boolean fixable = true;
+
         @Override
-        public Boolean visitType(Type t, Void s) {
-            return true;
+        public Type visitType(Type t, Void s) {
+            return t;
         }
         @Override
-        public Boolean visitClassType(ClassType t, Void s) {
-            if (t.isUnion() || t.isIntersection()) {
-                return false;
+        public Type visitClassType(ClassType t, Void s) {
+            if (t.isIntersection()) {
+                Types types = Types.instance(info.impl.getJavacTask().getContext());
+                Type selectedSuperType = types.directSupertypes(t).get(0);
+
+                return visit(selectedSuperType, s);
             }
-            for (Type targ : t.allparams()) {
-                if (!visit(targ, s)) {
-                    return false;
+            if (t.tsym.isAnonymous()) {
+                Type selectedSuperType;
+
+                if (t.interfaces_field.nonEmpty()) {
+                    selectedSuperType = t.interfaces_field.head;
+                } else {
+                    selectedSuperType = t.supertype_field;
                 }
+
+                return visit((Type) selectedSuperType, s);
             }
-            return true;
+            if (t.isUnion()) {
+                fixable = false;
+                return t;
+            }
+            return super.visitClassType(t, s);
         }
 
         @Override
-        public Boolean visitTypeVar(TypeVar t, Void s) {
+        public Type visitTypeVar(TypeVar t, Void s) {
             /* Any type variable mentioned in the inferred type must have been declared as a type parameter
               (i.e cannot have been produced by inference (18.4))
             */
-            return (t.tsym.flags() & Flags.SYNTHETIC) == 0;
+            fixable = fixable & (t.tsym.flags() & Flags.SYNTHETIC) == 0;
+            return t;
         }
 
         @Override
-        public Boolean visitCapturedType(CapturedType t, Void s) {
+        public Type visitCapturedType(CapturedType t, Void s) {
             /* Any type variable mentioned in the inferred type must have been declared as a type parameter
               (i.e cannot have been produced by capture conversion (5.1.10))
             */
-            return false;
-        }
-
-
-        @Override
-        public Boolean visitArrayType(Type.ArrayType t, Void s) {
-            return visit(t.elemtype, s);
-        }
-
-        @Override
-        public Boolean visitWildcardType(Type.WildcardType t, Void s) {
-            return visit(t.type, s);
+            fixable = false;
+            return t;
         }
     };
-
-    //from java.hints/src/org/netbeans/modules/java/hints/errors/Utilities.java:
-    private static TypeMirror resolveCapturedType(CompilationInfo info, TypeMirror tm) {
-        if (tm == null) {
-            return tm;
-        }
-        if (tm.getKind() == TypeKind.ERROR) {
-            tm = info.getTrees().getOriginalType((ErrorType) tm);
-        }
-        TypeMirror type = resolveCapturedTypeInt(info, tm);
-        if (type == null) {
-            return tm;
-        }
-        if (type.getKind() == TypeKind.WILDCARD) {
-            TypeMirror tmirr = ((WildcardType) type).getExtendsBound();
-            if (tmirr != null)
-                return tmirr;
-            else { //no extends, just '?'
-                TypeElement te = info.getElements().getTypeElement("java.lang.Object"); // NOI18N
-                return te == null ? null : te.asType();
-            }
-                
-        }
-        
-        return type;
-    }
     
-    /**
-     * Note: may return {@code null}, if an intersection type is encountered, to indicate a 
-     * real type cannot be created.
-     */
-    private static TypeMirror resolveCapturedTypeInt(CompilationInfo info, TypeMirror tm) {
-        if (tm == null) return tm;
-        
-        TypeMirror orig = SourceUtils.resolveCapturedType(tm);
-
-        if (orig != null) {
-            tm = orig;
-        }
-        
-        if (tm.getKind() == TypeKind.WILDCARD) {
-            TypeMirror extendsBound = ((WildcardType) tm).getExtendsBound();
-            TypeMirror superBound = ((WildcardType) tm).getSuperBound();
-            if (extendsBound != null || superBound != null) {
-                TypeMirror rct = resolveCapturedTypeInt(info, extendsBound != null ? extendsBound : superBound);
-                if (rct != null) {
-                    switch (rct.getKind()) {
-                        case WILDCARD:
-                            return rct;
-                        case ARRAY:
-                        case DECLARED:
-                        case ERROR:
-                        case TYPEVAR:
-                        case OTHER:
-                            return info.getTypes().getWildcardType(
-                                    extendsBound != null ? rct : null, superBound != null ? rct : null);
-                    }
-                } else {
-                    // propagate failure out of all wildcards
-                    return null;
-                }
-            }
-        } else if (tm.getKind() == TypeKind.INTERSECTION) {
-            return null;
-        }
-        
-        if (tm.getKind() == TypeKind.DECLARED) {
-            DeclaredType dt = (DeclaredType) tm;
-            List<TypeMirror> typeArguments = new LinkedList<TypeMirror>();
-            
-            for (TypeMirror t : dt.getTypeArguments()) {
-                TypeMirror targ = resolveCapturedTypeInt(info, t);
-                if (targ == null) {
-                    // bail out, if the type parameter is a wildcard, it's probably not possible
-                    // to create a proper parametrized type from it
-                    if (t.getKind() == TypeKind.WILDCARD || t.getKind() == TypeKind.INTERSECTION) {
-                        return null;
-                    }
-                    // use rawtype
-                    typeArguments.clear();
-                    break;
-                }
-                typeArguments.add(targ);
-            }
-            
-            final TypeMirror enclosingType = dt.getEnclosingType();
-            if (enclosingType.getKind() == TypeKind.DECLARED) {
-                return info.getTypes().getDeclaredType((DeclaredType) enclosingType, (TypeElement) dt.asElement(), typeArguments.toArray(new TypeMirror[0]));
-            } else {
-                if (dt.asElement() == null) return dt;
-                return info.getTypes().getDeclaredType((TypeElement) dt.asElement(), typeArguments.toArray(new TypeMirror[0]));
-            }
-        }
-
-        if (tm.getKind() == TypeKind.ARRAY) {
-            ArrayType at = (ArrayType) tm;
-            TypeMirror tm2 = resolveCapturedTypeInt(info, at.getComponentType());
-            return info.getTypes().getArrayType(tm2 != null ? tm2 : tm);
-        }
-        
-        return tm;
-    }
-
     /**Options for the {@link #getTypeName(javax.lang.model.type.TypeMirror, org.netbeans.api.java.source.TypeUtilities.TypeNameOptions[]) } method.
      * @since 0.62
      */

@@ -20,7 +20,10 @@ package org.netbeans.modules.java.hints;
 
 import com.sun.source.util.TreePath;
 import java.lang.reflect.Method;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.netbeans.api.java.source.CompilationInfo;
 import org.netbeans.api.java.source.support.CaretAwareJavaSourceTaskFactory;
 import org.netbeans.modules.java.hints.infrastructure.TreeRuleTestBase;
@@ -147,6 +150,38 @@ public class AssignResultToVariableTest extends TreeRuleTestBase {
                 "0:58-0:58:hint:Assign Return Value To New Variable",
                 "FixImpl",
                 "package test; public class Test {public void t() { Runnable runnable = new Runnable() { public void run() { } }; } }");
+    }
+
+    public void testAnonymousClassParameterized() throws Exception {
+        performFixTest("test/Test.java",
+                """
+                package test;
+                public class Test {
+                    public void t() {
+                        |new Iterable<String>() {
+                            @Override
+                            public Iterator<String> iterator() {
+                                return null;
+                            }
+                        };
+                    }
+                }
+                """,
+                "3:8-3:8:hint:Assign Return Value To New Variable",
+                "FixImpl",
+                """
+                package test;
+                public class Test {
+                    public void t() {
+                        Iterable<String> iterable = new Iterable<String>() {
+                            @Override
+                            public Iterator<String> iterator() {
+                                return null;
+                            }
+                        };
+                    }
+                }
+                """.replaceAll("\\s+", " "));
     }
 
     public void testForgiving1() throws Exception {
@@ -284,11 +319,12 @@ public class AssignResultToVariableTest extends TreeRuleTestBase {
             "4:16-4:16:hint:Assign Return Value To New Variable",
             "FixImpl",
             ("package test;\n" +
+            "import java.io.Serializable;\n" +
             "import java.util.Arrays;\n" +
             "import java.util.List;\n" +
              "class Test {\n" +
              "    static void f() {\n" +
-             "       List asList = Arrays.asList(Integer.class,String.class);\n" +  
+             "       List<Class<? extends Serializable>> asList = Arrays.asList(Integer.class,String.class);\n" +
              "    }\n" +
              "}").replaceAll("\\s+", " "));
     }
@@ -309,7 +345,7 @@ public class AssignResultToVariableTest extends TreeRuleTestBase {
             "import java.util.Set;\n" +
             "public class Test {\n" +
             "    void test(Map<? extends String, ? extends Number> map) {\n"
-                + "   Set<Map.Entry<? extends String, ? extends Number>> entrySet = map.entrySet(); //assign return value to a new variable here\n"
+                + "   Set<? extends Map.Entry<? extends String, ? extends Number>> entrySet = map.entrySet(); //assign return value to a new variable here\n"
                 + "    }\n"
                 + "}").replaceAll("\\s+", " "));
     }

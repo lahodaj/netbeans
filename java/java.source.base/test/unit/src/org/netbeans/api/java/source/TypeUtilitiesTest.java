@@ -25,10 +25,18 @@ import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
+import com.sun.source.tree.VariableTree;
+import com.sun.source.util.TreePath;
+import com.sun.source.util.TreePathScanner;
+import com.sun.tools.javac.code.Type;
+import com.sun.tools.javac.code.Types;
+import com.sun.tools.javac.util.List;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
@@ -164,4 +172,81 @@ public class TypeUtilitiesTest extends NbTestCase {
         
     }
     
+    public void testGetDenotable() throws Exception {
+        FileObject src = FileUtil.createData(new File(getWorkDir(), "Test.java"));
+        TestUtilities.copyStringToFile(src,
+                                       """
+                                       public class Test {
+                                           private Object iterableAnonymous = new Iterable<String>() {};
+                                           private Object arrayListAnonymous = new java.util.ArrayList<String>() {};
+                                       }
+                                       """);
+        JavaSource js = JavaSource.forFileObject(src);
+
+        js.runUserActionTask(info -> {
+            info.toPhase(JavaSource.Phase.RESOLVED);
+            Types types = Types.instance(info.impl.getJavacTask().getContext());
+            TypeElement jlStringElement = info.getElements().getTypeElement("java.lang.String");
+            Type jlString = (Type) info.getTypes().getDeclaredType(jlStringElement);
+            TypeElement jlCharSequenceElement = info.getElements().getTypeElement("java.lang.CharSequence");
+            Type jlCharSequence = (Type) info.getTypes().getDeclaredType(jlCharSequenceElement);
+            TypeElement jlRunnableElement = info.getElements().getTypeElement("java.lang.Runnable");
+            Type jlRunnable = (Type) info.getTypes().getDeclaredType(jlRunnableElement);
+            TypeElement jlMapElement = info.getElements().getTypeElement("java.util.Map");
+            TypeElement jlListElement = info.getElements().getTypeElement("java.util.List");
+
+            TypeMirror withCapture = info.getTypes().getDeclaredType(jlMapElement,
+                                                                     jlString,
+                                                                     info.getTypes().capture(info.getTypes().getDeclaredType(jlListElement, info.getTypes().getWildcardType(jlCharSequence, null))));
+
+            assertEquals("java.util.Map<java.lang.String,? extends java.util.List<? extends java.lang.CharSequence>>",
+                         info.getTypeUtilities().getDenotableType(withCapture).toString());
+
+            TypeMirror intersectionClass = types.makeIntersectionType(List.of(jlString, jlRunnable));
+
+            assertEquals("java.lang.String",
+                         info.getTypeUtilities().getDenotableType(intersectionClass).toString());
+
+            TypeMirror intersectionInterfaces = types.makeIntersectionType(List.of(jlCharSequence, jlRunnable));
+
+            assertEquals("java.lang.CharSequence",
+                         info.getTypeUtilities().getDenotableType(intersectionInterfaces).toString());
+
+            assertEquals("java.util.List<java.lang.CharSequence>",
+                         info.getTypeUtilities().getDenotableType(info.getTypes().getDeclaredType(jlListElement, intersectionInterfaces)).toString());
+
+            Map<String, TypeMirror> name2Type = new HashMap<>();
+
+            new TreePathScanner<>() {
+                @Override
+                public Object visitVariable(VariableTree node, Object p) {
+                    TreePath initPath = new TreePath(getCurrentPath(), node.getInitializer());
+                    name2Type.put(node.getName().toString(), info.getTrees().getTypeMirror(initPath));
+                    return super.visitVariable(node, p);
+                }
+            }.scan(info.getCompilationUnit(), null);
+
+            TypeMirror iterableAnonymous = name2Type.get("iterableAnonymous");
+
+            assertEquals("<anonymous java.lang.Iterable<java.lang.String>>",
+                         iterableAnonymous.toString());
+
+            assertEquals("java.lang.Iterable<java.lang.String>",
+                         info.getTypeUtilities().getDenotableType(iterableAnonymous).toString());
+
+            assertEquals("java.util.List<java.lang.Iterable<java.lang.String>>",
+                         info.getTypeUtilities().getDenotableType(info.getTypes().getDeclaredType(jlListElement, iterableAnonymous)).toString());
+
+            TypeMirror arrayListAnonymous = name2Type.get("arrayListAnonymous");
+
+            assertEquals("<anonymous java.util.ArrayList<java.lang.String>>",
+                         arrayListAnonymous.toString());
+
+            assertEquals("java.util.ArrayList<java.lang.String>",
+                         info.getTypeUtilities().getDenotableType(arrayListAnonymous).toString());
+
+            assertEquals("java.util.List<java.util.ArrayList<java.lang.String>>",
+                         info.getTypeUtilities().getDenotableType(info.getTypes().getDeclaredType(jlListElement, arrayListAnonymous)).toString());
+        }, true);
+    }
 }

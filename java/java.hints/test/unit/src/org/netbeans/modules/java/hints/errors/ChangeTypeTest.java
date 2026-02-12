@@ -188,13 +188,14 @@ public class ChangeTypeTest extends ErrorHintsTestBase {
             "       String asList = Arrays.asList(Integer.class,String.class);\n" +
             "    }\n" +
             "}", -1,
-            "Change type of asList to List",
+            "Change type of asList to List&lt;Class&lt;? extends Serializable>>",
             ("package test;\n" +
+            "import java.io.Serializable;\n" +
             "import java.util.Arrays;\n" +
             "import java.util.List;\n" +
              "class Test {\n" +
              "    static void f() {\n" +
-             "       List asList = Arrays.asList(Integer.class,String.class);\n" +  
+             "       List<Class<? extends Serializable>> asList = Arrays.asList(Integer.class,String.class);\n" +
              "    }\n" +
              "}").replaceAll("\\s+", " "));
     }

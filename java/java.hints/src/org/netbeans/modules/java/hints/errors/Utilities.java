@@ -524,118 +524,13 @@ public class Utilities {
     }
     
     public static TypeMirror resolveTypeForDeclaration(CompilationInfo info, TypeMirror tm) {
-        // TODO: should I convert the anonymous types to something more referenceable ?
-        TypeMirror captureResolved = resolveCapturedType(info, tm);
-        if (captureResolved == null) {
-            return null;
-        }
-        TypeMirror m = info.getTypeUtilities().getDenotableType(tm);
-        if (isValidType(m) || !isValidType(captureResolved)) {
-            return m;
-        } else {
-            return captureResolved;
-        }
-    }
-    
-    public static TypeMirror resolveCapturedType(CompilationInfo info, TypeMirror tm) {
-        if (tm == null) {
-            return tm;
-        }
-        if (tm.getKind() == TypeKind.ERROR) {
-            tm = info.getTrees().getOriginalType((ErrorType) tm);
-        }
-        TypeMirror type = resolveCapturedTypeInt(info, tm);
-        if (type == null) {
-            return tm;
-        }
-        if (type.getKind() == TypeKind.WILDCARD) {
-            TypeMirror tmirr = ((WildcardType) type).getExtendsBound();
-            if (tmirr != null)
-                return tmirr;
-            else { //no extends, just '?'
-                TypeElement te = info.getElements().getTypeElement("java.lang.Object"); // NOI18N
-                return te == null ? null : te.asType();
-            }
-                
-        }
-        
-        return type;
-    }
-    
-    /**
-     * Note: may return {@code null}, if an intersection type is encountered, to indicate a 
-     * real type cannot be created.
-     */
-    private static TypeMirror resolveCapturedTypeInt(CompilationInfo info, TypeMirror tm) {
-        if (tm == null) return tm;
-        
-        TypeMirror orig = SourceUtils.resolveCapturedType(tm);
+        TypeMirror candidate = info.getTypeUtilities().getDenotableType(tm);
 
-        if (orig != null) {
-            tm = orig;
-        }
-        
-        if (tm.getKind() == TypeKind.WILDCARD) {
-            TypeMirror extendsBound = ((WildcardType) tm).getExtendsBound();
-            TypeMirror superBound = ((WildcardType) tm).getSuperBound();
-            if (extendsBound != null || superBound != null) {
-                TypeMirror rct = resolveCapturedTypeInt(info, extendsBound != null ? extendsBound : superBound);
-                if (rct != null) {
-                    switch (rct.getKind()) {
-                        case WILDCARD:
-                            return rct;
-                        case ARRAY:
-                        case DECLARED:
-                        case ERROR:
-                        case TYPEVAR:
-                        case OTHER:
-                            return info.getTypes().getWildcardType(
-                                    extendsBound != null ? rct : null, superBound != null ? rct : null);
-                    }
-                } else {
-                    // propagate failure out of all wildcards
-                    return null;
-                }
-            }
-        } else if (tm.getKind() == TypeKind.INTERSECTION) {
-            return null;
-        }
-        
-        if (tm.getKind() == TypeKind.DECLARED) {
-            DeclaredType dt = (DeclaredType) tm;
-            List<TypeMirror> typeArguments = new LinkedList<TypeMirror>();
-            
-            for (TypeMirror t : dt.getTypeArguments()) {
-                TypeMirror targ = resolveCapturedTypeInt(info, t);
-                if (targ == null) {
-                    // bail out, if the type parameter is a wildcard, it's probably not possible
-                    // to create a proper parametrized type from it
-                    if (t.getKind() == TypeKind.WILDCARD || t.getKind() == TypeKind.INTERSECTION) {
-                        return null;
-                    }
-                    // use rawtype
-                    typeArguments.clear();
-                    break;
-                }
-                typeArguments.add(targ);
-            }
-            
-            final TypeMirror enclosingType = dt.getEnclosingType();
-            if (enclosingType.getKind() == TypeKind.DECLARED) {
-                return info.getTypes().getDeclaredType((DeclaredType) enclosingType, (TypeElement) dt.asElement(), typeArguments.toArray(new TypeMirror[0]));
-            } else {
-                if (dt.asElement() == null) return dt;
-                return info.getTypes().getDeclaredType((TypeElement) dt.asElement(), typeArguments.toArray(new TypeMirror[0]));
-            }
+        if (candidate.getKind() == TypeKind.ERROR) {
+            candidate = info.getTypes().erasure(tm);
         }
 
-        if (tm.getKind() == TypeKind.ARRAY) {
-            ArrayType at = (ArrayType) tm;
-            TypeMirror tm2 = resolveCapturedTypeInt(info, at.getComponentType());
-            return info.getTypes().getArrayType(tm2 != null ? tm2 : tm);
-        }
-        
-        return tm;
+        return candidate;
     }
     
     public static <T extends Tree> T copyComments(WorkingCopy wc, Tree from, T to) {

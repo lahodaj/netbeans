@@ -340,7 +340,7 @@ public class IntroduceHint implements CancellableTask<CompilationInfo> {
                             Collections.singleton(resolved.getLeaf()), duplicates, cancel, allIfaces);
                     if (viableTargets != null && !viableTargets.isEmpty()) {
                         TypeMirror returnType = 
-                                Utilities.convertIfAnonymous(Utilities.resolveCapturedType(info, 
+                                Utilities.convertIfAnonymous(Utilities.resolveTypeForDeclaration(info,
                                         resolveType(info, resolved)));
                         if (Utilities.isValidType(returnType)) {
                             methodFix = new IntroduceExpressionBasedMethodFix(info.getSnapshot().getSource(), h, params, TypeMirrorHandle.create(returnType),

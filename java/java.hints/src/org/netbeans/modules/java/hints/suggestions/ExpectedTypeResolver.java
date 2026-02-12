@@ -448,7 +448,7 @@ public class ExpectedTypeResolver implements TreeVisitor<List<? extends TypeMirr
 
         if (targetType == null || targetType.getKind() == /*XXX:*/TypeKind.ERROR || targetType.getKind() == TypeKind.NONE || targetType.getKind() == TypeKind.NULL) return null;
 
-        return Utilities.resolveCapturedType(info, targetType);
+        return info.getTypeUtilities().getDenotableType(targetType);
     }
 
     /**

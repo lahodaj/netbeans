@@ -163,7 +163,7 @@ public class ConvertInvalidVarToExplicitArrayType implements ErrorRule<Void> {
                     return ; //cannot resolve
                 }
 
-                arrayType = Utilities.resolveCapturedType(wc, arrayType);
+                arrayType = Utilities.resolveTypeForDeclaration(wc, arrayType);
 
                 VariableTree newVariableTree = make.Variable(
                         oldVariableTree.getModifiers(),

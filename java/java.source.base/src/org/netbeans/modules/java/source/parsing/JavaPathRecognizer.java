@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import org.netbeans.api.java.classpath.ClassPath;
+import org.netbeans.api.java.classpath.JavaClassPathConstants;
 import org.netbeans.modules.parsing.spi.indexing.PathRecognizer;
 
 /**
@@ -39,7 +40,8 @@ public class JavaPathRecognizer extends PathRecognizer {
 
     private static final Set<String> BINARIES = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(new String[] {
         ClassPath.BOOT,
-        ClassPath.COMPILE
+        ClassPath.COMPILE,
+        JavaClassPathConstants.MODULE_COMPILE_PATH
     })));
 
     @Override

@@ -80,33 +80,6 @@ public class ClassPathProviderImpl implements ClassPathProvider {
         FileObject keyRoot = javac ? testRoot.getNameExt().equals("langtools") ? Utilities.getLangtoolsKeyRoot(testRoot.getParent().getParent()) : Utilities.getLangtoolsKeyRoot(testRoot.getParent()) : null;
         //XXX: hack to make things work for langtools:
         switch (type) {
-            case ClassPath.COMPILE:
-                if (javac) {
-                    ClassPath langtoolsCP = ClassPath.getClassPath(keyRoot, ClassPath.COMPILE);
-                    Library testngLib = LibraryManager.getDefault().getLibrary("testng");
-                    Library junit5Lib = LibraryManager.getDefault().getLibrary("junit_5");
-
-                    if (testngLib != null || junit5Lib != null) {
-                        List<ClassPath> parts = new ArrayList<>();
-
-                        if (testngLib != null) {
-                            parts.add(ClassPathSupport.createClassPath(testngLib.getContent("classpath").toArray(new URL[0])));
-                        }
-                        if (junit5Lib != null) {
-                            parts.add(ClassPathSupport.createClassPath(junit5Lib.getContent("classpath").toArray(new URL[0])));
-                        }
-
-                        parts.add(langtoolsCP);
-
-                        return ClassPathSupport.createProxyClassPath(parts.toArray(new ClassPath[0]));
-                    }
-
-                    if (langtoolsCP == null)
-                        return ClassPath.EMPTY;
-                    else
-                        return langtoolsCP;
-                }
-                else return null;
             case ClassPath.BOOT:
                 if (javac) {
                     try {

@@ -550,6 +550,7 @@ public class SourceUtils {
                     createClassPath(cpInfo,ClasspathInfo.PathKind.OUTPUT),
                     createClassPath(cpInfo,ClasspathInfo.PathKind.BOOT),
                     createClassPath(cpInfo,ClasspathInfo.PathKind.COMPILE),
+                    createClassPath(cpInfo,ClasspathInfo.PathKind.MODULE_COMPILE),
                 };
             String pkgName, className = null;
             Predicate<FileObject> filter = (p) -> true;

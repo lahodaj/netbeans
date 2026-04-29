@@ -46,7 +46,7 @@ public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementat
     private static final class EnablePreviewResult extends Result {
 
         private static final List<String> ENABLE_PREVIEW_ARGS =
-                Collections.unmodifiableList(Arrays.asList("--enable-preview"));
+                Collections.unmodifiableList(Arrays.asList("--enable-preview", "--add-modules", "ALL-MODULE-PATH"));
 
         @Override
         public List<? extends String> getArguments() {

@@ -22,7 +22,6 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -30,8 +29,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.jar.JarEntry;
-import java.util.jar.JarOutputStream;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -41,11 +38,8 @@ import javax.swing.event.ChangeListener;
 import org.netbeans.api.java.classpath.ClassPath;
 import org.netbeans.api.java.classpath.GlobalPathRegistry;
 import org.netbeans.api.java.classpath.JavaClassPathConstants;
-import org.netbeans.api.java.platform.JavaPlatform;
 import org.netbeans.api.java.source.ClasspathInfo;
-import org.netbeans.api.java.source.CompilationController;
 import org.netbeans.api.java.source.JavaSource;
-import org.netbeans.api.java.source.Task;
 import org.netbeans.api.project.libraries.Library;
 import org.netbeans.api.project.libraries.LibraryManager;
 import org.netbeans.modules.java.openjdk.project.JDKProject.Root;
@@ -60,8 +54,6 @@ import org.netbeans.spi.java.classpath.support.ClassPathSupport;
 import org.netbeans.spi.project.support.ant.PropertyEvaluator;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
-import org.openide.modules.InstalledFileLocator;
-import org.openide.modules.Places;
 import org.openide.util.Exceptions;
 
 /**
@@ -80,7 +72,8 @@ public class ClassPathProviderImpl implements ClassPathProvider {
     private final ClassPath bootCP;
     private final ClassPath moduleBootCP;
     private final ClassPath compileCP;
-    private final ClassPath moduleCompileCP;
+    private final ClassPath modulePathCP;
+    private final ClassPath allJDKModulesCP;
     private final ClassPath sourceCP;
     private final ClassPath testsCompileCP;
     private final ClassPath testsRegCP;
@@ -90,51 +83,29 @@ public class ClassPathProviderImpl implements ClassPathProvider {
         bootCP = ClassPath.EMPTY;
         moduleBootCP = ClassPath.EMPTY;
         
-        File fakeJdk = InstalledFileLocator.getDefault().locate("modules/ext/fakeJdkClasses.zip", "org.netbeans.modules.java.openjdk.project", false);
-        URL fakeJdkURL = null;
-        if (fakeJdk != null) {
-            fakeJdkURL = FileUtil.urlForArchiveOrDir(fakeJdk);
-        }
-
         if (project.currentModule != null) {
-            List<URL> compileElements = new ArrayList<>();
             Collection<String> dependencies = project.moduleRepository.allDependencies(project.currentModule);
-
-            for (String dep : dependencies) {
-                FileObject depFO = project.moduleRepository.findModuleRoot(dep);
+            List<URL> mp = new ArrayList<>();
+            List<URL> reg = new ArrayList<>();
+            for (ModuleDescription mod : project.moduleRepository.modules) {
+                FileObject depFO = project.moduleRepository.findModuleRoot(mod.name);
 
                 if (depFO == null)
                     continue; //!!!
 
                 try {
-                    compileElements.add(projectDir2FakeTarget(depFO));
+                    URL fakeTarget = projectDir2FakeTarget(depFO);
+                    mp.add(fakeTarget);
+                    if (dependencies.contains(mod.name)) {
+                        reg.add(fakeTarget);
+                    }
                 } catch (MalformedURLException ex) {
                     Exceptions.printStackTrace(ex);
                 }
             }
-
-            if (fakeJdkURL != null) {
-                compileElements.add(fakeJdkURL);
-            }
-
-            compileCP = ClassPathSupport.createClassPath(compileElements.toArray(new URL[0]));
-            List<FileObject> mp = new ArrayList<>();
-            File fakeMPJars = Places.getCacheSubdirectory("org-netbeans-modules-jdk-project-JDKProject-module-path");
-            for (ModuleDescription mod : project.moduleRepository.modules) {
-                if (dependencies.contains(mod.name))
-                    continue;
-                File fakeJar = new File(fakeMPJars, mod.name + ".jar");
-                if (!fakeJar.exists()) {
-                    try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(fakeJar))) {
-                        jos.putNextEntry(new JarEntry("empty"));
-                    } catch (IOException ex) {
-                        Exceptions.printStackTrace(ex);
-                        continue;
-                    }
-                }
-                mp.add(FileUtil.getArchiveRoot(FileUtil.toFileObject(fakeJar)));
-            }
-            moduleCompileCP = ClassPathSupport.createProxyClassPath(compileCP, ClassPathSupport.createClassPath(mp.toArray(new FileObject[0])));
+            compileCP = ClassPath.EMPTY;
+            allJDKModulesCP = ClassPathSupport.createClassPath(mp.toArray(URL[]::new));
+            modulePathCP = ClassPathSupport.createClassPath(reg.toArray(URL[]::new));
         } else {
             List<PathResourceImplementation> compileElements = new ArrayList<>();
 
@@ -143,10 +114,10 @@ public class ClassPathProviderImpl implements ClassPathProvider {
             }
             
             compileCP = ClassPathSupport.createClassPath(compileElements);
-            moduleCompileCP = ClassPath.EMPTY;
+            allJDKModulesCP = ClassPath.EMPTY;
+            modulePathCP = ClassPath.EMPTY;
         }
 
-        
         List<PathResourceImplementation> sourceRoots = new ArrayList<>();
         List<PathResourceImplementation> testsRegRoots = new ArrayList<>();
         
@@ -160,20 +131,7 @@ public class ClassPathProviderImpl implements ClassPathProvider {
         
         sourceCP = ClassPathSupport.createClassPath(sourceRoots);
         List<URL> testCompileRoots = new ArrayList<>();
-        if (project.currentModule != null) {
-            for (ModuleDescription mod : project.moduleRepository.modules) {
-                FileObject depFO = project.moduleRepository.findModuleRoot(mod.name);
-
-                if (depFO == null)
-                    continue; //!!!
-
-                try {
-                    testCompileRoots.add(projectDir2FakeTarget(depFO));
-                } catch (MalformedURLException ex) {
-                    Exceptions.printStackTrace(ex);
-                }
-            }
-        } else {
+        if (project.currentModule == null) {
             try {
                 testCompileRoots.add(project.getFakeOutput().toURL());
             } catch (MalformedURLException ex) {
@@ -186,9 +144,7 @@ public class ClassPathProviderImpl implements ClassPathProvider {
                 testCompileRoots.addAll(library.getContent("classpath"));
             }
         }
-        if (fakeJdkURL != null) {
-            testCompileRoots.add(fakeJdkURL);
-        }
+
         testsCompileCP = ClassPathSupport.createClassPath(testCompileRoots.toArray(new URL[0]));
         testsRegCP = ClassPathSupport.createClassPath(testsRegRoots);
         this.repository = repository;
@@ -210,13 +166,13 @@ public class ClassPathProviderImpl implements ClassPathProvider {
             if (ClassPath.BOOT.equals(type)) {
                 return bootCP;
             } else if (JavaClassPathConstants.MODULE_BOOT_PATH.equals(type)) {
-                return bootCP;
+                return moduleBootCP;
             } else if (ClassPath.COMPILE.equals(type)) {
                 return compileCP;
             } else if (ClassPath.SOURCE.equals(type)) {
                 return sourceCP;
             } else if (JavaClassPathConstants.MODULE_COMPILE_PATH.equals(type)) {
-                return moduleCompileCP;
+                return modulePathCP;
             }
         } else {
             if (file.isFolder()) return null;
@@ -227,10 +183,12 @@ public class ClassPathProviderImpl implements ClassPathProvider {
                 } else {
                     return null;
                 }
-            } else if (ClassPath.COMPILE.equals(type) ||
-                       JavaClassPathConstants.MODULE_COMPILE_PATH.equals(type) ||
-                       JavaClassPathConstants.MODULE_CLASS_PATH.equals(type)) {
+            } else if (ClassPath.COMPILE.equals(type)) {
                 return testsCompileCP;
+            } else if (JavaClassPathConstants.MODULE_COMPILE_PATH.equals(type)) {
+                //note some modules may not be indexed, and hence may not be usable - it should be enough to open their projects
+                //it would be better to follow the @modules tag (and force indexing):
+                return allJDKModulesCP;
             }
 
         }
@@ -248,7 +206,9 @@ public class ClassPathProviderImpl implements ClassPathProvider {
     public void registerClassPaths() {
         GlobalPathRegistry.getDefault().register(ClassPath.BOOT, new ClassPath[] {bootCP});
         GlobalPathRegistry.getDefault().register(ClassPath.COMPILE, new ClassPath[] {compileCP});
+        GlobalPathRegistry.getDefault().register(ClassPath.COMPILE, new ClassPath[] {modulePathCP});
         GlobalPathRegistry.getDefault().register(ClassPath.SOURCE, new ClassPath[] {sourceCP});
+        GlobalPathRegistry.getDefault().register(ClassPath.COMPILE, new ClassPath[] {testsCompileCP});
         if (REGISTER_TESTS_AS_JAVA)
             GlobalPathRegistry.getDefault().register(ClassPath.SOURCE, new ClassPath[] {testsRegCP});
         GlobalPathRegistry.getDefault().register(TEST_SOURCE, new ClassPath[] {testsRegCP});

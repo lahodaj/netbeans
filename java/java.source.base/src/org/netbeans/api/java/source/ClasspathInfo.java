@@ -541,7 +541,7 @@ public final class ClasspathInfo {
             moduleBootPath,
             cachedModuleCompilePath,
             cachedBootClassPath,
-            moduleCompilePath.entries().isEmpty() ? cachedCompileClassPath : cachedModuleClassPath,
+            cachedCompileClassPath,
             srcClassPath,
             cachedSrcClassPath,
             moduleSrcPath,

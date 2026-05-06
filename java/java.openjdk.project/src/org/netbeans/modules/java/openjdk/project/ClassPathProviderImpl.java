@@ -54,6 +54,7 @@ import org.netbeans.spi.java.classpath.support.ClassPathSupport;
 import org.netbeans.spi.project.support.ant.PropertyEvaluator;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.modules.InstalledFileLocator;
 import org.openide.util.Exceptions;
 
 /**
@@ -80,7 +81,13 @@ public class ClassPathProviderImpl implements ClassPathProvider {
     private final ModuleRepository repository;
 
     public ClassPathProviderImpl(JDKProject project, ModuleRepository repository) {
-        bootCP = ClassPath.EMPTY;
+        File fakeJdk = InstalledFileLocator.getDefault().locate("modules/ext/fakeJdkClasses.zip", "org.netbeans.modules.java.openjdk.project", false);
+        URL fakeJdkURL = null;
+        if (fakeJdk != null) {
+            fakeJdkURL = FileUtil.urlForArchiveOrDir(fakeJdk);
+        }
+
+        bootCP = ClassPathSupport.createClassPath(fakeJdkURL);
         moduleBootCP = ClassPath.EMPTY;
         
         if (project.currentModule != null) {

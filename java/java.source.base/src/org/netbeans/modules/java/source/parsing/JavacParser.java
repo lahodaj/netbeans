@@ -875,14 +875,18 @@ public class JavacParser extends Parser {
                             .forEach(additionalModules::add);
                 }
             }
-            final FileObject artefact = root != null ?
+            final FileObject artefactPreferRoot = root != null ?
                     root :
                     file;
+            final FileObject artefactPreferFile = file != null ?
+                    file :
+                    root;
             final CompilerOptionsQuery.Result compilerOptions;
             final SourceLevelQuery.Result sourceLevel;
-            if (artefact != null) {
-                compilerOptions = CompilerOptionsQuery.getOptions(artefact);
-                sourceLevel = SourceLevelQuery.getSourceLevel2(artefact);
+            if (artefactPreferRoot != null) {
+                //TODO: is there something better we could do about artefactPreferFile?
+                compilerOptions = CompilerOptionsQuery.getOptions(artefactPreferFile);
+                sourceLevel = SourceLevelQuery.getSourceLevel2(artefactPreferRoot);
             } else {
                 compilerOptions = null;
                 sourceLevel = null;

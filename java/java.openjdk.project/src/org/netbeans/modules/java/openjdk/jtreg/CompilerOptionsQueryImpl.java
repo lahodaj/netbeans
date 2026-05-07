@@ -18,6 +18,7 @@
  */
 package org.netbeans.modules.java.openjdk.jtreg;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -37,6 +38,38 @@ public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementat
             return null;
         }
 
+        if (file.isData()) {
+            TagParser.Result tags = TagParser.parseTags(file);
+
+            if (tags.getName2Tag().containsKey("test")) {
+                List<Tag> modules = tags.getName2Tag().get("modules");
+
+                if (modules != null) {
+                    Tag modulesTag = modules.get(modules.size() - 1);
+                    String spec = modulesTag.getValue();
+                    String[] packageSpec = spec.split("\\s+");
+                    List<String> additionalOptions = new ArrayList<>();
+
+                    additionalOptions.addAll(EnablePreviewResult.ENABLE_PREVIEW_ARGS);
+
+                    for (String onePackage : packageSpec) {
+                        if (onePackage.indexOf('/') == (-1)) {
+                            continue;
+                        }
+
+                        int colon = onePackage.indexOf(':');
+
+                        if (colon != (-1)) {
+                            onePackage = onePackage.substring(0, colon);
+                        }
+
+                        additionalOptions.add("--add-exports=" + onePackage + "=ALL-UNNAMED");
+                    }
+
+                    return new EnablePreviewResult(additionalOptions);
+                }
+            }
+        }
         //enable preview in tests:
         return ENABLE_PREVIEW;
     }
@@ -48,9 +81,19 @@ public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementat
         private static final List<String> ENABLE_PREVIEW_ARGS =
                 Collections.unmodifiableList(Arrays.asList("--enable-preview", "--add-modules", "ALL-MODULE-PATH"));
 
+        private final List<String> args;
+
+        private EnablePreviewResult() {
+            this.args = ENABLE_PREVIEW_ARGS;
+        }
+
+        public EnablePreviewResult(List<String> args) {
+            this.args = args;
+        }
+
         @Override
         public List<? extends String> getArguments() {
-            return ENABLE_PREVIEW_ARGS;
+            return args;
         }
 
         @Override

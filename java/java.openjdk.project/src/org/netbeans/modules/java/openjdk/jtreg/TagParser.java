@@ -18,6 +18,8 @@
  */
 package org.netbeans.modules.java.openjdk.jtreg;
 
+import java.io.IOException;
+import java.lang.System.Logger.Level;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -33,6 +35,7 @@ import org.netbeans.api.java.lexer.JavaTokenId;
 import org.netbeans.api.java.source.CompilationInfo;
 import org.netbeans.api.lexer.TokenHierarchy;
 import org.netbeans.api.lexer.TokenSequence;
+import org.openide.filesystems.FileObject;
 
 /**
  *
@@ -40,6 +43,7 @@ import org.netbeans.api.lexer.TokenSequence;
  */
 public class TagParser {
 
+    private static final System.Logger LOG = System.getLogger(TagParser.class.getName());
     public static final List<String> RECOMMENDED_TAGS_ORDER = Arrays.asList(
             "test", "bug", "summary", "library", "author", "modules", "requires", "key", "library", "modules"
     );
@@ -52,6 +56,18 @@ public class TagParser {
 
     public static Result parseTags(Document doc) {
         return parseTags(TokenHierarchy.get(doc).tokenSequence(JavaTokenId.language()));
+    }
+
+    public static Result parseTags(FileObject file) {
+        //can we rather get up-to-date tags for a given file???
+        String text;
+        try {
+            text = file.asText();
+        } catch (IOException ex) {
+            LOG.log(Level.TRACE, ex);
+            text = "";
+        }
+        return parseTags(TokenHierarchy.create(text, JavaTokenId.language()).tokenSequence(JavaTokenId.language()));
     }
 
     private static Result parseTags(TokenSequence<JavaTokenId> ts) {

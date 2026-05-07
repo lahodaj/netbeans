@@ -61,6 +61,7 @@ import org.netbeans.modules.parsing.impl.Utilities;
 import org.netbeans.modules.parsing.impl.indexing.PathRegistry;
 import org.netbeans.spi.java.classpath.ClassPathFactory;
 import org.netbeans.spi.java.classpath.ClassPathImplementation;
+import org.netbeans.spi.java.classpath.support.ClassPathSupport;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.util.BaseUtilities;
@@ -525,9 +526,9 @@ public final class ClasspathInfo {
     public synchronized @NonNull ClassIndex getClassIndex () {
         if ( usagesQuery == null ) {
             usagesQuery = new ClassIndex (
-                    this.bootClassPath,
-                    this.compileClassPath,
-                    this.cachedSrcClassPath);
+                    ClassPathSupport.createProxyClassPath(this.bootClassPath, this.moduleBootPath),
+                    ClassPathSupport.createProxyClassPath(this.compileClassPath, this.moduleCompilePath, this.moduleClassPath),
+                    ClassPathSupport.createProxyClassPath(this.cachedSrcClassPath, this.moduleSrcPath));
         }
         return usagesQuery;
     }

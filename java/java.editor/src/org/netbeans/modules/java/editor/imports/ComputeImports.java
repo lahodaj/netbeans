@@ -35,7 +35,6 @@ import com.sun.source.tree.Tree;
 import com.sun.source.tree.Tree.Kind;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -74,17 +73,12 @@ import org.netbeans.api.java.source.CompilationInfo;
 import org.netbeans.api.java.source.ClassIndex.NameKind;
 import org.netbeans.api.java.source.ClassIndex.Symbols;
 import org.netbeans.api.java.source.ClasspathInfo;
-import org.netbeans.api.java.source.CompilationController;
 import org.netbeans.api.java.source.CompilationInfo.CacheClearPolicy;
 import org.netbeans.api.java.source.ElementHandle;
 import org.netbeans.api.java.source.ElementUtilities.ElementAcceptor;
-import org.netbeans.api.java.source.JavaSource;
-import org.netbeans.api.java.source.Task;
 import org.netbeans.api.java.source.support.CancellableTreePathScanner;
 import org.netbeans.modules.java.completion.Utilities;
 import org.netbeans.modules.java.editor.base.javadoc.JavadocImports;
-import org.netbeans.spi.java.classpath.support.ClassPathSupport;
-import org.openide.util.Exceptions;
 import org.openide.util.Union2;
 import org.openide.util.WeakListeners;
 
@@ -104,7 +98,6 @@ public final class ComputeImports {
     }
     
     private final CompilationInfo info;
-    private CompilationInfo allInfo;
     
     private final PreferenceChangeListener pcl = new PreferenceChangeListener() {
         @Override
@@ -165,42 +158,8 @@ public final class ComputeImports {
         if (cache != null) {
             return cache;
         }
-        boolean modules = false;
         
-        if (info.getSourceVersion().compareTo(SourceVersion.RELEASE_9) <= 0) {
-            if (info.getClasspathInfo().getClassPath(ClasspathInfo.PathKind.SOURCE).findResource("module-info.java") != null) {
-                modules = true;
-            }
-        }
-        
-        if (modules) {
-            ClasspathInfo cpInfo = info.getClasspathInfo();
-            ClasspathInfo extraInfo = ClasspathInfo.create(
-                    ClassPathSupport.createProxyClassPath(
-                            cpInfo.getClassPath(ClasspathInfo.PathKind.BOOT),
-                            cpInfo.getClassPath(ClasspathInfo.PathKind.MODULE_BOOT)),
-                    ClassPathSupport.createProxyClassPath(
-                            cpInfo.getClassPath(ClasspathInfo.PathKind.COMPILE),
-                            cpInfo.getClassPath(ClasspathInfo.PathKind.MODULE_COMPILE),
-                            cpInfo.getClassPath(ClasspathInfo.PathKind.MODULE_CLASS)),
-                    cpInfo.getClassPath(ClasspathInfo.PathKind.SOURCE));
-            JavaSource src = JavaSource.create(extraInfo, info.getSnapshot().getSource().getFileObject());
-            try {
-                src.runUserActionTask(new Task<CompilationController>() {
-                    @Override
-                    public void run(CompilationController parameter) throws Exception {
-                        allInfo = parameter;
-                        parameter.toPhase(JavaSource.Phase.RESOLVED);
-                        doComputeCandidates(forcedUnresolved);
-                    }
-                }, true);
-            } catch (IOException ex) {
-                Exceptions.printStackTrace(ex);
-            }
-        } else {
-            allInfo = info;
-            doComputeCandidates(forcedUnresolved);
-        }
+        doComputeCandidates(forcedUnresolved);
         info.putCachedValue(IMPORT_CANDIDATES_KEY, this, CacheClearPolicy.ON_CHANGE);
         return this;
     }
@@ -225,7 +184,7 @@ public final class ComputeImports {
     
     private void doComputeCandidates(Set<String> forcedUnresolved) {
         final CompilationUnitTree cut = info.getCompilationUnit();
-        ClasspathInfo cpInfo = allInfo.getClasspathInfo();
+        ClasspathInfo cpInfo = info.getClasspathInfo();
         final TreeVisitorImpl v = new TreeVisitorImpl(info);
         setVisitor(v);
         try {
@@ -257,7 +216,7 @@ public final class ComputeImports {
             for (ElementHandle<TypeElement> typeName : typeNames) {
                 if (isCancelled())
                     return;
-                TypeElement te = typeName.resolve(allInfo);
+                TypeElement te = typeName.resolve(info);
                 
                 if (te == null) {
                     Logger.getLogger(ComputeImports.class.getName()).log(Level.INFO, "Cannot resolve type element \"" + typeName + "\".");
@@ -283,7 +242,7 @@ public final class ComputeImports {
                     if (isCancelled())
                         return;
 
-                    final TypeElement te = p.getEnclosingType().resolve(allInfo);
+                    final TypeElement te = p.getEnclosingType().resolve(info);
                     final Set<String> idents = p.getSymbols();
                     if (te != null) {
                         for (Element ne : te.getEnclosedElements()) {
@@ -312,7 +271,7 @@ public final class ComputeImports {
             possibleMethodFQNs.clear();
             
             for (Hint hint: v.hints) {
-                wasChanged |= hint.filter(allInfo, this);
+                wasChanged |= hint.filter(info, this);
             }
         }
         

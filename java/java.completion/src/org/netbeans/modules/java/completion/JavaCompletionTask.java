@@ -731,10 +731,21 @@ public final class JavaCompletionTask<T> extends BaseTask {
         ImportTree im = (ImportTree) env.getPath().getLeaf();
         SourcePositions sourcePositions = env.getSourcePositions();
         CompilationUnitTree root = env.getRoot();
+        if (im.isModule()) {
+            if (offset >= sourcePositions.getStartPosition(root, im.getQualifiedIdentifier())) {
+                addModuleNamesFromGraph(env, null);
+            }
+        } else {
         if (offset <= sourcePositions.getStartPosition(root, im.getQualifiedIdentifier())) {
             TokenSequence<JavaTokenId> last = findLastNonWhitespaceToken(env, im, offset);
-            if (last != null && last.token().id() == JavaTokenId.IMPORT && Utilities.startsWith(STATIC_KEYWORD, prefix)) {
-                addKeyword(env, STATIC_KEYWORD, SPACE, false);
+            if (last != null && last.token().id() == JavaTokenId.IMPORT) {
+                if (Utilities.startsWith(STATIC_KEYWORD, prefix)) {
+                    addKeyword(env, STATIC_KEYWORD, SPACE, false);
+                }
+                if (Utilities.startsWith(MODULE_KEYWORD, prefix) &&
+                    env.getController().getSourceVersion().compareTo(SourceVersion.RELEASE_25) >= 0) {
+                    addKeyword(env, MODULE_KEYWORD, SPACE, false);
+                }
             }
             if (options.contains(Options.ALL_COMPLETION) || options.contains(Options.COMBINED_COMPLETION)) {
                 EnumSet<ElementKind> classKinds = EnumSet.of(CLASS, INTERFACE, ENUM, ANNOTATION_TYPE);
@@ -745,6 +756,7 @@ public final class JavaCompletionTask<T> extends BaseTask {
             } else {
                 addPackages(env, null, false);
             }
+        }
         }
     }
 
@@ -1635,7 +1647,13 @@ public final class JavaCompletionTask<T> extends BaseTask {
         }
         if (!afterDot) {
             if (expEndPos <= offset) {
-                insideExpression(env, new TreePath(path, fa.getExpression()));
+                if (fa.getExpression().getKind() == Kind.IDENTIFIER &&
+                    ((IdentifierTree) fa.getExpression()).getName().contentEquals(MODULE_KEYWORD)) {
+                    controller.toPhase(Phase.ELEMENTS_RESOLVED);
+                    addModuleNamesFromGraph(env, null);
+                } else {
+                    insideExpression(env, new TreePath(path, fa.getExpression()));
+                }
             }
             return;
         }
@@ -1656,10 +1674,15 @@ public final class JavaCompletionTask<T> extends BaseTask {
             }
         } else if (lastNonWhitespaceTokenId != JavaTokenId.STAR) {
             controller.toPhase(Phase.RESOLVED);
-            if (withinModuleName(env)) {
+            boolean inModuleNameInImport = false;
+            if (withinModuleName(env) || (inModuleNameInImport = withinModuleNameInImport(env))) {
                 String fqnPrefix = fa.getExpression().toString() + '.';
                 anchorOffset = (int) sourcePositions.getStartPosition(root, fa);
-                addModuleNames(env, fqnPrefix, true);
+                if (inModuleNameInImport) {
+                    addModuleNamesFromGraph(env, fqnPrefix);
+                } else {
+                    addModuleNames(env, fqnPrefix, true);
+                }
                 return;
             }
             TreePath parentPath = path.getParentPath();
@@ -1869,9 +1892,13 @@ public final class JavaCompletionTask<T> extends BaseTask {
                         if (el != null && (el.getKind().isClass() || el.getKind().isInterface())) {
                             if (parent.getKind() == Tree.Kind.NEW_CLASS && ((NewClassTree) parent).getIdentifier() == fa && prefix != null) {
                                 String typeName = controller.getElementUtilities().getElementName(el, true) + "." + prefix; //NOI18N
-                                TypeMirror tm = controller.getTreeUtilities().parseType(typeName, env.getScope().getEnclosingClass());
+                                TypeMirror tm = controller.getTreeUtilities().parseType(typeName, env.getScope());
                                 if (tm != null && tm.getKind() == TypeKind.DECLARED) {
-                                    addMembers(env, tm, ((DeclaredType) tm).asElement(), EnumSet.of(CONSTRUCTOR), null, inImport, insideNew, false, false, switchItemAdder);
+                                    TypeElement te = (TypeElement) ((DeclaredType) tm).asElement();
+                                    addMembers(env, tm, te, EnumSet.of(CONSTRUCTOR), null, inImport, insideNew, false, false, switchItemAdder);
+                                    if (shouldExcludeTypeInNewClass(te, env)) {
+                                        env.addToExcludes(te);
+                                    }
                                 }
                             }
                         }
@@ -1917,9 +1944,13 @@ public final class JavaCompletionTask<T> extends BaseTask {
                         if (el != null && el.getKind() == PACKAGE) {
                             if (parent.getKind() == Tree.Kind.NEW_CLASS && ((NewClassTree) parent).getIdentifier() == fa && prefix != null) {
                                 String typeName = controller.getElementUtilities().getElementName(el, true) + "." + prefix; //NOI18N
-                                TypeMirror tm = controller.getTreeUtilities().parseType(typeName, env.getScope().getEnclosingClass());
+                                TypeMirror tm = controller.getTreeUtilities().parseType(typeName, env.getScope());
                                 if (tm != null && tm.getKind() == TypeKind.DECLARED) {
-                                    addMembers(env, tm, ((DeclaredType) tm).asElement(), EnumSet.of(CONSTRUCTOR), null, inImport, insideNew, false, false, switchItemAdder);
+                                    TypeElement te = (TypeElement) ((DeclaredType) tm).asElement();
+                                    addMembers(env, tm, te, EnumSet.of(CONSTRUCTOR), null, inImport, insideNew, false, false, switchItemAdder);
+                                    if (shouldExcludeTypeInNewClass(te, env)) {
+                                        env.addToExcludes(te);
+                                    }
                                 }
                             }
                             if (exs != null && !exs.isEmpty()) {
@@ -2051,7 +2082,7 @@ public final class JavaCompletionTask<T> extends BaseTask {
         if (path.getParentPath().getLeaf().getKind() == Kind.CONSTANT_CASE_LABEL) {
             CompilationController controller = env.getController();
             controller.toPhase(Phase.RESOLVED);
-            TypeMirror tm = controller.getTreeUtilities().parseType(fullName(mi.getMethodSelect()), env.getScope().getEnclosingClass());
+            TypeMirror tm = controller.getTreeUtilities().parseType(fullName(mi.getMethodSelect()), env.getScope());
             if (tm != null && tm.getKind() == TypeKind.DECLARED) {
                 TypeElement te = (TypeElement) ((DeclaredType) tm).asElement();
                 if (te.getKind() == RECORD) {
@@ -2062,7 +2093,7 @@ public final class JavaCompletionTask<T> extends BaseTask {
                         if (ts != null && (ts.token().id() == JavaTokenId.LPAREN || ts.token().id() == JavaTokenId.COMMA)) {
                             if (componentType.getKind() == TypeKind.DECLARED) {
                                 if (prefix != null) {
-                                    TypeMirror ptm = controller.getTreeUtilities().parseType(prefix, env.getScope().getEnclosingClass());
+                                    TypeMirror ptm = controller.getTreeUtilities().parseType(prefix, env.getScope());
                                     if (ptm != null && ptm.getKind() == TypeKind.DECLARED) {
                                         TypeElement pte = (TypeElement) ((DeclaredType) ptm).asElement();
                                         if (pte != null && pte.getKind() == RECORD) {
@@ -2135,12 +2166,11 @@ public final class JavaCompletionTask<T> extends BaseTask {
                             ? controller.getTypes().getDeclaredType(tel) : null;
                     TypeElement toExclude = null;
                     if (nc.getIdentifier().getKind() == Tree.Kind.IDENTIFIER && prefix != null) {
-                        TypeMirror tm = controller.getTreeUtilities().parseType(prefix, env.getScope().getEnclosingClass());
+                        TypeMirror tm = controller.getTreeUtilities().parseType(prefix, env.getScope());
                         if (tm != null && tm.getKind() == TypeKind.DECLARED) {
                             TypeElement te = (TypeElement) ((DeclaredType) tm).asElement();
                             addMembers(env, tm, te, EnumSet.of(CONSTRUCTOR), base, false, true, false);
-                            if ((te.getTypeParameters().isEmpty() || SourceVersion.RELEASE_5.compareTo(controller.getSourceVersion()) > 0)
-                                    && !hasAccessibleInnerClassConstructor(te, env.getScope(), controller.getTrees())) {
+                            if (shouldExcludeTypeInNewClass(te, env)) {
                                 toExclude = te;
                             }
                         }
@@ -2225,6 +2255,13 @@ public final class JavaCompletionTask<T> extends BaseTask {
                     break;
             }
         }
+    }
+
+    private boolean shouldExcludeTypeInNewClass(TypeElement te, Env env) throws IOException {
+        CompilationController controller = env.getController();
+
+        return (te.getTypeParameters().isEmpty() || SourceVersion.RELEASE_5.compareTo(controller.getSourceVersion()) > 0)
+                && !hasAccessibleInnerClassConstructor(te, env.getScope(), controller.getTrees());
     }
 
     private void insideTry(Env env) throws IOException {
@@ -2550,7 +2587,7 @@ public final class JavaCompletionTask<T> extends BaseTask {
                     } else {
                         if (env.getController().getSourceVersion().compareTo(RELEASE_21) >= 0) {
                             if (prefix != null) {
-                                TypeMirror ptm = controller.getTreeUtilities().parseType(prefix, env.getScope().getEnclosingClass());
+                                TypeMirror ptm = controller.getTreeUtilities().parseType(prefix, env.getScope());
                                 if (ptm != null && ptm.getKind() == TypeKind.DECLARED) {
                                     TypeElement pte = (TypeElement) ((DeclaredType) ptm).asElement();
                                     if (pte != null && pte.getKind() == RECORD) {
@@ -2754,7 +2791,7 @@ public final class JavaCompletionTask<T> extends BaseTask {
         TokenSequence<JavaTokenId> ts = findLastNonWhitespaceToken(env, iot, env.getOffset());
         if (ts != null && ts.token().id() == JavaTokenId.INSTANCEOF) {
             if (prefix != null && controller.getSourceVersion().compareTo(RELEASE_21) >= 0) {
-                TypeMirror tm = controller.getTreeUtilities().parseType(prefix, env.getScope().getEnclosingClass());
+                TypeMirror tm = controller.getTreeUtilities().parseType(prefix, env.getScope());
                 if (tm != null && tm.getKind() == TypeKind.DECLARED) {
                     TypeElement te = (TypeElement) ((DeclaredType) tm).asElement();
                     if (te != null && te.getKind() == RECORD) {
@@ -3485,7 +3522,7 @@ public final class JavaCompletionTask<T> extends BaseTask {
                     TypeMirror componentType = recordComponents.get(size - 1).getAccessor().getReturnType();
                     if (componentType.getKind() == TypeKind.DECLARED) {
                         if (prefix != null) {
-                            TypeMirror ptm = controller.getTreeUtilities().parseType(prefix, env.getScope().getEnclosingClass());
+                            TypeMirror ptm = controller.getTreeUtilities().parseType(prefix, env.getScope());
                             if (ptm != null && ptm.getKind() == TypeKind.DECLARED) {
                                 TypeElement pte = (TypeElement) ((DeclaredType) ptm).asElement();
                                 if (pte != null && pte.getKind() == RECORD) {
@@ -4088,6 +4125,9 @@ public final class JavaCompletionTask<T> extends BaseTask {
         ElementUtilities.ElementAcceptor acceptor = new ElementUtilities.ElementAcceptor() {
             @Override
             public boolean accept(Element e, TypeMirror t) {
+                if (env.getExcludes() != null && env.getExcludes().contains(e)) {
+                    return false;
+                }
                 switch (simplifyElementKind(e.getKind())) {
                     case FIELD:
                         if (!startsWith(env, e.getSimpleName().toString())) {
@@ -4440,12 +4480,20 @@ public final class JavaCompletionTask<T> extends BaseTask {
     }
     
     private void addModuleNames(Env env, String fqnPrefix, boolean srcOnly) {
+        srcOnly = false;
+        addModuleNames(env, fqnPrefix, SourceUtils.getModuleNames(env.getController(), srcOnly ? EnumSet.of(ClassIndex.SearchScope.SOURCE) : EnumSet.allOf(ClassIndex.SearchScope.class)));
+    }
+
+    private void addModuleNamesFromGraph(Env env, String fqnPrefix) {
+        addModuleNames(env, fqnPrefix, env.getController().getElements().getAllModuleElements().stream().map(me -> me.getQualifiedName().toString()).toList());
+    }
+
+    private void addModuleNames(Env env, String fqnPrefix, Iterable<? extends String> modulesNames) {
         if (fqnPrefix == null) {
             fqnPrefix = EMPTY;
         }
-        srcOnly = false;
         String prefix = env.getPrefix() != null ? fqnPrefix + env.getPrefix() : fqnPrefix;
-        for (String name : SourceUtils.getModuleNames(env.getController(), srcOnly ? EnumSet.of(ClassIndex.SearchScope.SOURCE) : EnumSet.allOf(ClassIndex.SearchScope.class))) {
+        for (String name : modulesNames) {
             if (startsWith(env, name, prefix) && itemFactory instanceof ModuleItemFactory) {
                 results.add(((ModuleItemFactory<T>)itemFactory).createModuleItem(name, anchorOffset));
             }
@@ -4876,7 +4924,6 @@ public final class JavaCompletionTask<T> extends BaseTask {
     private void addAttributeValues(Env env, Element element, AnnotationMirror annotation, ExecutableElement member) throws IOException {
         CompilationController controller = env.getController();
         TreeUtilities tu = controller.getTreeUtilities();
-        ElementUtilities eu = controller.getElementUtilities();
         for (javax.annotation.processing.Completion completion : SourceUtils.getAttributeValueCompletions(controller, element, annotation, member, env.getPrefix())) {
             String value = completion.getValue().trim();
             if (value.length() > 0 && startsWith(env, value)) {
@@ -4889,7 +4936,7 @@ public final class JavaCompletionTask<T> extends BaseTask {
                     CharSequence fqn = ((TypeElement) ((DeclaredType) type).asElement()).getQualifiedName();
                     if (JAVA_LANG_CLASS.contentEquals(fqn)) {
                         String name = value.endsWith(".class") ? value.substring(0, value.length() - 6) : value; //NOI18N
-                        TypeMirror tm = tu.parseType(name, eu.outermostTypeElement(element));
+                        TypeMirror tm = tu.parseType(name, env.getScope());
                         typeElement = tm != null && tm.getKind() == TypeKind.DECLARED ? (TypeElement) ((DeclaredType) tm).asElement() : null;
                         if (typeElement != null && startsWith(env, typeElement.getSimpleName().toString())) {
                             env.addToExcludes(typeElement);
@@ -6639,6 +6686,21 @@ public final class JavaCompletionTask<T> extends BaseTask {
         return false;
     }
     
+    private boolean withinModuleNameInImport(Env env) {
+        TreePath path = env.getPath();
+        Tree last = null;
+        while (path != null) {
+            Tree tree = path.getLeaf();
+            if (last != null
+                    && tree.getKind() == Tree.Kind.IMPORT && ((ImportTree) tree).isModule() && ((ImportTree) tree).getQualifiedIdentifier() == last) {
+                return true;
+            }
+            path = path.getParentPath();
+            last = tree;
+        }
+        return false;
+    }
+
     private boolean withinProvidesService(Env env) {
         TreePath path = env.getPath();
         Tree last = null;

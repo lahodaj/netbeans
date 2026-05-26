@@ -1,5 +1,5 @@
 #Signature file v4.1
-#Version 1.63
+#Version 1.64
 
 CLSS public java.beans.PropertyChangeEvent
 cons public init(java.lang.Object,java.lang.String,java.lang.Object,java.lang.Object)
@@ -10,7 +10,6 @@ meth public java.lang.String getPropertyName()
 meth public java.lang.String toString()
 meth public void setPropagationId(java.lang.Object)
 supr java.util.EventObject
-hfds newValue,oldValue,propagationId,propertyName,serialVersionUID
 
 CLSS public abstract interface java.beans.PropertyChangeListener
 intf java.util.EventListener
@@ -61,7 +60,6 @@ meth public void mark(int)
 meth public void reset() throws java.io.IOException
 meth public void skipNBytes(long) throws java.io.IOException
 supr java.lang.Object
-hfds DEFAULT_BUFFER_SIZE,MAX_BUFFER_SIZE,MAX_SKIP_BUFFER_SIZE
 
 CLSS public abstract interface java.io.ObjectInput
 intf java.io.DataInput
@@ -115,8 +113,6 @@ meth public void readFully(byte[]) throws java.io.IOException
 meth public void readFully(byte[],int,int) throws java.io.IOException
 meth public void registerValidation(java.io.ObjectInputValidation,int) throws java.io.InvalidObjectException,java.io.NotActiveException
 supr java.io.InputStream
-hfds NULL_HANDLE,UNSAFE,bin,closed,curContext,defaultDataEnd,depth,enableOverride,enableResolve,handles,passHandle,primClasses,serialFilter,streamFilterSet,totalObjectRefs,unsharedMarker,vlist
-hcls BlockDataInputStream,Caches,FieldValues,FilterValues,HandleTable,Logging,PeekInputStream,ValidationList
 
 CLSS public abstract interface java.io.ObjectStreamConstants
 fld public final static byte SC_BLOCK_DATA = 8
@@ -212,8 +208,6 @@ meth public void setClassAssertionStatus(java.lang.String,boolean)
 meth public void setDefaultAssertionStatus(boolean)
 meth public void setPackageAssertionStatus(java.lang.String,boolean)
 supr java.lang.Object
-hfds assertionLock,classAssertionStatus,classLoaderValueMap,classes,defaultAssertionStatus,defaultDomain,libraries,name,nameAndId,nocerts,package2certs,packageAssertionStatus,packages,parallelLockMap,parent,scl,unnamedModule
-hcls ParallelLoaders
 
 CLSS public abstract interface java.lang.Cloneable
 
@@ -246,7 +240,6 @@ meth public final java.util.Optional<java.lang.Enum$EnumDesc<{java.lang.Enum%0}>
 meth public java.lang.String toString()
 meth public static <%0 extends java.lang.Enum<{%%0}>> {%%0} valueOf(java.lang.Class<{%%0}>,java.lang.String)
 supr java.lang.Object
-hfds name,ordinal
 
 CLSS public java.lang.Exception
 cons protected init(java.lang.String,java.lang.Throwable,boolean,boolean)
@@ -255,7 +248,6 @@ cons public init(java.lang.String)
 cons public init(java.lang.String,java.lang.Throwable)
 cons public init(java.lang.Throwable)
 supr java.lang.Throwable
-hfds serialVersionUID
 
 CLSS public abstract interface !annotation java.lang.FunctionalInterface
  anno 0 java.lang.annotation.Documented()
@@ -269,7 +261,6 @@ cons public init(int)
 cons public init(java.lang.String)
 cons public init(long)
 supr java.lang.RuntimeException
-hfds serialVersionUID
 
 CLSS public abstract interface java.lang.Iterable<%0 extends java.lang.Object>
 meth public abstract java.util.Iterator<{java.lang.Iterable%0}> iterator()
@@ -302,7 +293,6 @@ cons public init(java.lang.String)
 cons public init(java.lang.String,java.lang.Throwable)
 cons public init(java.lang.Throwable)
 supr java.lang.Exception
-hfds serialVersionUID
 
 CLSS public java.lang.Throwable
 cons protected init(java.lang.String,java.lang.Throwable,boolean,boolean)
@@ -325,8 +315,6 @@ meth public void printStackTrace(java.io.PrintStream)
 meth public void printStackTrace(java.io.PrintWriter)
 meth public void setStackTrace(java.lang.StackTraceElement[])
 supr java.lang.Object
-hfds CAUSE_CAPTION,EMPTY_THROWABLE_ARRAY,NULL_CAUSE_MESSAGE,SELF_SUPPRESSION_MESSAGE,SUPPRESSED_CAPTION,SUPPRESSED_SENTINEL,UNASSIGNED_STACK,backtrace,cause,depth,detailMessage,serialVersionUID,stackTrace,suppressedExceptions
-hcls PrintStreamOrWriter,SentinelHolder,WrappedPrintStream,WrappedPrintWriter
 
 CLSS public abstract interface java.lang.annotation.Annotation
 meth public abstract boolean equals(java.lang.Object)
@@ -387,7 +375,6 @@ meth public static java.net.URLClassLoader newInstance(java.net.URL[])
 meth public static java.net.URLClassLoader newInstance(java.net.URL[],java.lang.ClassLoader)
 meth public void close() throws java.io.IOException
 supr java.security.SecureClassLoader
-hfds acc,closeables,ucp
 
 CLSS public abstract interface java.rmi.Remote
 
@@ -403,7 +390,6 @@ meth public java.lang.String toString()
 meth public java.rmi.server.RemoteRef getRef()
 meth public static java.rmi.Remote toStub(java.rmi.Remote) throws java.rmi.NoSuchObjectException
 supr java.lang.Object
-hfds serialVersionUID
 
 CLSS public abstract java.rmi.server.RemoteServer
 cons protected init()
@@ -412,7 +398,6 @@ meth public static java.io.PrintStream getLog()
 meth public static java.lang.String getClientHost() throws java.rmi.server.ServerNotActiveException
 meth public static void setLog(java.io.OutputStream)
 supr java.rmi.server.RemoteObject
-hfds logNull,serialVersionUID
 
 CLSS public java.rmi.server.UnicastRemoteObject
 cons protected init() throws java.rmi.RemoteException
@@ -427,7 +412,6 @@ meth public static java.rmi.Remote exportObject(java.rmi.Remote,int,java.rmi.ser
 meth public static java.rmi.server.RemoteStub exportObject(java.rmi.Remote) throws java.rmi.RemoteException
  anno 0 java.lang.Deprecated(boolean forRemoval=false, java.lang.String since="")
 supr java.rmi.server.RemoteServer
-hfds csf,port,serialVersionUID,ssf
 
 CLSS public abstract interface java.security.PrivilegedAction<%0 extends java.lang.Object>
  anno 0 java.lang.FunctionalInterface()
@@ -445,8 +429,6 @@ meth protected final java.lang.Class<?> defineClass(java.lang.String,byte[],int,
 meth protected final java.lang.Class<?> defineClass(java.lang.String,java.nio.ByteBuffer,java.security.CodeSource)
 meth protected java.security.PermissionCollection getPermissions(java.security.CodeSource)
 supr java.lang.ClassLoader
-hfds pdcache
-hcls CodeSourceKey,DebugHolder
 
 CLSS public abstract interface java.sql.Wrapper
 meth public abstract <%0 extends java.lang.Object> {%%0} unwrap(java.lang.Class<{%%0}>) throws java.sql.SQLException
@@ -492,7 +474,6 @@ meth public void clear()
 meth public {java.util.AbstractList%0} remove(int)
 meth public {java.util.AbstractList%0} set(int,{java.util.AbstractList%0})
 supr java.util.AbstractCollection<{java.util.AbstractList%0}>
-hcls Itr,ListItr,RandomAccessSpliterator,RandomAccessSubList,SubList
 
 CLSS public abstract java.util.AbstractMap<%0 extends java.lang.Object, %1 extends java.lang.Object>
 cons protected init()
@@ -516,7 +497,6 @@ meth public {java.util.AbstractMap%1} get(java.lang.Object)
 meth public {java.util.AbstractMap%1} put({java.util.AbstractMap%0},{java.util.AbstractMap%1})
 meth public {java.util.AbstractMap%1} remove(java.lang.Object)
 supr java.lang.Object
-hfds keySet,values
 
 CLSS public abstract java.util.AbstractSet<%0 extends java.lang.Object>
 cons protected init()
@@ -595,7 +575,6 @@ intf java.io.Serializable
 meth public java.lang.Object getSource()
 meth public java.lang.String toString()
 supr java.lang.Object
-hfds serialVersionUID
 
 CLSS public java.util.HashMap<%0 extends java.lang.Object, %1 extends java.lang.Object>
 cons public init()
@@ -630,8 +609,6 @@ meth public {java.util.HashMap%1} putIfAbsent({java.util.HashMap%0},{java.util.H
 meth public {java.util.HashMap%1} remove(java.lang.Object)
 meth public {java.util.HashMap%1} replace({java.util.HashMap%0},{java.util.HashMap%1})
 supr java.util.AbstractMap<{java.util.HashMap%0},{java.util.HashMap%1}>
-hfds DEFAULT_INITIAL_CAPACITY,DEFAULT_LOAD_FACTOR,MAXIMUM_CAPACITY,MIN_TREEIFY_CAPACITY,TREEIFY_THRESHOLD,UNTREEIFY_THRESHOLD,entrySet,loadFactor,modCount,serialVersionUID,size,table,threshold
-hcls EntryIterator,EntrySet,EntrySpliterator,HashIterator,HashMapSpliterator,KeyIterator,KeySet,KeySpliterator,Node,TreeNode,UnsafeHolder,ValueIterator,ValueSpliterator,Values
 
 CLSS public java.util.Hashtable<%0 extends java.lang.Object, %1 extends java.lang.Object>
 cons public init()
@@ -673,8 +650,6 @@ meth public {java.util.Hashtable%1} putIfAbsent({java.util.Hashtable%0},{java.ut
 meth public {java.util.Hashtable%1} remove(java.lang.Object)
 meth public {java.util.Hashtable%1} replace({java.util.Hashtable%0},{java.util.Hashtable%1})
 supr java.util.Dictionary<{java.util.Hashtable%0},{java.util.Hashtable%1}>
-hfds ENTRIES,KEYS,MAX_ARRAY_SIZE,VALUES,count,entrySet,keySet,loadFactor,modCount,serialVersionUID,table,threshold,values
-hcls Entry,EntrySet,Enumerator,KeySet,UnsafeHolder,ValueCollection
 
 CLSS public abstract interface java.util.Iterator<%0 extends java.lang.Object>
 meth public abstract boolean hasNext()
@@ -700,8 +675,6 @@ meth public void replaceAll(java.util.function.BiFunction<? super {java.util.Lin
 meth public {java.util.LinkedHashMap%1} get(java.lang.Object)
 meth public {java.util.LinkedHashMap%1} getOrDefault(java.lang.Object,{java.util.LinkedHashMap%1})
 supr java.util.HashMap<{java.util.LinkedHashMap%0},{java.util.LinkedHashMap%1}>
-hfds accessOrder,head,serialVersionUID,tail
-hcls Entry,LinkedEntryIterator,LinkedEntrySet,LinkedHashIterator,LinkedKeyIterator,LinkedKeySet,LinkedValueIterator,LinkedValues
 
 CLSS public abstract interface java.util.List<%0 extends java.lang.Object>
 intf java.util.Collection<{java.util.List%0}>
@@ -767,7 +740,6 @@ meth protected java.util.Set<java.lang.String> handleKeySet()
 meth public final java.lang.Object handleGetObject(java.lang.String)
 meth public java.util.Enumeration<java.lang.String> getKeys()
 supr java.util.ResourceBundle
-hfds lookup
 
 CLSS public abstract interface java.util.Map<%0 extends java.lang.Object, %1 extends java.lang.Object>
 innr public abstract interface static Entry
@@ -879,8 +851,6 @@ meth public void storeToXML(java.io.OutputStream,java.lang.String) throws java.i
 meth public void storeToXML(java.io.OutputStream,java.lang.String,java.lang.String) throws java.io.IOException
 meth public void storeToXML(java.io.OutputStream,java.lang.String,java.nio.charset.Charset) throws java.io.IOException
 supr java.util.Hashtable<java.lang.Object,java.lang.Object>
-hfds UNSAFE,map,serialVersionUID
-hcls EntrySet,LineReader
 
 CLSS public abstract interface java.util.RandomAccess
 
@@ -910,8 +880,6 @@ meth public static java.util.ResourceBundle getBundle(java.lang.String,java.util
 meth public static java.util.ResourceBundle getBundle(java.lang.String,java.util.Locale,java.lang.ClassLoader,java.util.ResourceBundle$Control)
 meth public static java.util.ResourceBundle getBundle(java.lang.String,java.util.Locale,java.lang.Module)
 supr java.lang.Object
-hfds INITIAL_CACHE_SIZE,NONEXISTENT_BUNDLE,TRACE_ON,UNKNOWN_FORMAT,cacheKey,cacheList,expired,keySet,locale,name,referenceQueue
-hcls BundleReference,CacheKey,CacheKeyReference,KeyElementReference,NoFallbackControl,ResourceBundleControlProviderHolder,ResourceBundleProviderHelper,SingleFormatControl
 
 CLSS public abstract interface java.util.Set<%0 extends java.lang.Object>
 intf java.util.Collection<{java.util.Set%0}>
@@ -1009,8 +977,6 @@ meth public {java.util.Vector%0} lastElement()
 meth public {java.util.Vector%0} remove(int)
 meth public {java.util.Vector%0} set(int,{java.util.Vector%0})
 supr java.util.AbstractList<{java.util.Vector%0}>
-hfds serialVersionUID
-hcls Itr,ListItr,VectorSpliterator
 
 CLSS public abstract interface java.util.concurrent.Callable<%0 extends java.lang.Object>
  anno 0 java.lang.FunctionalInterface()
@@ -1059,14 +1025,11 @@ meth public void setThreadID(int)
  anno 0 java.lang.Deprecated(boolean forRemoval=false, java.lang.String since="16")
 meth public void setThrown(java.lang.Throwable)
 supr java.lang.Object
-hfds globalSequenceNumber,instant,level,loggerName,longThreadID,message,needToInferCaller,parameters,resourceBundle,resourceBundleName,sequenceNumber,serialPersistentFields,serialVersionUID,sourceClassName,sourceMethodName,threadID,thrown
-hcls CallerFinder
 
 CLSS public java.util.logging.SimpleFormatter
 cons public init()
 meth public java.lang.String format(java.util.logging.LogRecord)
 supr java.util.logging.Formatter
-hfds format
 
 CLSS public java.util.logging.XMLFormatter
 cons public init()
@@ -1074,7 +1037,6 @@ meth public java.lang.String format(java.util.logging.LogRecord)
 meth public java.lang.String getHead(java.util.logging.Handler)
 meth public java.lang.String getTail(java.util.logging.Handler)
 supr java.util.logging.Formatter
-hfds manager,useInstant
 
 CLSS public abstract interface !annotation javax.persistence.Access
  anno 0 java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy value=RUNTIME)
@@ -2970,7 +2932,6 @@ meth public void setReader(java.io.Reader)
 meth public void setSystemId(java.io.File)
 meth public void setSystemId(java.lang.String)
 supr java.lang.Object
-hfds inputStream,publicId,reader,systemId
 
 CLSS public org.eclipse.persistence.Version
 cons public init()
@@ -74658,7 +74619,6 @@ meth public void setEncoding(java.lang.String)
 meth public void setPublicId(java.lang.String)
 meth public void setSystemId(java.lang.String)
 supr java.lang.Object
-hfds byteStream,characterStream,encoding,publicId,systemId
 
 CLSS public abstract interface org.xml.sax.Locator
 meth public abstract int getColumnNumber()
@@ -74676,7 +74636,6 @@ meth public java.lang.String getMessage()
 meth public java.lang.String toString()
 meth public java.lang.Throwable getCause()
 supr java.lang.Exception
-hfds serialPersistentFields,serialVersionUID
 
 CLSS public org.xml.sax.SAXParseException
 cons public init(java.lang.String,java.lang.String,java.lang.String,int,int)
@@ -74689,7 +74648,6 @@ meth public java.lang.String getPublicId()
 meth public java.lang.String getSystemId()
 meth public java.lang.String toString()
 supr org.xml.sax.SAXException
-hfds columnNumber,lineNumber,publicId,serialVersionUID,systemId
 
 CLSS public abstract interface org.xml.sax.XMLReader
 meth public abstract boolean getFeature(java.lang.String) throws org.xml.sax.SAXNotRecognizedException,org.xml.sax.SAXNotSupportedException

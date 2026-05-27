@@ -18,13 +18,14 @@
  */
 package org.netbeans.modules.java.openjdk.project;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.netbeans.api.java.classpath.ClassPath;
-import org.netbeans.api.java.classpath.ClassPath.PathConversionMode;
+import org.netbeans.api.java.classpath.JavaClassPathConstants;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
 import org.netbeans.junit.NbTestCase;
@@ -32,7 +33,6 @@ import org.netbeans.modules.java.hints.test.Utilities.TestLookup;
 import org.netbeans.modules.java.openjdk.common.BuildUtils;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
-import org.openide.modules.InstalledFileLocator;
 import org.openide.util.Lookup;
 import org.openide.util.lookup.Lookups;
 
@@ -68,31 +68,19 @@ public class ClassPathProviderImplTest extends NbTestCase {
     }
 
     private void doTestCompileCP() {
-        File fakeJdkClasses = InstalledFileLocator.getDefault().locate("modules/ext/fakeJdkClasses.zip", "org.netbeans.modules.java.openjdk.project", false);
-
         checkCompileClassPath("repo/src/test1",
-                              "${wd}/jdk/src/java.base/fake-target.jar" +
-                              File.pathSeparatorChar +
-                              "${wd}/langtools/src/java.compiler/fake-target.jar" +
-                              File.pathSeparatorChar +
-                              fakeJdkClasses.getAbsolutePath());
+                              Set.of("${wd}/jdk/src/java.base/fake-target.jar",
+                                     "${wd}/langtools/src/java.compiler/fake-target.jar"));
         checkCompileClassPath("repo/src/test2",
-                              "${wd}/jdk/src/java.base/fake-target.jar" +
-                              File.pathSeparatorChar +
-                              "${wd}/langtools/src/java.compiler/fake-target.jar" +
-                              File.pathSeparatorChar +
-                              "${wd}/langtools/src/jdk.compiler/fake-target.jar" +
-                              File.pathSeparatorChar +
-                              fakeJdkClasses.getAbsolutePath());
+                              Set.of("${wd}/jdk/src/java.base/fake-target.jar",
+                                      "${wd}/langtools/src/java.compiler/fake-target.jar",
+                                      "${wd}/langtools/src/jdk.compiler/fake-target.jar"));
         checkCompileClassPath("repo/src/test3",
-                              "${wd}/jdk/src/java.base/fake-target.jar" +
-                              File.pathSeparatorChar +
-                              "${wd}/repo/src/test2/fake-target.jar" +
-                              File.pathSeparatorChar +
-                              fakeJdkClasses.getAbsolutePath());
+                              Set.of("${wd}/jdk/src/java.base/fake-target.jar",
+                                     "${wd}/repo/src/test2/fake-target.jar"));
     }
 
-    private void checkCompileClassPath(String module, String expected) {
+    private void checkCompileClassPath(String module, Set<String> expectedModulePath) {
         FileObject prj = BuildUtils.getFileObject(root, module);
         FileObject src = BuildUtils.getFileObject(prj, "share/classes");
 
@@ -102,11 +90,15 @@ public class ClassPathProviderImplTest extends NbTestCase {
         try {
             assertNotNull(project);
 
-            String actual = ClassPath.getClassPath(src, ClassPath.COMPILE).
-                    toString(PathConversionMode.PRINT).
-                    replace(getWorkDirPath(), "${wd}");
+            Set<String> actualModulePath =
+                    ClassPath.getClassPath(src, JavaClassPathConstants.MODULE_COMPILE_PATH)
+                             .entries()
+                             .stream()
+                             .map(e -> FileUtil.getArchiveFile(e.getURL()).toString())
+                             .map(url -> url.replace("file:" + getWorkDirPath(), "${wd}"))
+                             .collect(Collectors.toSet());
 
-            assertEquals(expected, actual);
+            assertEquals(expectedModulePath, actualModulePath);
         } finally {
             ((JDKProject) project).moduleRepository.projectClosed(project);
         }

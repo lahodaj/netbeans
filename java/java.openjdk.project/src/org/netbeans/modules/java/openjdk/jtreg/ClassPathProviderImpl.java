@@ -104,6 +104,8 @@ public class ClassPathProviderImpl implements ClassPathProvider {
                 return null;
         }
 
+        if (file.isFolder()) return null;
+
         Set<FileObject> roots = new LinkedHashSet<>();
 
         if (testProperties != null) {
@@ -119,9 +121,7 @@ public class ClassPathProviderImpl implements ClassPathProvider {
             } catch (IOException ex) {
                 Exceptions.printStackTrace(ex);
             }
-        } else {
-            if (file.isFolder()) return null;
-
+        }
            String content = getFileContent(file);
 
             try {
@@ -182,7 +182,6 @@ public class ClassPathProviderImpl implements ClassPathProvider {
             }
 
             roots.add(packageDir);
-        }
 
         //XXX:
         for (FileObject root : roots) {

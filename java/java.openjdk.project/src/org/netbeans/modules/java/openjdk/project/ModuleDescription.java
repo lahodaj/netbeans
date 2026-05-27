@@ -270,7 +270,7 @@ public class ModuleDescription {
         }
     }
 
-    static ModuleDescription parseModuleInfo(Reader r) throws IOException {
+    static ModuleDescription parseModuleInfo(Reader r) {
         TokenHierarchy<Reader> th = TokenHierarchy.create(r,
                                                           JavaTokenId.language(),
                                                           EnumSet.of(JavaTokenId.BLOCK_COMMENT, JavaTokenId.ERROR,
@@ -321,9 +321,14 @@ public class ModuleDescription {
         if (!hasJavaBaseDependency && !"java.base".equals(moduleName))
             depends.listIterator().add(new Dependency("java.base", false, false));
 
+        Map<String, List<String>> exports = parseExports(content);
+
+        return new ModuleDescription(moduleName, depends, exports);
+    }
+
+    static Map<String, List<String>> parseExports(CharSequence content) {
         Map<String, List<String>> exports = new LinkedHashMap<>();
         Matcher exportsMatcher = EXPORTS.matcher(content);
-
         while (exportsMatcher.find()) {
             String pack = exportsMatcher.group("package");
             String to   = exportsMatcher.group("to");
@@ -332,8 +337,7 @@ public class ModuleDescription {
 
             exports.put(pack, toModule);
         }
-
-        return new ModuleDescription(moduleName, depends, exports);
+        return exports;
     }
 
     public static class ModuleRepository {

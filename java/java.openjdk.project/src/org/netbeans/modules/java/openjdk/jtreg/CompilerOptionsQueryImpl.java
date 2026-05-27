@@ -45,25 +45,26 @@ public class CompilerOptionsQueryImpl implements CompilerOptionsQueryImplementat
                 List<Tag> modules = tags.getName2Tag().get("modules");
 
                 if (modules != null) {
-                    Tag modulesTag = modules.get(modules.size() - 1);
-                    String spec = modulesTag.getValue();
-                    String[] packageSpec = spec.split("\\s+");
                     List<String> additionalOptions = new ArrayList<>();
+                    for (Tag modulesTag : modules) {
+                        String spec = modulesTag.getValue();
+                        String[] packageSpec = spec.split("\\s+");
 
-                    additionalOptions.addAll(EnablePreviewResult.ENABLE_PREVIEW_ARGS);
+                        additionalOptions.addAll(EnablePreviewResult.ENABLE_PREVIEW_ARGS);
 
-                    for (String onePackage : packageSpec) {
-                        if (onePackage.indexOf('/') == (-1)) {
-                            continue;
+                        for (String onePackage : packageSpec) {
+                            if (onePackage.indexOf('/') == (-1)) {
+                                continue;
+                            }
+
+                            int colon = onePackage.indexOf(':');
+
+                            if (colon != (-1)) {
+                                onePackage = onePackage.substring(0, colon);
+                            }
+
+                            additionalOptions.add("--add-exports=" + onePackage + "=ALL-UNNAMED");
                         }
-
-                        int colon = onePackage.indexOf(':');
-
-                        if (colon != (-1)) {
-                            onePackage = onePackage.substring(0, colon);
-                        }
-
-                        additionalOptions.add("--add-exports=" + onePackage + "=ALL-UNNAMED");
                     }
 
                     return new EnablePreviewResult(additionalOptions);

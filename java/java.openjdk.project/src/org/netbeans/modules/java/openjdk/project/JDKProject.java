@@ -224,6 +224,7 @@ public class JDKProject implements Project {
                                     new BinaryForSourceQueryImpl(this, cpp.getSourceCP()),
                                     CProjectConfigurationProviderImpl.create(this),
                                     new UnitTestForSourceQueryImpl(this),
+                                    new CompilerOptionsQueryImpl(this),
                                     this);
         this.lookup = LookupProviderSupport.createCompositeLookup(base, "Projects/" + PROJECT_KEY + "/Lookup");
         } catch (Throwable t) {

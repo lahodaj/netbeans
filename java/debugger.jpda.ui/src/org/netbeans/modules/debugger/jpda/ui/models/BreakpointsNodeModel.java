@@ -109,13 +109,13 @@ public class BreakpointsNodeModel implements NodeModel {
             }
             return bold (
                 b,
-                b.getLambdaIndex().length > 0 ?
+                b.getLambdaIndexes().length > 0 ?
                     NbBundle.getMessage (
                             BreakpointsNodeModel.class,
                             "CTL_Line_Lambda_Breakpoint",
                             EditorContextBridge.getFileName (b),
                             line,
-                            Arrays.stream(b.getLambdaIndex())
+                            Arrays.stream(b.getLambdaIndexes())
                                   .mapToObj(i -> switch (i) {
                                       case LineBreakpoint.LAMBDA_INDEX_STOP_OUTSIDE -> NbBundle.getMessage(BreakpointsNodeModel.class, "CTL_Line_Lambda_Breakpoint_Outside");
                                       default -> NbBundle.getMessage(BreakpointsNodeModel.class, "CTL_Line_Lambda_Breakpoint_OnLambda", i + 1);

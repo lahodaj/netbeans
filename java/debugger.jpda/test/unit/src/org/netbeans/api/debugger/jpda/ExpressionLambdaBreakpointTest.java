@@ -60,7 +60,7 @@ public class ExpressionLambdaBreakpointTest extends NbTestCase {
             Utils.BreakPositions bp = Utils.getBreakPositions(TEST_APP_PATH);
             LineBreakpoint[] lb = bp.getBreakpoints().toArray(new LineBreakpoint[0]);
 
-            lb[0].setLambdaIndex(new int[0]); //stop on all locations
+            lb[0].setLambdaIndexes(new int[0]); //stop on all locations
 
             DebuggerManager dm = DebuggerManager.getDebuggerManager ();
             for (int i = 0; i < lb.length; i++) {
@@ -126,7 +126,7 @@ public class ExpressionLambdaBreakpointTest extends NbTestCase {
             Utils.BreakPositions bp = Utils.getBreakPositions(TEST_APP_PATH);
             LineBreakpoint[] lb = bp.getBreakpoints().toArray(new LineBreakpoint[0]);
 
-            lb[0].setLambdaIndex(new int[] {0}); //stop inside lambda
+            lb[0].setLambdaIndexes(new int[] {0}); //stop inside lambda
 
             DebuggerManager dm = DebuggerManager.getDebuggerManager ();
             for (int i = 0; i < lb.length; i++) {
@@ -186,7 +186,7 @@ public class ExpressionLambdaBreakpointTest extends NbTestCase {
             Utils.BreakPositions bp = Utils.getBreakPositions(TEST_APP_PATH);
             LineBreakpoint[] lb = bp.getBreakpoints().toArray(new LineBreakpoint[0]);
 
-            lb[0].setLambdaIndex(new int[] {LineBreakpoint.LAMBDA_INDEX_STOP_OUTSIDE}); //stop outside lambda
+            lb[0].setLambdaIndexes(new int[] {LineBreakpoint.LAMBDA_INDEX_STOP_OUTSIDE}); //stop outside lambda
 
             DebuggerManager dm = DebuggerManager.getDebuggerManager ();
             for (int i = 0; i < lb.length; i++) {
@@ -244,7 +244,7 @@ public class ExpressionLambdaBreakpointTest extends NbTestCase {
             Utils.BreakPositions bp = Utils.getBreakPositions(TEST_MULTI_LINE_APP_PATH);
             LineBreakpoint[] lb = bp.getBreakpoints().toArray(new LineBreakpoint[0]);
 
-            lb[0].setLambdaIndex(new int[] {LineBreakpoint.LAMBDA_INDEX_STOP_OUTSIDE, 0}); //stop outside lambda
+            lb[0].setLambdaIndexes(new int[] {LineBreakpoint.LAMBDA_INDEX_STOP_OUTSIDE, 0}); //stop outside lambda
 
             DebuggerManager dm = DebuggerManager.getDebuggerManager ();
             for (int i = 0; i < lb.length; i++) {

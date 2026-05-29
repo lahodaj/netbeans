@@ -100,7 +100,7 @@ public class LineBreakpoint extends JPDABreakpoint {
     private String                      className = null;
     private Map<JPDADebugger,ObjectVariable[]> instanceFilters;
     private Map<JPDADebugger,JPDAThread[]> threadFilters;
-    private int[]                       lambdaIndex = new int[0];
+    private int[]                       lambdaIndexes = new int[0];
 
     
     private LineBreakpoint (String url) {
@@ -190,21 +190,21 @@ public class LineBreakpoint extends JPDABreakpoint {
         );
     }
 
-    public int[] getLambdaIndex() {
-        return lambdaIndex.clone();
+    public int[] getLambdaIndexes() {
+        return lambdaIndexes.clone();
     }
 
-    public void setLambdaIndex(int[] li) {
+    public void setLambdaIndexes(int[] li) {
         int[] old;
 
         li = li.clone();
 
         synchronized (this) {
-            if (li == lambdaIndex) {
+            if (li == lambdaIndexes) {
                 return;
             }
-            old = lambdaIndex;
-            lambdaIndex = li;
+            old = lambdaIndexes;
+            lambdaIndexes = li;
         }
         firePropertyChange (
             PROP_LAMBDA_INDEX,
@@ -453,7 +453,7 @@ public class LineBreakpoint extends JPDABreakpoint {
         if (fileName == null) {
             fileName = url;
         }
-        return "LineBreakpoint " + fileName + " : " + lineNumber + (lambdaIndex.length > 0 ? " lambda indices: " + Arrays.toString(lambdaIndex) : "");
+        return "LineBreakpoint " + fileName + " : " + lineNumber + (lambdaIndexes.length > 0 ? " lambda indices: " + Arrays.toString(lambdaIndexes) : "");
     }
     
     private static class LineBreakpointImpl extends LineBreakpoint 

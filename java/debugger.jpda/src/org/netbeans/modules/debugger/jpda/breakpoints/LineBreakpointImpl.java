@@ -147,7 +147,7 @@ public class LineBreakpointImpl extends ClassBasedBreakpoint {
                 lb,
                 getDebugger());
         int lbln = lb.getLineNumber();
-        int[] li = lb.getLambdaIndex();
+        int[] li = lb.getLambdaIndexes();
         synchronized (lineLock) {
             breakpointLineNumber = lbln;
             lineNumber = theLineNumber;
@@ -356,7 +356,7 @@ public class LineBreakpointImpl extends ClassBasedBreakpoint {
                 if (logger.isLoggable(Level.FINE)) {
                     logger.fine("Locations in "+referenceType+" are: "+locations+", reason = '"+reason[0]);//+"', HAVE PARENT = "+haveParent);
                 }
-                locations = filterLocationsByLambdaIndex(locations, lambdaIndexToSet);
+                locations = filterLocationsByLambdaIndexes(locations, lambdaIndexToSet);
                 if (logger.isLoggable(Level.FINE)) {
                     logger.fine("Filtered Locations in "+referenceType+" are: "+locations+", reason = '"+reason[0]);//+"', HAVE PARENT = "+haveParent);
                 }
@@ -709,10 +709,13 @@ public class LineBreakpointImpl extends ClassBasedBreakpoint {
       return path;
     }
 
-    private List<Location> filterLocationsByLambdaIndex(List<Location> locations, int[] lambdaIndex) {
-        if (lambdaIndex.length == 0) {
+    private List<Location> filterLocationsByLambdaIndexes(List<Location> locations, int[] lambdaIndexes) {
+        if (lambdaIndexes.length == 0) {
             return locations;
         } else {
+            //heuristics based on lambda method names (and ordering)
+            //if the Java compiler produces a classfile not matching the heuristics,
+            //the lambda breakpoints may misbehave:
             Map<String, List<Location>> lambda2Locations = new LinkedHashMap<>();
             List<Location> outsideOfLambda = new ArrayList<>();
 
@@ -726,11 +729,13 @@ public class LineBreakpointImpl extends ClassBasedBreakpoint {
 
             List<String> lambdas = new ArrayList<>(lambda2Locations.keySet());
 
-            Collections.reverse(lambdas);
+            if (lambdaMethodsInReverseOrder(lambdas)) {
+                Collections.reverse(lambdas);
+            }
 
             List<Location> result = new ArrayList<>();
 
-            for (int index : lambdaIndex) {
+            for (int index : lambdaIndexes) {
                 if (index == LineBreakpoint.LAMBDA_INDEX_STOP_OUTSIDE) {
                     result.addAll(outsideOfLambda);
                 } else if (index >= 0 && index < lambdas.size()) {
@@ -739,6 +744,34 @@ public class LineBreakpointImpl extends ClassBasedBreakpoint {
             }
 
             return result;
+        }
+    }
+
+    private boolean lambdaMethodsInReverseOrder(List<String> lambdaMethodNames) {
+        //some compilers (javac) produce the lambda methods in reverse order.
+        //try to detect that situation:
+        if (lambdaMethodNames.size() < 2) {
+            //when there are less than two methods, reversing does not matter
+            return false;
+        }
+        int m0Index = lambdaIndex(lambdaMethodNames.get(0));
+        int m1Index = lambdaIndex(lambdaMethodNames.get(1));
+        if (m0Index == (-1) || m1Index == (-1)) {
+            //one of the lambdas is probably a serializable lambda in javac desugaring
+            //reverse:
+            return true;
+        }
+        //javac produces the lambdas in reverse order:
+        return m0Index > m1Index;
+    }
+
+    private int lambdaIndex(String lambdaMethodName) {
+        int dollar = lambdaMethodName.lastIndexOf('$');
+        String index = lambdaMethodName.substring(dollar + 1);
+        try {
+            return Integer.parseInt(index);
+        } catch (NumberFormatException ex) {
+            return -1;
         }
     }
 

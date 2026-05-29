@@ -154,7 +154,7 @@ public final class NbBreakpoint {
                 b.setSuspend(JPDABreakpoint.SUSPEND_NONE);
             }
             if (column != null) {
-                b.setLambdaIndex(getLambdaIndex(line, column));
+                b.setLambdaIndexes(getLambdaIndex(line, column));
             }
             breakpoint = b;
         } else {

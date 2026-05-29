@@ -132,7 +132,7 @@ public class LineBreakpointPanel extends JPanel implements ControllerProvider, o
             tfFileName.getPreferredSize().height));
 
         tfLineNumber.setText(Integer.toString(b.getLineNumber()));
-        tfLambdaIndex.setText(Arrays.stream(b.getLambdaIndex()).mapToObj(String::valueOf).collect(Collectors.joining(", ")));
+        tfLambdaIndexes.setText(Arrays.stream(b.getLambdaIndexes()).mapToObj(String::valueOf).collect(Collectors.joining(", ")));
         conditionsPanel = new ConditionsPanel(HELP_ID);
         setupConditionPane();
         conditionsPanel.showClassFilter(false);
@@ -146,7 +146,7 @@ public class LineBreakpointPanel extends JPanel implements ControllerProvider, o
 
         tfFileName.getDocument().addDocumentListener(validityDocumentListener);
         tfLineNumber.getDocument().addDocumentListener(validityDocumentListener);
-        tfLambdaIndex.getDocument().addDocumentListener(validityDocumentListener);
+        tfLambdaIndexes.getDocument().addDocumentListener(validityDocumentListener);
         SwingUtilities.invokeLater(new Runnable() {
             public void run() {
                 controller.checkValid();
@@ -197,7 +197,7 @@ public class LineBreakpointPanel extends JPanel implements ControllerProvider, o
         jLabel1 = new javax.swing.JLabel();
         tfLineNumber = new javax.swing.JTextField();
         jLabel4 = new javax.swing.JLabel();
-        tfLambdaIndex = new javax.swing.JTextField();
+        tfLambdaIndexes = new javax.swing.JTextField();
         cPanel = new javax.swing.JPanel();
         pActions = new javax.swing.JPanel();
         jPanel1 = new javax.swing.JPanel();
@@ -254,7 +254,7 @@ public class LineBreakpointPanel extends JPanel implements ControllerProvider, o
         tfLineNumber.getAccessibleContext().setAccessibleName("Line number");
         tfLineNumber.getAccessibleContext().setAccessibleDescription(bundle.getString("ACSD_TF_Line_Breakpoint_Line_Number")); // NOI18N
 
-        jLabel4.setLabelFor(tfLambdaIndex);
+        jLabel4.setLabelFor(tfLambdaIndexes);
         org.openide.awt.Mnemonics.setLocalizedText(jLabel4, bundle.getString("L_Line_Breakpoint_Lambda_Index")); // NOI18N
         gridBagConstraints = new java.awt.GridBagConstraints();
         gridBagConstraints.gridx = 0;
@@ -265,7 +265,7 @@ public class LineBreakpointPanel extends JPanel implements ControllerProvider, o
         pSettings.add(jLabel4, gridBagConstraints);
         jLabel4.getAccessibleContext().setAccessibleDescription(bundle.getString("ACSD_L_Line_Breakpoint_Lambda_Index")); // NOI18N
 
-        tfLambdaIndex.setToolTipText(bundle.getString("TTT_TF_Line_Breakpoint_Lambda_Index")); // NOI18N
+        tfLambdaIndexes.setToolTipText(bundle.getString("TTT_TF_Line_Breakpoint_Lambda_Index")); // NOI18N
         gridBagConstraints = new java.awt.GridBagConstraints();
         gridBagConstraints.gridx = 1;
         gridBagConstraints.gridy = 4;
@@ -273,9 +273,9 @@ public class LineBreakpointPanel extends JPanel implements ControllerProvider, o
         gridBagConstraints.fill = java.awt.GridBagConstraints.HORIZONTAL;
         gridBagConstraints.weightx = 1.0;
         gridBagConstraints.insets = new java.awt.Insets(3, 3, 3, 3);
-        pSettings.add(tfLambdaIndex, gridBagConstraints);
-        tfLambdaIndex.getAccessibleContext().setAccessibleName("Lambda index");
-        tfLambdaIndex.getAccessibleContext().setAccessibleDescription(bundle.getString("ACSD_TF_Line_Breakpoint_Lambda_Index")); // NOI18N
+        pSettings.add(tfLambdaIndexes, gridBagConstraints);
+        tfLambdaIndexes.getAccessibleContext().setAccessibleName(bundle.getString("ACSN_TF_Line_Breakpoint_Lambda_Index")); // NOI18N
+        tfLambdaIndexes.getAccessibleContext().setAccessibleDescription(bundle.getString("ACSD_TF_Line_Breakpoint_Lambda_Index")); // NOI18N
 
         gridBagConstraints = new java.awt.GridBagConstraints();
         gridBagConstraints.gridwidth = java.awt.GridBagConstraints.REMAINDER;
@@ -320,7 +320,7 @@ public class LineBreakpointPanel extends JPanel implements ControllerProvider, o
     private javax.swing.JPanel pActions;
     private javax.swing.JPanel pSettings;
     private javax.swing.JTextField tfFileName;
-    private javax.swing.JTextField tfLambdaIndex;
+    private javax.swing.JTextField tfLambdaIndexes;
     private javax.swing.JTextField tfLineNumber;
     // End of variables declaration//GEN-END:variables
 
@@ -350,11 +350,13 @@ public class LineBreakpointPanel extends JPanel implements ControllerProvider, o
             logger.fine("      => URL = '"+url+"'");
             breakpoint.setURL((url != null) ? url.toString() : path);
             breakpoint.setLineNumber(Integer.parseInt(tfLineNumber.getText().trim()));
-            String lambdaIndexText = tfLambdaIndex.getText().trim();
+            String lambdaIndexText = tfLambdaIndexes.getText().trim();
             if (lambdaIndexText.isEmpty()) {
-                breakpoint.setLambdaIndex(new int[0]);
+                breakpoint.setLambdaIndexes(new int[0]);
             } else {
-                breakpoint.setLambdaIndex(Arrays.stream(lambdaIndexText.split(", *")).mapToInt(v -> Integer.parseInt(v)).toArray());
+                breakpoint.setLambdaIndexes(Arrays.stream(lambdaIndexText.split(", *"))
+                                                  .mapToInt(v -> Integer.parseInt(v))
+                                                  .toArray());
             }
             breakpoint.setCondition (conditionsPanel.getCondition());
             breakpoint.setHitCountFilter(conditionsPanel.getHitCount(),
@@ -421,6 +423,18 @@ public class LineBreakpointPanel extends JPanel implements ControllerProvider, o
                                 Integer.toString(line), Integer.toString(maxLine + 1)));
                 setValid(false);
                 return ;
+            }
+            String lambdaIndexText = tfLambdaIndexes.getText().trim();
+            if (!lambdaIndexText.isEmpty()) {
+                for (String index : lambdaIndexText.split(", *")) {
+                    try {
+                        Integer.parseInt(index);
+                    } catch (NumberFormatException e) {
+                        setErrorMessage(NbBundle.getMessage(LineBreakpointPanel.class, "MSG_Invalid_Lambda_Index", index));
+                        setValid(false);
+                        return ;
+                    }
+                }
             }
             setErrorMessage(null);
             setValid(true);
